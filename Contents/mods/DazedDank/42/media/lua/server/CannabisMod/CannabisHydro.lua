@@ -22,7 +22,8 @@ local H        = Config.Hydro
 local Hydro = {}
 CannabisMod.Hydro = Hydro
 
--- res[tileKey] = { kind, level, strength, nutrient, changedAt, tainted, rot, medium, lastTick }
+-- res[tileKey] holds two kinds of record. A site record per hydro plot: { kind, medium, link } (a DWC bucket's site
+-- record is also its reservoir). A reservoir record: { kind, x, y, z, level, strength, nutrient, changedAt, tainted, rot, lastTick }.
 local res = nil
 
 Events.OnInitGlobalModData.Add(function()
@@ -32,12 +33,7 @@ end)
 --- Replace the saved table (tests use this to start clean).
 function Hydro._reset(tbl) res = tbl or {} end
 
---- Litres a hydro system of this kind holds.
-function Hydro.capacity(kind)
-    return H.RESERVOIR_L[kind] or 15
-end
-
---- The reservoir record for a hydro plot, made on first use (empty, fresh).
+--- The record for a tile, made on first use as an empty, fresh reservoir.
 function Hydro.get(x, y, z, kind)
     if not res then return nil end
     local key = Config.tileKey(x, y, z)
@@ -47,12 +43,77 @@ function Hydro.get(x, y, z, kind)
         res[key] = r
     end
     r.kind = kind or r.kind
+    r.x, r.y, r.z = x, y, z
     return r
 end
 
---- Forget a reservoir (its bucket was picked up).
+--- Forget a tile's record (its bucket was picked up).
 function Hydro.clear(x, y, z)
     if res then res[Config.tileKey(x, y, z)] = nil end
+end
+
+--- How many site buckets are linked to the control bucket with this tile key.
+function Hydro.sitesOf(controlKey)
+    local n = 0
+    for _, r in pairs(res or {}) do
+        if r.link == controlKey then n = n + 1 end
+    end
+    return n
+end
+
+--- Litres a reservoir holds: fixed for DWC, the control bucket plus every linked site for RDWC.
+function Hydro.capacity(r)
+    if r and r.kind == "rdwc" then
+        return H.RDWC_CONTROL_L + H.RDWC_SITE_L * Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z))
+    end
+    return H.RESERVOIR_L.dwc
+end
+
+--- True if an RDWC control bucket stands on this square (nil when the square isn't loaded).
+function Hydro.hasControl(x, y, z)
+    local square = getCell():getGridSquare(x, y, z)
+    if not square then return nil end
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local ok, name = pcall(function() return objects:get(i):getSprite():getName() end)
+        if ok and name == H.CONTROL_SPRITE then return true end
+    end
+    return false
+end
+
+--- The control bucket's reservoir record for an RDWC site, linking the site to the nearest control with room if needed.
+function Hydro.linkSite(x, y, z)
+    local site = Hydro.get(x, y, z, "rdwc")
+    if site.link then
+        local cx, cy, cz = site.link:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        if cx and Hydro.hasControl(tonumber(cx), tonumber(cy), tonumber(cz)) ~= false then
+            return Hydro.get(tonumber(cx), tonumber(cy), tonumber(cz), "rdwc")
+        end
+        site.link = nil
+    end
+    local best, bestD = nil, nil
+    local R = H.RDWC_RANGE
+    for dx = -R, R do
+        for dy = -R, R do
+            if Hydro.hasControl(x + dx, y + dy, z) then
+                local key = Config.tileKey(x + dx, y + dy, z)
+                local d = dx * dx + dy * dy
+                if Hydro.sitesOf(key) < H.RDWC_MAX_SITES and (not bestD or d < bestD) then best, bestD = { x + dx, y + dy }, d end
+            end
+        end
+    end
+    if not best then return nil end
+    site.link = Config.tileKey(best[1], best[2], z)
+    return Hydro.get(best[1], best[2], z, "rdwc")
+end
+
+--- The reservoir a hydro plot drinks from: its own for DWC, the linked control bucket's for RDWC (nil if none in range).
+function Hydro.reservoirOf(x, y, z)
+    local kind = Registry.getBag(x, y, z)
+    local def = kind and Config.GrowBag[kind]
+    if not (def and def.hydro) then return nil end
+    if def.hydro == "rdwc" then return Hydro.linkSite(x, y, z) end
+    return Hydro.get(x, y, z, def.hydro)
 end
 
 --- True if the air and water pumps at this square are running.
@@ -83,19 +144,41 @@ local function setPlotWater(plant, water)
     end
 end
 
---- Every 10 minutes for each living hydro plant: drink, use up nutrients, and build root rot.
-function Hydro.update(plant, now)
-    local def = Config.GrowBag[plant.bag]
-    local r = def and Hydro.get(plant.x, plant.y, plant.z, def.hydro)
-    if not r then return end
+--- Reservoir-wide changes since its last update: nutrients run down and root rot builds; once per reservoir per tick.
+local function advanceReservoir(r, now)
     local hours = Config.clamp(now - (r.lastTick or now), 0, 24)
     r.lastTick = now
+    if hours <= 0 then return end
+    local rate = Config.sandbox("ReservoirUseRate") or 1
+    if r.strength > 0 then r.strength = math.max(0, r.strength - hours * rate / H.NUTRIENT_HOURS) end
+    local risk = 0
+    if not Hydro.pumpsOn(r.x, r.y, r.z) then risk = risk + H.ROT_NO_AIR end
+    if Hydro.isStale(r, now) then risk = risk + H.ROT_STALE end
+    if r.tainted then risk = risk + H.ROT_TAINTED end
+    if r.rot > 0 then risk = risk + H.ROT_SPREAD end
+    r.rot = math.min(H.ROT_DEAD, r.rot + risk * hours * (Config.sandbox("RootRotRisk") or 1))
+end
+Hydro.advanceReservoir = advanceReservoir
+
+--- Every 10 minutes for each living hydro plant: drink from its reservoir, and suffer hunger or root rot from it.
+function Hydro.update(plant, now)
+    local r = Hydro.reservoirOf(plant.x, plant.y, plant.z)
+    local hours = Config.clamp(now - (plant.hydroTick or now), 0, 24)
+    plant.hydroTick = now
+    if not r then
+        -- An RDWC site with no control bucket in range has no water at all.
+        setPlotWater(plant, H.DRY_PLOT_WATER)
+        plant.warnings.noControl = true
+        plant.hydro = { level = 0, cap = 0, strength = 0, unlinked = true }
+        return
+    end
+    plant.warnings.noControl = nil
+    advanceReservoir(r, now)
     local rate = Config.sandbox("ReservoirUseRate") or 1
 
     -- The plant drinks, more when big from extra veg.
     local drink = (H.DRINK_PER_HOUR[plant.stage] or 0.3) * hours * rate * (1 + Config.Timer.vegBonus(plant.extraVegHours))
-    r.level = math.max(0, r.level - drink)
-    if r.strength > 0 then r.strength = math.max(0, r.strength - hours * rate / H.NUTRIENT_HOURS) end
+    r.level = math.max(0, math.min(r.level, Hydro.capacity(r)) - drink)
     setPlotWater(plant, r.level > 0 and H.PLOT_WATER or H.DRY_PLOT_WATER)
     plant.warnings.reservoirDry = (r.level <= 0) or nil
 
@@ -107,19 +190,13 @@ function Hydro.update(plant, now)
         plant.warnings.hungry = nil
     end
 
-    -- Root rot: no air, old water or tainted water start it, and once started it keeps spreading.
     local stale = Hydro.isStale(r, now)
-    local pumps = Hydro.pumpsOn(plant.x, plant.y, plant.z)
     plant.warnings.staleReservoir = stale or nil
-    plant.warnings.pumpOff = (not pumps) or nil
-    local risk = 0
-    if not pumps then risk = risk + H.ROT_NO_AIR end
-    if stale then risk = risk + H.ROT_STALE end
-    if r.tainted then risk = risk + H.ROT_TAINTED end
-    if r.rot > 0 then risk = risk + H.ROT_SPREAD end
-    r.rot = math.min(H.ROT_DEAD, r.rot + risk * hours * (Config.sandbox("RootRotRisk") or 1))
+    plant.warnings.pumpOff = (not Hydro.pumpsOn(r.x, r.y, r.z)) or nil
     plant.rootRot = r.rot
-    plant.hydro = { level = r.level, cap = Hydro.capacity(r.kind), strength = r.strength, nutrient = r.nutrient, stale = stale }
+    plant.hydro = { level = r.level, cap = Hydro.capacity(r), strength = r.strength, nutrient = r.nutrient, stale = stale,
+                    sites = r.kind == "rdwc" and Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z)) or nil }
+    -- Rot in a shared reservoir reaches every site's roots.
     if r.rot >= H.ROT_EARLY then
         Registry.applyPenalty(plant, H.ROT_CARE_PER_HOUR * hours, "rootRot")
         if plant.nextStageAt then plant.nextStageAt = plant.nextStageAt + hours * 0.5 end
@@ -131,9 +208,8 @@ end
 
 --- Mix a nutrient into the plant's reservoir; dosing a reservoir that is still strong burns the plant.
 function Hydro.feed(plant, nutrient)
-    local def = Config.GrowBag[plant.bag]
-    local r = Hydro.get(plant.x, plant.y, plant.z, def and def.hydro)
-    if r.level <= 0 then return "noWater" end
+    local r = Hydro.reservoirOf(plant.x, plant.y, plant.z)
+    if not r or r.level <= 0 then return "noWater" end
     local burn = r.strength > H.BURN_ABOVE
     r.strength, r.nutrient = 1, nutrient
     plant.lastNutrient = nutrient
@@ -194,21 +270,36 @@ Hydro.pourWater = pourWater
 -- Commands
 -- --------------------------------------------------------------------------
 
---- The hydro plot a player is acting on, its kind and reservoir, after checking they're close enough.
-local function hydroPlot(player, args)
+--- What a player is acting on: a hydro plot (its site record and reservoir) or an RDWC control bucket (its reservoir).
+--- Returns luaObject (nil for a control bucket), site record, reservoir (nil for an unlinked site), or nothing if neither.
+local function hydroTarget(player, args)
     local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
     if not (x and y and z) or not SC.isNear(player, x, y, z) then return nil end
     local kind = Registry.getBag(x, y, z)
-    if not Config.isHydro(kind) then return nil end
-    local luaObject = Farming.getVanilla(x, y, z)
-    if not luaObject then return nil end
-    return luaObject, kind, Hydro.get(x, y, z, Config.GrowBag[kind].hydro)
+    if Config.isHydro(kind) then
+        local luaObject = Farming.getVanilla(x, y, z)
+        if not luaObject then return nil end
+        return luaObject, Hydro.get(x, y, z, Config.GrowBag[kind].hydro), Hydro.reservoirOf(x, y, z), true
+    end
+    if Hydro.hasControl(x, y, z) then return nil, nil, Hydro.get(x, y, z, "rdwc"), true end
+    return nil
+end
+
+--- The reservoir to act on, or nil after telling the player why there isn't one.
+local function reservoirFor(player, args)
+    local luaObject, site, r, found = hydroTarget(player, args)
+    if not found then return nil end
+    if not r then
+        Net.notify(player, "This site isn't connected: put an RDWC control bucket within " .. H.RDWC_RANGE .. " tiles")
+        return nil
+    end
+    return r
 end
 
 commands.hydroAddMedium = function(player, args)
-    local luaObject, kind, r = hydroPlot(player, args)
+    local luaObject, r = hydroTarget(player, args)
     local itemType = H.MEDIUM_ITEMS[args.medium]
-    if not (luaObject and itemType) then return end
+    if not (luaObject and r and itemType) then return end
     if luaObject.state ~= "plow" or r.medium then
         Net.notify(player, "The net pot already has a medium")
         return
@@ -230,9 +321,9 @@ commands.hydroAddMedium = function(player, args)
 end
 
 commands.hydroTopUp = function(player, args)
-    local luaObject, kind, r = hydroPlot(player, args)
-    if not luaObject then return end
-    local room = Hydro.capacity(r.kind) - r.level
+    local r = reservoirFor(player, args)
+    if not r then return end
+    local room = Hydro.capacity(r) - r.level
     if room <= 0.05 then
         Net.notify(player, "The reservoir is full")
         return
@@ -244,14 +335,14 @@ commands.hydroTopUp = function(player, args)
     end
     r.level = r.level + poured
     if tainted then r.tainted = true end
-    Net.notify(player, string.format("Topped up the reservoir: %.1f of %d L", r.level, Hydro.capacity(r.kind))
+    Net.notify(player, string.format("Topped up the reservoir: %.1f of %d L", r.level, Hydro.capacity(r))
         .. (tainted and " (tainted water)" or ""))
 end
 
 commands.hydroChange = function(player, args)
-    local luaObject, kind, r = hydroPlot(player, args)
-    if not luaObject then return end
-    local cap = Hydro.capacity(r.kind)
+    local r = reservoirFor(player, args)
+    if not r then return end
+    local cap = Hydro.capacity(r)
     local poured, tainted = pourWater(player, cap)
     if poured <= 0 then
         Net.notify(player, "You need water to refill it")
@@ -264,8 +355,8 @@ commands.hydroChange = function(player, args)
 end
 
 commands.hydroBleach = function(player, args)
-    local luaObject, kind, r = hydroPlot(player, args)
-    if not luaObject then return end
+    local r = reservoirFor(player, args)
+    if not r then return end
     if r.rot <= 0 then
         Net.notify(player, "The roots are healthy")
         return
@@ -299,9 +390,14 @@ commands.hydroBleach = function(player, args)
 end
 
 commands.hydroCheck = function(player, args)
-    local luaObject, kind, r = hydroPlot(player, args)
-    if not luaObject then return end
-    local parts = { string.format("%.1f of %d L", r.level, Hydro.capacity(r.kind)) }
+    local r = reservoirFor(player, args)
+    if not r then return end
+    advanceReservoir(r, Registry.nowHours())
+    local parts = { string.format("%.1f of %d L", math.min(r.level, Hydro.capacity(r)), Hydro.capacity(r)) }
+    if r.kind == "rdwc" then
+        local n = Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z))
+        parts[#parts + 1] = n .. " of " .. H.RDWC_MAX_SITES .. " sites connected"
+    end
     if r.nutrient and r.strength > 0 then
         parts[#parts + 1] = string.format("%s nutrients at %d%%", r.nutrient, math.floor(r.strength * 100 + 0.5))
     else
@@ -310,7 +406,7 @@ commands.hydroCheck = function(player, args)
     local age = (Registry.nowHours() - (r.changedAt or 0)) / 24
     parts[#parts + 1] = string.format("%.0f days old", age) .. (Hydro.isStale(r, Registry.nowHours()) and " (stale)" or "")
     if r.tainted then parts[#parts + 1] = "tainted" end
-    if not Hydro.pumpsOn(luaObject.x, luaObject.y, luaObject.z) then parts[#parts + 1] = "pumps off" end
+    if not Hydro.pumpsOn(r.x, r.y, r.z) then parts[#parts + 1] = "pumps off" end
     if r.rot >= H.ROT_EARLY then
         parts[#parts + 1] = "the roots are brown and rotting"
     elseif r.rot > 0 then
@@ -332,7 +428,8 @@ function Hydro.onReset(x, y, z)
         r.medium = nil
         Registry.setBagSoiled(x, y, z, false)
     end
-    if r then r.rot = 0 end
+    -- A DWC bucket's own reservoir starts clean for the next plant; an RDWC site shares its control's water.
+    if r and kind == "dwc" then r.rot = 0 end
 end
 
 --- Picking up an empty bucket hands back its clay pebbles (or an unused rockwool cube) and forgets the reservoir.
@@ -350,14 +447,16 @@ function Hydro.seedFails(x, y, z)
     return r ~= nil and r.medium == "pebbles" and Config.rollPercent(H.PEBBLE_SEED_FAIL)
 end
 
---- A kit for testing hydro: two DWC buckets, rockwool, clay pebbles, nutrients and bleach.
+--- A kit for testing hydro: DWC buckets, an RDWC control with two sites, rockwool, clay pebbles, nutrients and bleach.
 commands.debugHydroKit = function(player, args)
     if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then return end
     Farming.giveItems(player, "CannabisMod.DWCBucket", 2)
-    Farming.giveItems(player, H.MEDIUM_ITEMS.rockwool, 2)
+    Farming.giveItems(player, H.CONTROL_ITEM, 1)
+    Farming.giveItems(player, "CannabisMod.RDWCSite", 2)
+    Farming.giveItems(player, H.MEDIUM_ITEMS.rockwool, 4)
     Farming.giveItems(player, H.MEDIUM_ITEMS.pebbles, 1)
     Farming.giveItems(player, Config.NUTRIENT_ITEMS.Veg, 2)
     Farming.giveItems(player, Config.NUTRIENT_ITEMS.Bloom, 2)
     Farming.giveItems(player, "Base.Bleach", 1)
-    Net.notify(player, "Gave 2 DWC buckets, 2 rockwool cubes, clay pebbles, nutrients and bleach. Bring your own water.")
+    Net.notify(player, "Gave 2 DWC buckets, an RDWC control and 2 sites, 4 rockwool cubes, clay pebbles, nutrients and bleach. Bring your own water.")
 end

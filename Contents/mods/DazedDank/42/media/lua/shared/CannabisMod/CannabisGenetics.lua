@@ -232,7 +232,7 @@ function Genetics.driedQuality(base, rec)
     local q = (base or 0) * Genetics.dryMultiplier(rec.hours) * Genetics.overDryMultiplier(rec.hours)
     q = q * (1 - (rec.sunLoss or 0))
     if rec.moldy then q = q * Config.Drying.MOLDY_MULT end
-    return math.floor(Config.clamp(q, 0, 100) + 0.5)
+    return math.floor(Config.clamp(q, 0, math.max(100, base or 0)) + 0.5)
 end
 
 --- Quality after curing: up to +10% over FULL_DAYS in a jar. Mold ruins it.
@@ -240,7 +240,8 @@ function Genetics.curedQuality(quality, cureHours, moldy, moldBaked)
     local c = Config.Curing
     local q = (quality or 0) * (1 + c.BONUS * Config.clamp((cureHours or 0) / (Config.cureDays() * 24), 0, 1))
     if moldy and not moldBaked then q = q * Config.Drying.MOLDY_MULT end
-    return math.floor(Config.clamp(q, 0, 100) + 0.5)
+    -- Curing can't lift ordinary buds past 100; Top Shelf buds cure up to the RDWC ceiling.
+    return math.floor(Config.clamp(q, 0, Config.maxQuality((quality or 0) > 100)) + 0.5)
 end
 
 --- The final quality formula from the design doc: Quality = min(LightCap,
@@ -252,9 +253,13 @@ end
 --- @return quality 0-100, rounded
 function Genetics.calcQuality(plant, hoursOutsideWindow, hoursDried)
     local cap = math.min(plant.lightCap or Config.LightCap.SUN, plant.genetics or 0)
+    -- RDWC's steady root zone lifts the ceiling above 100 (Top Shelf).
+    local def = plant.bag and Config.GrowBag[plant.bag]
+    local topShelf = def ~= nil and def.topShelf == true
+    if topShelf then cap = cap * (1 + math.max(0, Config.sandbox("HydroQualityBonus") or 0)) end
     local care = Config.clamp(plant.care or Config.Care.START, 0, 100) / 100
     local seeded = plant.seeded and Config.Quality.SEEDED_MULT or 1.0
     local dry = Genetics.dryMultiplier(hoursDried or Config.dryHours())
     local q = cap * care * Genetics.harvestMultiplier(hoursOutsideWindow) * seeded * dry
-    return math.floor(Config.clamp(q, 0, 100) + 0.5)
+    return math.floor(Config.clamp(q, 0, Config.maxQuality(topShelf)) + 0.5)
 end

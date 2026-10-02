@@ -23,10 +23,10 @@ function Use.decay(user, now)
     user.at = now
 end
 
---- How strong a bud is, 0.4 for poor up to 1.2 for premium; mold ruins it.
+--- How strong a bud is, 0.4 for poor up to 1.2 for premium and a little more for Top Shelf; mold ruins it.
 function Use.potency(quality, moldy)
     if moldy then return U.MOLDY_POTENCY end
-    return 0.4 + 0.8 * Config.clamp((quality or 50) / 100, 0, 1)
+    return 0.4 + 0.8 * Config.clamp((quality or 50) / 100, 0, Config.maxQuality(true) / 100)
 end
 
 --- Take one dose. Returns strength (after tolerance) and how many game hours it lasts.

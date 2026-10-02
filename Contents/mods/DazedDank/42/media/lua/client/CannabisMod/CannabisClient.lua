@@ -228,10 +228,10 @@ local function needs(option, ok, why)
     option.toolTip = tip
 end
 
---- Reservoir, medium and root options on a hydro plot.
+--- Reservoir, medium and root options on a hydro plot, or (with no plot) on an RDWC control bucket.
 function addHydroOptions(player, context, plot, kind, action)
     local inv = player:getInventory()
-    if plot.state == "plow" and Config.bagIsUnfilled(plot.spriteName) then
+    if plot and plot.state == "plow" and Config.bagIsUnfilled(plot.spriteName) then
         local rw = context:addOption("Add Rockwool Cube", player, function() action("hydroAddMedium", { medium = "rockwool" }) end)
         needs(rw, inv:containsTypeRecurse(Config.Hydro.MEDIUM_ITEMS.rockwool), "Needs a rockwool cube. Best for starting seeds.")
         local cp = context:addOption("Fill With Clay Pebbles", player, function() action("hydroAddMedium", { medium = "pebbles" }) end)
@@ -322,6 +322,17 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
                 sub:addOption("Remove Light Timer", player, function() bagAction("removeTimer") end)
             end
             break
+        end
+    end
+
+    -- RDWC control bucket: the shared reservoir for the site buckets around it.
+    if not anyPlot then
+        for i = 0, square:getObjects():size() - 1 do
+            local sprite = square:getObjects():get(i):getSprite()
+            if sprite and sprite:getName() == Config.Hydro.CONTROL_SPRITE then
+                addHydroOptions(player, context, nil, "rdwc", bagAction)
+                break
+            end
         end
     end
 

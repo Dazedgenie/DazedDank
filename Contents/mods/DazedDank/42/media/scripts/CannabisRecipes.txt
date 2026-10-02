@@ -346,6 +346,50 @@ module CannabisMod
         }
     }
 
+    craftRecipe DDMakeRDWCSite
+    {
+        timedAction = Making,
+        time = 120,
+        NeedToBeLearn = true,
+        Tags = AnySurfaceCraft;Farming,
+        category = Farming,
+        xpAward = Farming:8,
+        SkillRequired = Farming:3,
+        inputs
+        {
+            item 1 tags[base:sharpknife] mode:keep,
+            item 1 [Base.BucketEmpty],
+            item 2 [Base.RubberHose],
+        }
+        outputs
+        {
+            item 1 CannabisMod.RDWCSite,
+        }
+    }
+
+    craftRecipe DDMakeRDWCControl
+    {
+        timedAction = MakingElectrical,
+        time = 240,
+        NeedToBeLearn = true,
+        Tags = AnySurfaceCraft;Electrical,
+        category = Farming,
+        xpAward = Electricity:15,
+        SkillRequired = Electricity:4,
+        inputs
+        {
+            item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems],
+            item 2 [Base.BucketEmpty],
+            item 2 [Base.RubberHose],
+            item 4 [Base.ElectronicsScrap],
+            item 2 [Base.ElectricWire],
+        }
+        outputs
+        {
+            item 1 CannabisMod.RDWCControl,
+        }
+    }
+
     craftRecipe DDMakeClayPebbles
     {
         timedAction = Making,

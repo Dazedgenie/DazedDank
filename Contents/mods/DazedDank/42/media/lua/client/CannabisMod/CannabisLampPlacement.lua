@@ -23,7 +23,7 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
         end
         -- Hydro systems are indoor gear: the reservoir and pumps need shelter.
         local kind = Config.bagFromFurnSprite(self.spriteName)
-        if kind and Config.isHydro(kind) then
+        if (kind and Config.isHydro(kind)) or self.spriteName == Config.Hydro.CONTROL_SPRITE then
             local ok, indoors = pcall(function() return square ~= nil and not square:isOutside() end)
             if not (ok and indoors) then return false end
         end

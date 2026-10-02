@@ -354,6 +354,28 @@ module CannabisMod
         WorldObjectSprite = dazeddank_plants_01_372,
     }
 
+    /* RDWC: site buckets share the reservoir of a control bucket within 3
+       tiles. The control bucket is plain furniture with the pumps. */
+    item RDWCSite
+    {
+        DisplayName     = RDWC Site Bucket,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 3.5,
+        Icon            = RDWCSite,
+        WorldObjectSprite = dazeddank_plants_01_485,
+    }
+
+    item RDWCControl
+    {
+        DisplayName     = RDWC Control Bucket,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 7.0,
+        Icon            = RDWCControl,
+        WorldObjectSprite = dazeddank_plants_01_598,
+    }
+
     item RockwoolCube
     {
         DisplayName     = Rockwool Cube,
@@ -392,7 +414,7 @@ module CannabisMod
         Icon            = HydroMagazine,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeDWCBucket;DDMakeClayPebbles,
+        LearnedRecipes  = DDMakeDWCBucket;DDMakeClayPebbles;DDMakeRDWCSite;DDMakeRDWCControl,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,
