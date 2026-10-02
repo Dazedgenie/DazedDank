@@ -1,0 +1,363 @@
+/* First batch of items: seeds, cuttings and grow
+   supplies. Harvest, drying and smoking items are added in their own build
+   steps. */
+
+/* SAVE COMPATIBILITY: never change an existing item's ItemType (normal,
+   food, drainable...). */
+
+module CannabisMod
+{
+    imports
+    {
+        Base
+    }
+
+    /* Tags = base:isseed is required: vanilla's farming menu only offers
+       "Sow Seed" when the player carries an item with that tag (copied
+       from vanilla's HempSeed definition). */
+    item CannabisSeed
+    {
+        DisplayName      = Cannabis Seed,
+        DisplayCategory  = Gardening,
+        ItemType         = base:normal,
+        Weight           = 0.01,
+        Icon             = CannabisSeed,
+        WorldStaticModel = Seeds_Generic,
+        Tags             = base:isseed,
+    }
+
+    /* A fresh, unrooted cutting. Built like vanilla's herb cuttings and
+       HempBundle: a "food" item nobody can eat (CantEat), so the game's
+       own freshness timer handles wilting (and fridges slow it). */
+    item CannabisCutting
+    {
+        DisplayName       = Cannabis Cutting,
+        DisplayCategory   = Gardening,
+        ItemType          = base:food,
+        Weight            = 0.05,
+        Icon              = CannabisCutting,
+        CantEat           = true,
+        HungerChange      = 0,
+        DaysFresh         = 1,
+        DaysTotallyRotten = 3,
+        Tags              = base:iscutting;base:isseed,
+    }
+
+    /* A cutting with roots, ready to plant. Doesn't wilt. */
+    item RootedCannabisCutting
+    {
+        DisplayName     = Rooted Cannabis Cutting,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.1,
+        Icon            = RootedCannabisCutting,
+        Tags            = base:isseed,
+    }
+
+    /* Ten dips per bottle (UseDelta 0.1), like vanilla drainables. */
+    item RootingGel
+    {
+        DisplayName      = Rooting Gel,
+        DisplayCategory  = Gardening,
+        ItemType         = base:drainable,
+        Weight           = 0.2,
+        Icon             = RootingGel,
+        UseDelta         = 0.1,
+        UseWhileEquipped = false,
+    }
+
+    item VegNutrients
+    {
+        DisplayName     = Veg Nutrients,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 1.0,
+        Icon            = VegNutrients,
+    }
+
+    item BloomNutrients
+    {
+        DisplayName     = Bloom Nutrients,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 1.0,
+        Icon            = BloomNutrients,
+    }
+
+    /* The cloning dome: a container that only holds cuttings - max 12 -.
+       Not equippable, so it's carried like any item and can be dropped or
+       placed on a table, where it shows up as a container in the loot
+       window. */
+    item CloningDomeTray
+    {
+        DisplayName     = Cloning Dome,
+        DisplayCategory = Container,
+        ItemType        = base:container,
+        Weight          = 1.5,
+        Capacity        = 3,
+        WeightReduction = 0,
+        Icon            = CloningDome,
+    }
+
+    /* Whole harvested plants, one item per plant type so they can be told
+       apart at a glance. Quality, yield and lineage live in modData. */
+    item WetIndicaPlant
+    {
+        DisplayName     = Wet Whole Plant Indica,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 1.5,
+        Icon            = WetIndicaPlant,
+    }
+
+    item WetSativaPlant
+    {
+        DisplayName     = Wet Whole Plant Sativa,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 1.5,
+        Icon            = WetSativaPlant,
+    }
+
+    item WetHybridPlant
+    {
+        DisplayName     = Wet Whole Plant Hybrid,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 1.5,
+        Icon            = WetHybridPlant,
+    }
+
+    /* A wet plant that has finished drying on a rack. */
+    item DriedIndicaPlant
+    {
+        DisplayName     = Dried Whole Plant Indica,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.9,
+        Icon            = DriedIndicaPlant,
+    }
+
+    item DriedSativaPlant
+    {
+        DisplayName     = Dried Whole Plant Sativa,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.9,
+        Icon            = DriedSativaPlant,
+    }
+
+    item DriedHybridPlant
+    {
+        DisplayName     = Dried Whole Plant Hybrid,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.9,
+        Icon            = DriedHybridPlant,
+    }
+
+    /* PLACEABLE GROW LAMPS: they hang from the ceiling, so they only place
+       indoors on a free floor square. Pick them up with the move-furniture
+       tool. */
+    item GrowLampBasic
+    {
+        DisplayName     = Basic Grow Lamp,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 6.0,
+        Icon            = GrowLampBasic,
+        WorldObjectSprite = dazeddank_plants_01_197,
+    }
+
+    item GrowLampPro
+    {
+        DisplayName     = Pro Grow Lamp,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 7.0,
+        Icon            = GrowLampPro,
+        WorldObjectSprite = dazeddank_plants_01_198,
+    }
+
+    item GrowLampLargeBasic
+    {
+        DisplayName     = Large Basic Grow Lamp,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 10.0,
+        Icon            = GrowLampLargeBasic,
+        WorldObjectSprite = dazeddank_plants_01_214,
+    }
+
+    item GrowLampLargePro
+    {
+        DisplayName     = Large Pro Grow Lamp,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 12.0,
+        Icon            = GrowLampLargePro,
+        WorldObjectSprite = dazeddank_plants_01_222,
+    }
+
+    /* Light timer: install it on a placed lamp to switch the lamp between
+       18/6 (holds veg) and 12/12 (flower). A lamp without one runs 24/0. */
+    item LightTimer
+    {
+        DisplayName     = Light Timer,
+        DisplayCategory = Electronics,
+        ItemType        = base:normal,
+        Weight          = 0.4,
+        Icon            = LightTimer,
+        Tooltip         = Tooltip_DD_LightTimer,
+    }
+
+    /* FLOOR FLOOD LIGHTS: stand on the ground on a tripod, so unlike the
+       ceiling lamps they place indoors or out (outdoors they need a generator). */
+    item GrowFloodBasic
+    {
+        DisplayName     = Flood Grow Light,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 8.0,
+        Icon            = GrowFloodBasic,
+        WorldObjectSprite = dazeddank_plants_01_234,
+    }
+
+    item GrowFloodPro
+    {
+        DisplayName     = Pro Flood Grow Light,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 10.0,
+        Icon            = GrowFloodPro,
+        WorldObjectSprite = dazeddank_plants_01_235,
+    }
+
+    /* Post-harvest gear. The rack is a two-tile floor furniture container;
+       the jar is a container item set down in the world. */
+    item DryingRack
+    {
+        DisplayName     = Drying Rack,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 4.0,
+        Icon            = DryingRack,
+        WorldObjectSprite = dazeddank_plants_01_206,
+    }
+
+    item CuringJar
+    {
+        DisplayName     = Curing Jar,
+        DisplayCategory = Container,
+        ItemType        = base:container,
+        Weight          = 0.5,
+        Capacity        = 3,
+        WeightReduction = 0,
+        Icon            = CuringJar,
+    }
+
+    /* Placeable furniture fan. It needs power and works near a rack. */
+    item DryingFan
+    {
+        DisplayName     = Drying Fan,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 3.0,
+        Icon            = DryingFan,
+        WorldObjectSprite = dazeddank_plants_01_205,
+    }
+
+    /* One trimmed bud. Quality and lineage live in the server records. */
+    item CannabisBud
+    {
+        DisplayName     = Cannabis Bud,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.03,
+        Icon            = CannabisBud,
+    }
+
+    /* Soil: a new grow bag is empty. Fill it once with sacks of soil
+       (small bag 1, large bag 2). */
+    item SoilSack
+    {
+        DisplayName     = Sack of Potting Soil,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 3.0,
+        Icon            = SoilSack,
+    }
+
+    /* Grow bags: optional fabric pots, set down like furniture, indoors or
+       out; each turns into a plot you can sow into. */
+    item GrowBagSmallPlaceable
+    {
+        DisplayName     = Small Grow Bag,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 0.8,
+        Icon            = GrowBagSmall,
+        WorldObjectSprite = dazeddank_plants_01_203,
+    }
+
+    item GrowBagLargePlaceable
+    {
+        DisplayName     = Large Grow Bag,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 1.5,
+        Icon            = GrowBagLarge,
+        WorldObjectSprite = dazeddank_plants_01_204,
+    }
+
+    /* Recipe magazine: reading it teaches every crafting recipe in the mod.
+       The recipe names must match CannabisRecipes.txt (tests check this). */
+    item GrowersHandbook
+    {
+        DisplayName     = Grower's Handbook,
+        DisplayCategory = RecipeResource,
+        ItemType        = base:literature,
+        Weight          = 0.5,
+        Icon            = GrowersHandbook,
+        BoredomChange   = -20,
+        StressChange    = -15,
+        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDSwapPapers,
+        StaticModel     = Magazine,
+        WorldStaticModel = MagazineGround,
+        Tags            = base:magazine,
+        OnCreate        = ItemCodeOnCreate.onCreateRecipeMagazine,
+    }
+
+    /* Smoking. A joint is rolled from a bud and rolling papers; a pipe is
+       reusable and smokes a bud directly. Both need a lighter or a flame. */
+    item RollingPapers
+    {
+        DisplayName     = Rolling Papers,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.01,
+        Icon            = RollingPapers,
+    }
+
+    item Joint
+    {
+        DisplayName     = Joint,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.02,
+        Icon            = Joint,
+        StaticModel     = CigaretteRolled_Lit,
+        WorldStaticModel = CigaretteRolled,
+    }
+
+    item SmokingPipe
+    {
+        DisplayName     = Smoking Pipe,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.3,
+        Icon            = SmokingPipe,
+        StaticModel     = Cigarette_Lit,
+        WorldStaticModel = Cigarette2,
+    }
+}

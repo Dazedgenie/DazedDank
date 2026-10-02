@@ -1,0 +1,436 @@
+-- The server's record of every cannabis plant, kept in global ModData by tile
+-- key. The server is the only source of truth in multiplayer.
+
+-- On a multiplayer CLIENT, server files are not used. Stop here.
+if isClient() then return end
+
+require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisGenetics"
+
+local Config = CannabisMod.Config
+local Genetics = CannabisMod.Genetics
+
+local Registry = {}
+CannabisMod.Registry = Registry
+
+-- The actual table of plants. Filled in by onInitGlobalModData below.
+local plants = nil
+local bags = nil  -- grow bag tiles: key -> "small" | "large"
+local soiled = nil  -- grow bag tiles that have been filled with soil: key -> true
+local domes = nil  -- cloning dome contents, see "Cloning domes" below
+
+-- --------------------------------------------------------------------------
+-- Time helpers
+-- --------------------------------------------------------------------------
+
+--- Current game time in hours since the world started. Always increases,
+--- survives save/load, and is the same for every player on the server.
+local function nowHours()
+    return getGameTime():getWorldAgeHours()
+end
+Registry.nowHours = nowHours
+
+--- Random length for a stage, scaled by the GrowthSpeed sandbox option.
+local function rollStageHours(stageIndex)
+    local range = Config.STAGE_HOURS[Config.STAGES[stageIndex]]
+    local hours = Config.randInt(range.min, range.max)
+    local speed = Config.sandbox("GrowthSpeed")
+    if speed and speed > 0 then
+        -- The option allows 0.1 to 10. Clamp so a bad value can never make a
+        -- stage last months (or seconds).
+        speed = math.max(0.1, math.min(10, speed))
+        hours = hours / speed
+    end
+    return hours
+end
+
+-- --------------------------------------------------------------------------
+-- Loading the saved data
+-- --------------------------------------------------------------------------
+
+--- Runs once when the world loads. getOrCreate returns the saved table if one
+--- exists, or a fresh empty table for a new world.
+local function onInitGlobalModData(isNewGame)
+    plants = ModData.getOrCreate(Config.MODDATA_KEY)
+    domes = ModData.getOrCreate(Config.MODDATA_KEY .. "_Domes")
+    bags = ModData.getOrCreate(Config.MODDATA_KEY .. "_Bags")
+    soiled = ModData.getOrCreate(Config.MODDATA_KEY .. "_BagSoil")
+end
+Events.OnInitGlobalModData.Add(onInitGlobalModData)
+
+-- --------------------------------------------------------------------------
+-- Creating, reading and removing plants
+-- --------------------------------------------------------------------------
+
+--- Register a new plant on a tile.
+--- @param x,y,z tile position
+--- @param seed seed or cutting data from Genetics.newSeed / cloneFrom
+--- @param opts { fromCutting = bool } cuttings skip the Seedling stage
+--- @return the new plant record
+function Registry.addPlant(x, y, z, seed, opts)
+    opts = opts or {}
+    local key = Config.tileKey(x, y, z)
+    local startStage = opts.fromCutting and Config.STAGE.Vegetative or Config.STAGE.Seedling
+    local now = nowHours()
+
+    local plant = {
+        -- Position (stored so we can find the tile again from the record).
+        x = x, y = y, z = z,
+
+        -- Genetics, copied from the seed or cutting.
+        type          = seed.type,
+        sex           = seed.sex,
+        genetics      = seed.genetics,
+        generation    = seed.generation or 0,
+        hermieLineage = seed.hermieLineage == true,
+
+        -- Growth.
+        stage       = startStage,
+        plantedAt   = now,
+        nextStageAt = now + rollStageHours(startStage),
+
+        -- Condition. Care starts at 100 and only goes down (except small
+        -- bonuses for correct feeding).
+        care   = Config.Care.START,
+        stress = seed.stress or 0,
+        water  = 50,
+
+        -- Feeding history. fedThisStage stops double-feeding bonuses and
+        -- detects nutrient burn.
+        lastNutrient = nil,
+        fedThisStage = 0,
+
+        -- Light. Updated every 10 minutes by CannabisLight.lua.
+        bag = bags and bags[key] or nil,
+
+        lightSource = "Sun",
+        lightCap    = Config.LightCap.SUN,
+
+        -- Pollination / hermie.
+        seeded     = false,  -- true once pollinated (by a male or hermie)
+        fatherType = nil,  -- type of whatever pollinated it, for seeds
+        fatherHermieLineage = false,
+        isHermie   = false,
+
+        -- Flags shown as warnings in the status window at Agriculture 5+.
+        warnings = {},
+    }
+
+    plants[key] = plant
+    return plant
+end
+
+--- Get the plant on a tile, or nil.
+function Registry.getPlant(x, y, z)
+    if not plants then return nil end
+    return plants[Config.tileKey(x, y, z)]
+end
+
+-- --------------------------------------------------------------------------
+-- Grow bags (tile -> size)
+-- --------------------------------------------------------------------------
+
+function Registry.getBag(x, y, z)
+    if not bags then return nil end
+    return bags[Config.tileKey(x, y, z)]
+end
+
+function Registry.setBag(x, y, z, size)
+    if bags then bags[Config.tileKey(x, y, z)] = size end
+end
+
+function Registry.clearBag(x, y, z)
+    if bags then bags[Config.tileKey(x, y, z)] = nil end
+    if soiled then soiled[Config.tileKey(x, y, z)] = nil end
+end
+
+--- Has this bag been filled with soil yet? Old bags from before soil existed
+--- read as unfilled; they just need one sack.
+function Registry.isBagSoiled(x, y, z)
+    return soiled ~= nil and soiled[Config.tileKey(x, y, z)] == true
+end
+
+function Registry.setBagSoiled(x, y, z, value)
+    if soiled then soiled[Config.tileKey(x, y, z)] = value and true or nil end
+end
+
+--- for key, size in Registry.eachBag() do ... end (key is "x_y_z")
+function Registry.eachBag()
+    return pairs(bags or {})
+end
+
+--- Remove a plant (harvested, dug up, or died).
+function Registry.removePlant(x, y, z)
+    if not plants then return end
+    plants[Config.tileKey(x, y, z)] = nil
+end
+
+--- Loop over every plant: for key, plant in Registry.each() do ... end
+function Registry.each()
+    return pairs(plants or {})
+end
+
+-- --------------------------------------------------------------------------
+-- Rooting in soil
+-- --------------------------------------------------------------------------
+
+--- A fresh cutting stuck in soil: hold its growth until it has rooted. The
+--- outcome is rolled when it's planted (so conditions at planting time count)
+--- and settled when the time is up.
+--- @param hours how long rooting takes
+--- @param success the pre-rolled result
+function Registry.startRooting(plant, hours, success)
+    local now = nowHours()
+    plant.rooting = { readyAt = now + hours, success = success == true }
+    -- The vegetative timer only starts once the roots are in.
+    plant.nextStageAt = plant.rooting.readyAt + rollStageHours(plant.stage)
+end
+
+--- Settle a soil cutting whose rooting time is up.
+local function settleRooting(plant, now)
+    if not plant.rooting or now < plant.rooting.readyAt then return end
+    local ok = plant.rooting.success
+    plant.rooting = nil
+    if not ok and CannabisMod.Farming then
+        CannabisMod.Farming.killPlant(plant)
+    elseif not ok then
+        plant.dead = true
+    end
+end
+Registry.settleRooting = settleRooting
+
+-- --------------------------------------------------------------------------
+-- Cloning domes
+-- --------------------------------------------------------------------------
+-- What's inside each Cloning Dome item, keyed by the item's ID (IDs are the
+-- same on server and clients and survive save/load).
+
+function Registry.getDome(domeId)
+    if not domes then return nil end
+    local key = tostring(domeId)
+    domes[key] = domes[key] or {}
+    return domes[key]
+end
+
+function Registry.setDome(domeId, list)
+    if domes then domes[tostring(domeId)] = list end
+end
+
+-- --------------------------------------------------------------------------
+-- Care: stress and penalties
+-- --------------------------------------------------------------------------
+
+--- Take care points away and add matching stress. One function for every kind
+--- of mistake, so care and stress always move together.
+function Registry.applyPenalty(plant, amount, warningName)
+    plant.care = Config.clamp(plant.care - amount, 0, 100)
+    plant.stress = Config.clamp(plant.stress + amount * Config.Care.STRESS_FROM_CARE,
+        0, Config.Stress.MAX)
+    if warningName then
+        plant.warnings[warningName] = true
+    end
+end
+
+--- Feed a plant. nutrient = "Veg" or "Bloom". Right nutrient for the stage,
+--- first feed this stage: small bonus.
+function Registry.feed(plant, nutrient)
+    local stageName = Config.STAGES[plant.stage]
+    plant.fedThisStage = plant.fedThisStage + 1
+    plant.lastNutrient = nutrient
+
+    if plant.fedThisStage > 1 then
+        Registry.applyPenalty(plant, Config.Care.NUTRIENT_BURN, "nutrientBurn")
+        return "burn"
+    end
+
+    -- Which nutrient each stage wants. Pre-flower accepts either because
+    -- growers switch from veg to bloom food during it.
+    local wanted = {
+        Vegetative = { Veg = true },
+        PreFlower  = { Veg = true, Bloom = true },
+        Flowering  = { Bloom = true },
+    }
+    local ok = wanted[stageName] and wanted[stageName][nutrient]
+    if ok then
+        plant.care = math.min(100, plant.care + Config.Care.RIGHT_NUTRIENT_BONUS)
+        return "good"
+    end
+    Registry.applyPenalty(plant, Config.Care.WRONG_NUTRIENT, "wrongNutrient")
+    return "wrong"
+end
+
+-- --------------------------------------------------------------------------
+-- Water
+-- --------------------------------------------------------------------------
+
+--- Called every 10 minutes. plant.water is copied from the vanilla plot by
+--- CannabisFarming.lua. Too wet or too dry costs care (and adds stress).
+function Registry.waterCheck(plant)
+    if plant.dead or plant.stage <= Config.STAGE.Seedling or plant.water == nil then return end
+    local c = Config.Care
+    if plant.water > Config.Water.HIGH then
+        -- Fabric bags breathe: less overwater damage.
+        local drain = plant.bag and Config.GrowBag[plant.bag] and Config.GrowBag[plant.bag].drain or 1
+        Registry.applyPenalty(plant, c.OVERWATER_PER_HOUR / 6 * drain, "overwatered")
+    else
+        plant.warnings.overwatered = nil
+    end
+    if plant.water < Config.Water.LOW then
+        Registry.applyPenalty(plant, c.UNDERWATER_PER_HOUR / 6, "underwatered")
+    else
+        plant.warnings.underwatered = nil
+    end
+end
+
+-- --------------------------------------------------------------------------
+-- Pollination
+-- --------------------------------------------------------------------------
+
+--- Pollinate every flowering female within range of a pollen source. Called
+--- when a male or a hermie is flowering.
+--- @param source the male or hermie plant record
+function Registry.pollinateAround(source)
+    local r = Config.POLLINATION_RADIUS
+    for _, other in Registry.each() do
+        local isTarget = other ~= source
+            and not other.dead
+            and other.sex == Config.SEX.FEMALE
+            and other.stage == Config.STAGE.Flowering
+            and other.z == source.z
+            and math.abs(other.x - source.x) <= r
+            and math.abs(other.y - source.y) <= r
+        if isTarget and not other.seeded then
+            other.seeded = true
+            other.fatherType = source.type
+            other.fatherHermieLineage = source.hermieLineage == true
+        end
+    end
+end
+
+-- --------------------------------------------------------------------------
+-- Growth clock
+-- --------------------------------------------------------------------------
+
+--- True if a plant has finished its minimum veg but its lamps keep it vegging (no 12/12 timer, or a light leak).
+function Registry.heldInVeg(plant)
+    return plant.stage == Config.STAGE.Vegetative
+        and (plant.lightCycle == "long" or plant.lightCycle == "leak")
+end
+
+--- One 10-minute tick of extra veg: the plant grows on, and wants feeding every couple of days.
+function Registry.extendVeg(plant, now)
+    plant.extraVegHours = (plant.extraVegHours or 0) + 1 / 6
+    plant.vegHeld = true
+    plant.vegFeedDueAt = plant.vegFeedDueAt or (now + Config.Timer.FEED_EVERY_HOURS)
+    if now >= plant.vegFeedDueAt then
+        if (plant.fedThisStage or 0) == 0 then
+            Registry.applyPenalty(plant, Config.Timer.HUNGRY_PENALTY, "hungry")
+        else
+            plant.warnings.hungry = nil
+        end
+        plant.fedThisStage = 0
+        plant.vegFeedDueAt = now + Config.Timer.FEED_EVERY_HOURS
+    end
+end
+
+--- Move a plant to its next stage and start the new stage timer.
+function Registry.advanceStage(plant)
+    if plant.stage >= Config.STAGE.Ripe then return end
+    if plant.stage == Config.STAGE.Vegetative then
+        -- Leaving veg: lock in the yield bonus earned by extra veg time.
+        plant.vegBonus = Config.Timer.vegBonus(plant.extraVegHours)
+        plant.vegHeld = nil
+        plant.vegFeedDueAt = nil
+        plant.warnings.hungry = nil
+    end
+    plant.stage = plant.stage + 1
+    plant.nextStageAt = nowHours() + rollStageHours(plant.stage)
+    plant.fedThisStage = 0
+    plant.warnings.nutrientBurn = nil
+    plant.warnings.wrongNutrient = nil
+
+    -- Ripe: remember when the harvest window opened. The window closes at
+    -- nextStageAt; harvesting after that is "late" and costs quality.
+    if plant.stage == Config.STAGE.Ripe then
+        plant.ripeAt = nowHours()
+    end
+
+    -- Tell the vanilla farming link so the sprite (and, at Ripe, the Harvest
+    -- option) matches our stage. CannabisFarming.lua sets this up; it's
+    -- missing only in the offline tests.
+    if CannabisMod.Farming then
+        CannabisMod.Farming.onStageChanged(plant)
+    end
+end
+
+--- Checks done every 10 minutes while a plant is flowering.
+local function flowerChecks(plant)
+    -- Males release pollen while flowering.
+    if plant.sex == Config.SEX.MALE then
+        Registry.pollinateAround(plant)
+        return
+    end
+
+    -- Stressed females may turn hermie. hermieChance() is the chance over the
+    -- WHOLE flowering stage (25% at max stress).
+    if not plant.isHermie then
+        local total = Genetics.hermieChance(plant.stress) / 100
+        if total > 0 then
+            local range = Config.STAGE_HOURS.Flowering
+            local avgHours = (range.min + range.max) / 2 / Config.sandbox("GrowthSpeed")
+            local checks = math.max(1, avgHours * 6)
+            local perCheck = 1 - (1 - total) ^ (1 / checks)
+            if Config.randInt(1, 1000000) <= perCheck * 1000000 then
+                Genetics.makeHermie(plant)
+            end
+        end
+    end
+
+    -- A hermie pollinates itself AND every flowering female nearby.
+    if plant.isHermie then
+        plant.seeded = true
+        plant.fatherType = plant.fatherType or plant.type
+        plant.fatherHermieLineage = true
+        Registry.pollinateAround(plant)
+    end
+end
+
+--- Runs every 10 in-game minutes on the server.
+local function onEveryTenMinutes()
+    if not plants then return end
+    local now = nowHours()
+
+    -- First match our records against vanilla farm plots: add records for new
+    -- cannabis plots, mark dead ones, drop replowed ones, copy water.
+    if CannabisMod.Farming then
+        CannabisMod.Farming.syncWithVanilla()
+    end
+
+    for _, plant in Registry.each() do
+        -- Dead and harvested plants keep their record (for their sprite) but
+        -- no longer grow, drink, flower or pollinate.
+        if not plant.dead and plant.rooting then
+            settleRooting(plant, now)
+        end
+        local stalled = false
+        if not plant.dead and not plant.rooting and CannabisMod.Light then
+            stalled = CannabisMod.Light.update(plant)
+        end
+        if not plant.dead and not plant.rooting then
+            -- Stage timer ran out: move on (Ripe stays Ripe; overripe is
+            -- handled by the harvest multiplier).
+            if not stalled and plant.stage < Config.STAGE.Ripe and now >= plant.nextStageAt then
+                if Registry.heldInVeg(plant) then
+                    Registry.extendVeg(plant, now)
+                else
+                    Registry.advanceStage(plant)
+                end
+            end
+            if plant.stage == Config.STAGE.Flowering then
+                flowerChecks(plant)
+            end
+            Registry.waterCheck(plant)
+        end
+    end
+end
+Events.EveryTenMinutes.Add(onEveryTenMinutes)

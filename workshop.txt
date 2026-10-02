@@ -1,0 +1,6 @@
+version=1
+workshopid=0
+title=Dazed Dank (B42)
+description=Realistic cannabis growing for Build 42 with multiplayer support.
+visibility=private
+tags=Build 42;Farming;Items;Multiplayer
