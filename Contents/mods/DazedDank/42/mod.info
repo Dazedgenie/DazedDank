@@ -5,3 +5,5 @@ description=Realistic cannabis growing: five growth stages, sexed seeds, breedin
 versionMin=42.0.0
 tiledef=dazeddank_plants_01 7420
 pack=dazeddank_plants_01
+tiledef=dazeddank_hydro_01 7421
+pack=dazeddank_hydro_01

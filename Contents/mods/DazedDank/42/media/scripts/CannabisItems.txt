@@ -363,7 +363,7 @@ module CannabisMod
         ItemType        = base:moveable,
         Weight          = 3.5,
         Icon            = RDWCSite,
-        WorldObjectSprite = dazeddank_plants_01_485,
+        WorldObjectSprite = dazeddank_hydro_01_0,
     }
 
     item RDWCControl
@@ -373,7 +373,7 @@ module CannabisMod
         ItemType        = base:moveable,
         Weight          = 7.0,
         Icon            = RDWCControl,
-        WorldObjectSprite = dazeddank_plants_01_598,
+        WorldObjectSprite = dazeddank_hydro_01_113,
     }
 
     item RockwoolCube

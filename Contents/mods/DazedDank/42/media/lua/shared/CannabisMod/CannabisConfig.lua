@@ -147,6 +147,9 @@ Config.STAGE_TO_NBOFGROW = {
 -- per condition, then bag variants, empty bags, lamps and unfilled bags.
 
 Config.SPRITE_SHEET = "dazeddank_plants_01"
+-- Second sheet for the hydro systems: Project Zomboid allows at most 512 tiles per sheet.
+Config.HYDRO_SHEET = "dazeddank_hydro_01"
+Config.MAX_SHEET_TILES = 512
 
 -- Vanilla's names for plant conditions -> our block number.
 Config.SPRITE_CONDITION = {
@@ -179,9 +182,9 @@ Config.GrowBag = {
               furnItem = "CannabisMod.DWCBucket", furnSprite = 372 },
     -- Recirculating DWC site bucket: shares the reservoir of a control bucket nearby; its buds can reach Top Shelf.
     rdwc  = { name = "RDWC Site Bucket", hydro = "rdwc", topShelf = true,
-              drain = 1, yield = 1.4, careMult = 0.6, emptySprite = 487,
-              drySprite = 486, soil = 0, plantBase = 488, maleBase = 553, lastSprite = 597,
-              furnItem = "CannabisMod.RDWCSite", furnSprite = 485 },
+              drain = 1, yield = 1.4, careMult = 0.6, emptySprite = 2, sheet = "dazeddank_hydro_01",
+              drySprite = 1, soil = 0, plantBase = 3, maleBase = 68, lastSprite = 112,
+              furnItem = "CannabisMod.RDWCSite", furnSprite = 0 },
 }
 -- Ground plants: the first 65 sprites, and males from MALE_SPRITE_BASE.
 Config.GROUND_SPRITES = { plantBase = 0, maleBase = 237 }
@@ -196,10 +199,24 @@ function Config.isSoilItem(fullType)
     return false
 end
 
+--- The tile sheet a container kind's sprites live on (nil means the ground, on the main sheet).
+function Config.sheetOf(bag)
+    local def = bag and Config.GrowBag[bag]
+    return (def and def.sheet) or Config.SPRITE_SHEET
+end
+
+--- Split a sprite name into its sheet and tile number, or nil when it isn't one of ours.
+function Config.splitSprite(spriteName)
+    if type(spriteName) ~= "string" then return nil end
+    local sheet, n = spriteName:match("^(.-)_(%d+)$")
+    if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET then return nil end
+    return sheet, tonumber(n)
+end
+
 --- Which bag size a furniture sprite (the one placed from a bag item) is, or nil.
 function Config.bagFromFurnSprite(spriteName)
     for size, def in pairs(Config.GrowBag) do
-        if spriteName == Config.SPRITE_SHEET .. "_" .. def.furnSprite then return size end
+        if spriteName == Config.sheetOf(size) .. "_" .. def.furnSprite then return size end
     end
     return nil
 end
@@ -217,32 +234,33 @@ end
 --- `bag` is nil for ground, or a Config.GrowBag key; `male` picks the male sprites once the sex shows.
 function Config.spriteName(plantType, stage, condition, bag, male)
     local bases = spriteBases(bag)
+    local sheet = Config.sheetOf(bag)
     local cond = Config.SPRITE_CONDITION[condition] or 0
     if male and stage and stage >= 3 then
         local t = MALE_TYPE_INDEX[plantType] or MALE_TYPE_INDEX.Hybrid
-        return Config.SPRITE_SHEET .. "_" .. tostring(bases.maleBase + cond * 9 + t * 3 + (math.min(stage, 5) - 3))
+        return sheet .. "_" .. tostring(bases.maleBase + cond * 9 + t * 3 + (math.min(stage, 5) - 3))
     end
     local slot = 0  -- seedling
     if stage and stage > 1 then
         local offset = SPRITE_TYPE_OFFSET[plantType] or SPRITE_TYPE_OFFSET.Hybrid
         slot = offset + math.min(stage, 5) - 2
     end
-    return Config.SPRITE_SHEET .. "_" .. tostring(bases.plantBase + cond * 13 + slot)
+    return sheet .. "_" .. tostring(bases.plantBase + cond * 13 + slot)
 end
 
 --- Sprite of an empty bag. `soiled` false/nil = the new, unfilled bag.
 function Config.bagEmptySprite(bag, soiled)
     local def = Config.GrowBag[bag]
     if not def then return nil end
-    return Config.SPRITE_SHEET .. "_" .. (soiled and def.emptySprite or def.drySprite)
+    return Config.sheetOf(bag) .. "_" .. (soiled and def.emptySprite or def.drySprite)
 end
 
 --- True if this sprite is an unfilled (no soil yet) bag.
 function Config.bagIsUnfilled(spriteName)
-    if type(spriteName) ~= "string" then return false end
-    local n = tonumber(spriteName:match("^" .. Config.SPRITE_SHEET .. "_(%d+)$"))
-    for _, def in pairs(Config.GrowBag) do
-        if n == def.drySprite then return true end
+    local sheet, n = Config.splitSprite(spriteName)
+    if not sheet then return false end
+    for kind, def in pairs(Config.GrowBag) do
+        if sheet == Config.sheetOf(kind) and n == def.drySprite then return true end
     end
     return false
 end
@@ -250,13 +268,14 @@ end
 --- Which container kind a sprite name shows, or nil for ground / other sprites.
 --- Clients use this to tell a bag or bucket plot from a plowed one (the registry lives on the server).
 function Config.bagFromSprite(spriteName)
-    if type(spriteName) ~= "string" then return nil end
-    local n = tonumber(spriteName:match("^" .. Config.SPRITE_SHEET .. "_(%d+)$"))
-    if not n then return nil end
+    local sheet, n = Config.splitSprite(spriteName)
+    if not sheet then return nil end
     for kind, def in pairs(Config.GrowBag) do
-        if n == def.emptySprite or n == def.drySprite then return kind end
-        if n >= def.plantBase and n < def.plantBase + 65 then return kind end
-        if n >= def.maleBase and n < def.maleBase + 45 then return kind end
+        if sheet ~= Config.sheetOf(kind) then
+            -- Kinds on another sheet reuse the same numbers, so skip them.
+        elseif n == def.emptySprite or n == def.drySprite then return kind
+        elseif n >= def.plantBase and n < def.plantBase + 65 then return kind
+        elseif n >= def.maleBase and n < def.maleBase + 45 then return kind end
     end
     return nil
 end
@@ -467,7 +486,7 @@ Config.Hydro = {
     ROT_CARE_PER_HOUR = 1.0,                    -- care lost per hour once rot is past early
     MEDIUM_ITEMS = { rockwool = "CannabisMod.RockwoolCube", pebbles = "CannabisMod.ClayPebbles" },
     -- RDWC: a control bucket (furniture) runs up to 6 site buckets within 3 tiles on the same floor.
-    CONTROL_ITEM = "CannabisMod.RDWCControl", CONTROL_SPRITE = "dazeddank_plants_01_598",
+    CONTROL_ITEM = "CannabisMod.RDWCControl", CONTROL_SPRITE = "dazeddank_hydro_01_113",
     RDWC_CONTROL_L = 40, RDWC_SITE_L = 20, RDWC_RANGE = 3, RDWC_MAX_SITES = 6,
     PEBBLE_SEED_FAIL = 25,                      -- % of seeds sown straight into clay pebbles that don't take
 }
