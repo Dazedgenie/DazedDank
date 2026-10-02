@@ -57,6 +57,19 @@ function Layout.nextUnlock(level)
     return nil
 end
 
+--- Add a 7x8 pixel arrow made of rects at (x, y): pointing up for 1, down for -1, a flat dash for 0.
+function Layout.arrow(ops, x, y, dir, color)
+    if dir == 0 then
+        ops[#ops + 1] = { kind = "rect", x = x, y = y + 3, w = 7, h = 2, color = color, a = 1 }
+        return
+    end
+    for i = 0, 3 do
+        local row = dir > 0 and i or (7 - i)   -- up: tip on top; down: stem on top, tip at the bottom
+        ops[#ops + 1] = { kind = "rect", x = x + 3 - i, y = y + row, w = 1 + 2 * i, h = 1, color = color, a = 1 }
+    end
+    ops[#ops + 1] = { kind = "rect", x = x + 2, y = dir > 0 and y + 4 or y, w = 3, h = 4, color = color, a = 1 }
+end
+
 --- Build the layout for a plant info reply.
 --- @param data the reply from the server (field -> value, plus level)
 --- @param fontH function(font) -> line height; measure: function(font, text) -> width
@@ -137,7 +150,14 @@ function Layout.build(data, fontH, measure)
         if data.rootRot then
             -- Root rot as a bar, with a mark where early (treatable) rot ends.
             text("Root rot", PAD, y, COLORS.muted)
-            text(data.roots .. "  " .. data.rootRot .. "%", W - PAD, y, color, "Small", "right")
+            local right = W - PAD
+            if data.rootRotTrend then
+                -- Trend arrow at the right edge: red pointing up while rot spreads, green pointing down while it heals.
+                Layout.arrow(ops, right - 7, y + 3, data.rootRotTrend, data.rootRotTrend > 0 and COLORS.bad
+                    or (data.rootRotTrend < 0 and COLORS.good or COLORS.muted))
+                right = right - 12
+            end
+            text(data.roots .. "  " .. data.rootRot .. "%", right, y, color, "Small", "right")
             y = y + small + 2
             local bw = W - 2 * PAD
             rect(PAD, y, bw, 8, COLORS.track)

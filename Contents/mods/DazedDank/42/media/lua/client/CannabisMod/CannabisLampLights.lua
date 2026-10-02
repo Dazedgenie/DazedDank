@@ -13,8 +13,8 @@ LampLights.COLORS = {
     basic = { 0.85, 0.25, 1.00 },
     pro   = { 1.00, 0.82, 0.45 },
 }
--- How many light sources each tier stacks on its tile: two for the purple so it reads strongly.
-LampLights.LAYERS = { basic = 2, pro = 1 }
+-- How many light sources each tier stacks on its tile: two each, so both colours read strongly.
+LampLights.LAYERS = { basic = 2, pro = 2 }
 LampLights.SCAN_RADIUS = 30   -- tiles around the player that get lamp lights
 LampLights.EVERY_TICKS = 60   -- rescan about once a second
 
@@ -101,7 +101,13 @@ function LampLights.update()
                         seen[key] = true
                         local on = lampOn(square, obj)
                         if on and not active[key] then addLight(key, x, y, pz, def) end
-                        if not on and active[key] then removeLight(key) end
+                        if not on and active[key] then
+                            removeLight(key)
+                            -- One line per switch-off, so a glow that won't go out can be traced in console.txt.
+                            local schedule = nil
+                            pcall(function() schedule = obj:getModData().DDTimer end)
+                            print("[DazedDank] lamp glow off at " .. key .. " (timer " .. tostring(schedule) .. ", hour " .. tostring(getGameTime():getHour()) .. ")")
+                        end
                         break
                     end
                 end

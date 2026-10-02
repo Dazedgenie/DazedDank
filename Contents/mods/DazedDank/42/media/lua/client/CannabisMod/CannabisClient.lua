@@ -10,6 +10,7 @@ require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/ISTakeCannabisCuttingAction"
 require "CannabisMod/ISGrowBagAction"
+require "CannabisMod/CannabisPlumbing"
 require "CannabisMod/ISCannabisSmokeAction"
 require "CannabisMod/CannabisHigh"
 require "CannabisMod/CannabisStatusWindow"
@@ -229,7 +230,7 @@ local function needs(option, ok, why)
 end
 
 --- Reservoir, medium and root options on a hydro plot, or (with no plot) on an RDWC control bucket.
-function addHydroOptions(player, context, plot, kind, action)
+function addHydroOptions(player, context, plot, kind, action, square)
     local inv = player:getInventory()
     if plot and plot.state == "plow" and Config.bagIsUnfilled(plot.spriteName) then
         local rw = context:addOption("Add Rockwool Cube", player, function() action("hydroAddMedium", { medium = "rockwool" }) end)
@@ -237,13 +238,29 @@ function addHydroOptions(player, context, plot, kind, action)
         local cp = context:addOption("Fill With Clay Pebbles", player, function() action("hydroAddMedium", { medium = "pebbles" }) end)
         needs(cp, inv:containsTypeRecurse(Config.Hydro.MEDIUM_ITEMS.pebbles), "Needs clay pebbles. Reusable; some seeds sown straight in fail.")
     end
+    if plot and plot.state ~= "plow" and plot:isAlive() then
+        -- The server checks the rot: only roots past saving (30%+) can be pulled.
+        local pull = context:addOption("Pull Rotted Plant", player, function() action("pullHydroPlant") end)
+        local tip = ISInventoryPaneContextMenu.addToolTip()
+        tip.description = "Throws out a plant whose root rot is past saving. Change the reservoir afterwards to clear the rot."
+        pull.toolTip = tip
+    end
     local parent = context:addOption("Reservoir", player, nil)
     local sub = ISContextMenu:getNew(context)
     context:addSubMenu(parent, sub)
     sub:addOption("Check Reservoir", player, function() action("hydroCheck") end)
     local water = hasWater(player)
     needs(sub:addOption("Top Up Reservoir", player, function() action("hydroTopUp") end), water, "Needs water in a bottle, pot or bucket.")
-    needs(sub:addOption("Change Reservoir", player, function() action("hydroChange") end), water, "Drains the old water and refills it. Needs water.")
+    -- A plumbed reservoir refills from its line; an RDWC site's reservoir is the control's, so the server decides there.
+    local plumbed = CannabisMod.Plumbing.isPlumbed(CannabisMod.Plumbing.objectAt(square))
+    local change = sub:addOption("Change Reservoir", player, function() action("hydroChange") end)
+    if plumbed then
+        local tip = ISInventoryPaneContextMenu.addToolTip()
+        tip.description = "Dumps the old water; the water line refills it."
+        change.toolTip = tip
+    elseif kind ~= "rdwc" or not plot then
+        needs(change, water, "Drains the old water and refills it. Needs water.")
+    end
     needs(sub:addOption("Treat Roots With Bleach", player, function() action("hydroBleach") end), hasBleach(player),
         "Cures early root rot after a reservoir change. Needs bleach.")
 end
@@ -265,7 +282,7 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
     end
     if bagSize then
         if Config.isHydro(bagSize) then
-            addHydroOptions(player, context, anyPlot, bagSize, bagAction)
+            addHydroOptions(player, context, anyPlot, bagSize, bagAction, square)
         end
         if anyPlot.state == "plow" and Config.bagIsUnfilled(anyPlot.spriteName) and not Config.isHydro(bagSize) then
             -- A new bag needs soil once before anything can be sown in it.
@@ -330,7 +347,7 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         for i = 0, square:getObjects():size() - 1 do
             local sprite = square:getObjects():get(i):getSprite()
             if sprite and sprite:getName() == Config.Hydro.CONTROL_SPRITE then
-                addHydroOptions(player, context, nil, "rdwc", bagAction)
+                addHydroOptions(player, context, nil, "rdwc", bagAction, square)
                 break
             end
         end

@@ -484,6 +484,7 @@ Config.Hydro = {
     ROT_NO_AIR = 3, ROT_STALE = 1, ROT_TAINTED = 0.5, ROT_SPREAD = 0.5,
     ROT_EARLY = 30, ROT_DEAD = 100,
     ROT_CARE_PER_HOUR = 1.0,                    -- care lost per hour once rot is past early
+    ROT_RECOVER_PER_HOUR = 2,                   -- rot lost per hour while bleach-treated roots recover
     MEDIUM_ITEMS = { rockwool = "CannabisMod.RockwoolCube", pebbles = "CannabisMod.ClayPebbles" },
     -- RDWC: a control bucket (furniture) runs up to 6 site buckets within 3 tiles on the same floor.
     CONTROL_ITEM = "CannabisMod.RDWCControl", CONTROL_SPRITE = "dazeddank_hydro_01_113",
@@ -577,7 +578,7 @@ Config.InfoTiers = {
     { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container" } },
     { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir" } },
     { level = 3,  fields = { "type", "sex", "light", "lightCycle", "roots", "rootRot" } },
-    { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg" } },
+    { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg", "rootRotTrend" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },
     { level = 9,  fields = { "generation", "geneticsBand" } },
     { level = 10, fields = { "qualityEstimate" } },

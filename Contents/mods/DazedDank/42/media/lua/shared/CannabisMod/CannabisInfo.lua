@@ -150,6 +150,12 @@ builders.rootRot = function(plant)
     return math.floor((plant.rootRot or 0) + 0.5)
 end
 
+-- Which way root rot is heading: 1 rising, -1 falling, 0 steady.
+builders.rootRotTrend = function(plant)
+    if not plant.hydro then return nil end
+    return plant.rootRotTrend or 0
+end
+
 builders.healthBand = function(plant)
     return band(plant.care or 100, HEALTH_BANDS)
 end

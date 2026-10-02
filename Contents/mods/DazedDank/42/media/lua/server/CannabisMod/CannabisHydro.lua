@@ -9,6 +9,7 @@ require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
+require "CannabisMod/CannabisPlumbing"
 
 local Config   = CannabisMod.Config
 local Net      = CannabisMod.Net
@@ -116,6 +117,15 @@ function Hydro.reservoirOf(x, y, z)
     return Hydro.get(x, y, z, def.hydro)
 end
 
+--- The reservoir a water line feeds: a DWC bucket's own, or an RDWC control bucket's. Nil if that kind isn't on the tile.
+function Hydro.reservoirAt(x, y, z, kind)
+    if kind == "rdwc" then
+        return Hydro.hasControl(x, y, z) and Hydro.get(x, y, z, "rdwc") or nil
+    end
+    if kind == "dwc" and Registry.getBag(x, y, z) == "dwc" then return Hydro.get(x, y, z, "dwc") end
+    return nil
+end
+
 --- True if the air and water pumps at this square are running.
 function Hydro.pumpsOn(x, y, z)
     if not Config.sandbox("PumpsNeedPower") then return true end
@@ -155,8 +165,15 @@ local function advanceReservoir(r, now)
     if not Hydro.pumpsOn(r.x, r.y, r.z) then risk = risk + H.ROT_NO_AIR end
     if Hydro.isStale(r, now) then risk = risk + H.ROT_STALE end
     if r.tainted then risk = risk + H.ROT_TAINTED end
-    if r.rot > 0 then risk = risk + H.ROT_SPREAD end
-    r.rot = math.min(H.ROT_DEAD, r.rot + risk * hours * (Config.sandbox("RootRotRisk") or 1))
+    -- Rot feeds on itself, unless bleach-treated roots are recovering.
+    if r.rot > 0 and not r.recovering then risk = risk + H.ROT_SPREAD end
+    local before = r.rot
+    local change = risk * hours * (Config.sandbox("RootRotRisk") or 1)
+    if r.recovering then change = change - H.ROT_RECOVER_PER_HOUR * hours end
+    r.rot = Config.clamp(r.rot + change, 0, H.ROT_DEAD)
+    if r.rot <= 0 then r.recovering = nil end
+    -- Which way the rot moved this tick: 1 rising, -1 falling, 0 steady.
+    r.rotTrend = (r.rot > before + 0.001 and 1) or (r.rot < before - 0.001 and -1) or 0
 end
 Hydro.advanceReservoir = advanceReservoir
 
@@ -194,6 +211,7 @@ function Hydro.update(plant, now)
     plant.warnings.staleReservoir = stale or nil
     plant.warnings.pumpOff = (not Hydro.pumpsOn(r.x, r.y, r.z)) or nil
     plant.rootRot = r.rot
+    plant.rootRotTrend = r.rotTrend or 0
     plant.hydro = { level = r.level, cap = Hydro.capacity(r), strength = r.strength, nutrient = r.nutrient, stale = stale,
                     sites = r.kind == "rdwc" and Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z)) or nil }
     -- Rot in a shared reservoir reaches every site's roots.
@@ -343,15 +361,26 @@ commands.hydroChange = function(player, args)
     local r = reservoirFor(player, args)
     if not r then return end
     local cap = Hydro.capacity(r)
-    local poured, tainted = pourWater(player, cap)
-    if poured <= 0 then
-        Net.notify(player, "You need water to refill it")
-        return
+    -- A reservoir on a Dazed Plumbing line is dumped here and refilled by the line over the next minutes.
+    local plumbed = CannabisMod.Plumbing.isPlumbedAt(r.x, r.y, r.z)
+    local poured, tainted = 0, false
+    if not plumbed then
+        poured, tainted = pourWater(player, cap)
+        if poured <= 0 then
+            Net.notify(player, "You need water to refill it")
+            return
+        end
     end
     r.level, r.strength, r.nutrient = poured, 0, nil
     r.tainted = tainted
     r.changedAt = Registry.nowHours()
-    Net.notify(player, string.format("Drained and refilled the reservoir: %.1f of %d L. Add nutrients.", poured, cap))
+    r.fillPending = plumbed or nil
+    -- With every rotted plant pulled, fresh water leaves the system clean.
+    local cleaned = r.rot > 0 and not Hydro.hasLivingPlants(r)
+    if cleaned then r.rot, r.recovering, r.rotTrend = 0, nil, -1 end
+    local text = plumbed and "Drained the reservoir: the water line is refilling it. Add nutrients once it's full."
+        or string.format("Drained and refilled the reservoir: %.1f of %d L. Add nutrients.", poured, cap)
+    Net.notify(player, text .. (cleaned and " The system is clean of rot." or ""))
 end
 
 commands.hydroBleach = function(player, args)
@@ -384,9 +413,35 @@ commands.hydroBleach = function(player, args)
     end
     bottle:getFluidContainer():removeFluid(H.BLEACH_L)
     pcall(function() sendItemStats(bottle) end)
-    r.rot = 0
+    r.recovering = true
     r.tainted = false
-    Net.notify(player, "Treated the reservoir with bleach: the roots will recover")
+    Net.notify(player, "Treated the reservoir with bleach: the roots will recover over the next few hours")
+end
+
+--- True if any living plant drinks from this reservoir.
+local function hasLivingPlants(r)
+    for _, plant in Registry.each() do
+        if not plant.dead and Hydro.reservoirOf(plant.x, plant.y, plant.z) == r then return true end
+    end
+    return false
+end
+Hydro.hasLivingPlants = hasLivingPlants
+
+--- Pull a hydro plant whose roots have rotted past saving, leaving the bucket ready for a clean start.
+commands.pullHydroPlant = function(player, args)
+    local luaObject, site, r, found = hydroTarget(player, args)
+    if not (found and luaObject) then return end
+    local plant = Registry.getPlant(luaObject.x, luaObject.y, luaObject.z)
+    if not plant or luaObject.state == "plow" then
+        Net.notify(player, "There's no plant to pull")
+        return
+    end
+    if not plant.dead and (plant.rootRot or 0) < H.ROT_EARLY then
+        Net.notify(player, "Its roots can still be saved: change the reservoir and treat it with bleach")
+        return
+    end
+    CannabisMod.GrowBags.reset(luaObject)
+    Net.notify(player, "Pulled the rotted plant. Change the reservoir before planting again.")
 end
 
 commands.hydroCheck = function(player, args)
@@ -406,6 +461,11 @@ commands.hydroCheck = function(player, args)
     local age = (Registry.nowHours() - (r.changedAt or 0)) / 24
     parts[#parts + 1] = string.format("%.0f days old", age) .. (Hydro.isStale(r, Registry.nowHours()) and " (stale)" or "")
     if r.tainted then parts[#parts + 1] = "tainted" end
+    if r.fillPending then
+        parts[#parts + 1] = "refilling from the water line"
+    elseif CannabisMod.Plumbing.isPlumbedAt(r.x, r.y, r.z) then
+        parts[#parts + 1] = "on a water line"
+    end
     if not Hydro.pumpsOn(r.x, r.y, r.z) then parts[#parts + 1] = "pumps off" end
     if r.rot >= H.ROT_EARLY then
         parts[#parts + 1] = "the roots are brown and rotting"

@@ -138,7 +138,14 @@ commands.removeTimer = function(player, args)
     Net.notify(player, "Timer removed: the lamp now runs 24/0")
 end
 
+--- The schedule the lamp object carries for clients, or nil.
+local function objectSchedule(obj)
+    local ok, s = pcall(function() return obj:getModData().DDTimer end)
+    return ok and s or nil
+end
+
 --- Drop the timer on the floor when its lamp has been picked up, so it is never lost.
+--- Also re-copies each schedule onto its lamp object, so lamps whose copy is missing or stale stop glowing in their dark hours.
 function Timers.cleanup()
     if not timers then return end
     local any = false
@@ -149,14 +156,18 @@ function Timers.cleanup()
     for key, entry in pairs(timers) do
         local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
         local square = x and cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
-        if square and not lampObject(square) then
+        local lamp = square and lampObject(square)
+        if square and not lamp then
             gone[#gone + 1] = key
             if entry.item then
                 pcall(function() square:AddWorldInventoryItem(Config.Timer.ITEM, 0.5, 0.5, 0) end)
             end
+        elseif lamp and objectSchedule(lamp) ~= entry.s then
+            markObject(square, entry.s)
         end
     end
     for _, key in ipairs(gone) do timers[key] = nil end
 end
 
 Events.EveryTenMinutes.Add(Timers.cleanup)
+Events.OnGameStart.Add(Timers.cleanup)
