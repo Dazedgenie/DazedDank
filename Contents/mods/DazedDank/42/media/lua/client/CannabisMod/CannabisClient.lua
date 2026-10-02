@@ -193,6 +193,60 @@ end
 
 local addDomeOptions
 local addStationOptions
+local addHydroOptions
+
+--- A water or tainted-water container with something in it, or nil.
+local function hasWater(player)
+    return Seeds.findItem(player:getInventory(), function(i)
+        local ok, yes = pcall(function()
+            local fc = i:getFluidContainer()
+            if not fc or fc:getAmount() <= 0 or not fc:getPrimaryFluid() then return false end
+            local t = fc:getPrimaryFluid():getFluidTypeString()
+            return t == "Water" or t == "TaintedWater"
+        end)
+        return ok and yes
+    end) ~= nil
+end
+
+--- A bleach bottle with some left, or nil.
+local function hasBleach(player)
+    return Seeds.findItem(player:getInventory(), function(i)
+        local ok, yes = pcall(function()
+            local fc = i:getFluidContainer()
+            return fc and fc:getPrimaryFluid() and fc:getPrimaryFluid():getFluidTypeString() == "Bleach" and fc:getAmount() > 0
+        end)
+        return ok and yes
+    end) ~= nil
+end
+
+--- Grey out an option with a short reason.
+local function needs(option, ok, why)
+    if ok then return end
+    option.notAvailable = true
+    local tip = ISInventoryPaneContextMenu.addToolTip()
+    tip.description = why
+    option.toolTip = tip
+end
+
+--- Reservoir, medium and root options on a hydro plot.
+function addHydroOptions(player, context, plot, kind, action)
+    local inv = player:getInventory()
+    if plot.state == "plow" and Config.bagIsUnfilled(plot.spriteName) then
+        local rw = context:addOption("Add Rockwool Cube", player, function() action("hydroAddMedium", { medium = "rockwool" }) end)
+        needs(rw, inv:containsTypeRecurse(Config.Hydro.MEDIUM_ITEMS.rockwool), "Needs a rockwool cube. Best for starting seeds.")
+        local cp = context:addOption("Fill With Clay Pebbles", player, function() action("hydroAddMedium", { medium = "pebbles" }) end)
+        needs(cp, inv:containsTypeRecurse(Config.Hydro.MEDIUM_ITEMS.pebbles), "Needs clay pebbles. Reusable; some seeds sown straight in fail.")
+    end
+    local parent = context:addOption("Reservoir", player, nil)
+    local sub = ISContextMenu:getNew(context)
+    context:addSubMenu(parent, sub)
+    sub:addOption("Check Reservoir", player, function() action("hydroCheck") end)
+    local water = hasWater(player)
+    needs(sub:addOption("Top Up Reservoir", player, function() action("hydroTopUp") end), water, "Needs water in a bottle, pot or bucket.")
+    needs(sub:addOption("Change Reservoir", player, function() action("hydroChange") end), water, "Drains the old water and refills it. Needs water.")
+    needs(sub:addOption("Treat Roots With Bleach", player, function() action("hydroBleach") end), hasBleach(player),
+        "Cures early root rot after a reservoir change. Needs bleach.")
+end
 local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, test)
     if test then return end
     local player = getSpecificPlayer(playerNum)
@@ -210,7 +264,10 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         end
     end
     if bagSize then
-        if anyPlot.state == "plow" and Config.bagIsUnfilled(anyPlot.spriteName) then
+        if Config.isHydro(bagSize) then
+            addHydroOptions(player, context, anyPlot, bagSize, bagAction)
+        end
+        if anyPlot.state == "plow" and Config.bagIsUnfilled(anyPlot.spriteName) and not Config.isHydro(bagSize) then
             -- A new bag needs soil once before anything can be sown in it.
             local need = Config.GrowBag[bagSize].soil
             local have = #Seeds.findAll(player:getInventory(), function(i)
@@ -264,6 +321,16 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
                 end
                 sub:addOption("Remove Light Timer", player, function() bagAction("removeTimer") end)
             end
+            break
+        end
+    end
+
+    -- Placed curing barrel.
+    for i = 0, square:getObjects():size() - 1 do
+        local sprite = square:getObjects():get(i):getSprite()
+        if sprite and sprite:getName() == Config.Drying.BARREL_SPRITE then
+            context:addOption("Check Curing Barrel", player, function(p) send(p, "checkBarrel", squareArgs(square)) end)
+            context:addOption("Burp Barrel", player, function(p) send(p, "burpBarrel", squareArgs(square)) end)
             break
         end
     end
@@ -341,6 +408,9 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         end)
         context:addOption("[Debug] Give grow kit", player, function(p)
             send(p, "debugGrowKit")
+        end)
+        context:addOption("[Debug] Give hydro kit", player, function(p)
+            send(p, "debugHydroKit", {})
         end)
         context:addOption("[Debug] Give drying kit", player, function(p)
             send(p, "debugDryingKit")

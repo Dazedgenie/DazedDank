@@ -300,6 +300,89 @@ module CannabisMod
         }
     }
 
+    craftRecipe DDMakeCuringBarrel
+    {
+        timedAction = Making,
+        time = 250,
+        NeedToBeLearn = true,
+        Tags = AnySurfaceCraft;Carpentry,
+        category = Carpentry,
+        xpAward = Woodwork:12,
+        SkillRequired = Woodwork:3,
+        inputs
+        {
+            item 1 tags[base:hammer] mode:keep flags[MayDegradeVeryLight],
+            item 1 tags[base:saw;base:smallsaw;base:crudesaw] mode:keep flags[MayDegradeLight],
+            item 6 [Base.Plank],
+            item 10 [Base.Nails],
+            item 2 [Base.ScrapMetal],
+        }
+        outputs
+        {
+            item 1 CannabisMod.CuringBarrel,
+        }
+    }
+
+    craftRecipe DDMakeDWCBucket
+    {
+        timedAction = MakingElectrical,
+        time = 150,
+        NeedToBeLearn = true,
+        Tags = AnySurfaceCraft;Electrical,
+        category = Farming,
+        xpAward = Electricity:8,
+        SkillRequired = Electricity:2,
+        inputs
+        {
+            item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems],
+            item 1 [Base.BucketEmpty],
+            item 1 [Base.RubberHose],
+            item 2 [Base.ElectronicsScrap],
+            item 1 [Base.ElectricWire],
+        }
+        outputs
+        {
+            item 1 CannabisMod.DWCBucket,
+        }
+    }
+
+    craftRecipe DDMakeClayPebbles
+    {
+        timedAction = Making,
+        time = 120,
+        NeedToBeLearn = true,
+        Tags = AnySurfaceCraft;Pottery,
+        category = Pottery,
+        xpAward = Pottery:5,
+        inputs
+        {
+            item 3 [Base.Clay],
+        }
+        outputs
+        {
+            item 1 CannabisMod.ClayPebblesUnfired,
+        }
+    }
+
+    /* Fired in a vanilla kiln, like bricks. */
+    craftRecipe DDFireClayPebbles
+    {
+        time = 20,
+        timedAction = Making_With_Kiln,
+        Tags = KilnSmall;KilnLarge,
+        category = Pottery,
+        inputs
+        {
+            item 1 [CannabisMod.ClayPebblesUnfired],
+            item 1 tags[base:startfire],
+            item 1 tags[base:log;base:charcoal],
+        }
+        outputs
+        {
+            item 1 CannabisMod.ClayPebbles,
+        }
+    }
+
     craftRecipe DDSwapPapers
     {
         timedAction = Making,

@@ -1,4 +1,4 @@
--- Keeps the Cloning Dome to cuttings, the Drying Rack to wet plants and the Curing Jar to buds by wrapping
+-- Keeps the Cloning Dome to cuttings, the Drying Rack to wet plants and the Curing Jar and Barrel to buds by wrapping
 -- the item-transfer action.
 
 require "CannabisMod/CannabisConfig"
@@ -30,21 +30,23 @@ local function stationOwner(container)
         local parent = container.getParent and container:getParent()
         local sprite = parent and parent.getSprite and parent:getSprite()
         if sprite and Config.Drying.RACK_SPRITES[sprite:getName()] then return "rack" end
+        if sprite and sprite:getName() == Config.Drying.BARREL_SPRITE then return "barrel" end
         return nil
     end)
     return ok and kind or nil
 end
 
---- Why `item` can't go into a rack or jar, or nil if it can.
+--- Why `item` can't go into a rack, jar or barrel, or nil if it can.
 local function stationRefusal(container, item, ownerType)
     local D = Config.Drying
     local isRack = ownerType == "rack"
+    local name = (ownerType == "barrel") and "barrel" or "jar"
     local ok = isRack and Config.isHangingPlant(item:getFullType()) or (not isRack and item:getFullType() == D.BUD_ITEM)
-    if not ok then return isRack and "The rack only holds whole plants" or "The jar only holds buds" end
+    if not ok then return isRack and "The rack only holds whole plants" or ("The " .. name .. " only holds buds") end
     if item:getContainer() == container then return nil end
-    local cap = isRack and D.RACK_CAPACITY or D.JAR_CAPACITY
+    local cap = isRack and D.RACK_CAPACITY or (ownerType == "barrel" and D.BARREL_CAPACITY or D.JAR_CAPACITY)
     if container:getItems():size() >= cap then
-        return (isRack and "This side of the rack is full (" or "The jar is full (") .. cap .. ")"
+        return (isRack and "This side of the rack is full (" or ("The " .. name .. " is full (")) .. cap .. ")"
     end
     return nil
 end

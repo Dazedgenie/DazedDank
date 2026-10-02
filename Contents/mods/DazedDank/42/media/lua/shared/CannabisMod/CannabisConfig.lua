@@ -166,13 +166,21 @@ local SPRITE_TYPE_OFFSET = { Indica = 1, Sativa = 5, Hybrid = 9 }
 Config.GrowBag = {
     small = { name = "Small Grow Bag",
               drain = 0.6, yield = 1.0,  spriteBlock = 1, emptySprite = 195,
-              drySprite = 201, soil = 1,
+              drySprite = 201, soil = 1, plantBase = 65, maleBase = 282,
               furnItem = "CannabisMod.GrowBagSmallPlaceable", furnSprite = 203 },
     large = { name = "Large Grow Bag",
               drain = 0.5, yield = 1.25, spriteBlock = 2, emptySprite = 196,
-              drySprite = 202, soil = 2,
+              drySprite = 202, soil = 2, plantBase = 130, maleBase = 327,
               furnItem = "CannabisMod.GrowBagLargePlaceable", furnSprite = 204 },
+    -- Deep water culture bucket: a hydro container. It needs a medium (rockwool or clay pebbles) instead of soil.
+    dwc   = { name = "DWC Bucket", hydro = "dwc",
+              drain = 1, yield = 1.3, careMult = 0.75, emptySprite = 374,
+              drySprite = 373, soil = 0, plantBase = 375, maleBase = 440, lastSprite = 484,
+              furnItem = "CannabisMod.DWCBucket", furnSprite = 372 },
 }
+-- Ground plants: the first 65 sprites, and males from MALE_SPRITE_BASE.
+Config.GROUND_SPRITES = { plantBase = 0, maleBase = 237 }
+
 -- Items that count as a sack of soil (our own, plus vanilla's bag of dirt if
 -- this build has it; an unknown type simply never matches).
 Config.SOIL_ITEMS = { "CannabisMod.SoilSack", "Base.Dirtbag" }
@@ -191,19 +199,30 @@ function Config.bagFromFurnSprite(spriteName)
     return nil
 end
 
+-- Male plants from pre-flower on have their own sprites: per container, 5 conditions x 3 types x 3 stages.
+Config.MALE_SPRITE_BASE = 237
+local MALE_TYPE_INDEX = { Indica = 0, Sativa = 1, Hybrid = 2 }
+
+--- The sprite ranges of a container kind (nil or unknown means the ground).
+local function spriteBases(bag)
+    return (bag and Config.GrowBag[bag]) or Config.GROUND_SPRITES
+end
+
 --- Sprite name for a plant type, stage index (1-5) and vanilla condition.
---- `bag` is nil for ground, or "small" / "large".
-function Config.spriteName(plantType, stage, condition, bag)
-    local block = Config.SPRITE_CONDITION[condition] or 0
-    if bag and Config.GrowBag[bag] then
-        block = block + 5 * Config.GrowBag[bag].spriteBlock
+--- `bag` is nil for ground, or a Config.GrowBag key; `male` picks the male sprites once the sex shows.
+function Config.spriteName(plantType, stage, condition, bag, male)
+    local bases = spriteBases(bag)
+    local cond = Config.SPRITE_CONDITION[condition] or 0
+    if male and stage and stage >= 3 then
+        local t = MALE_TYPE_INDEX[plantType] or MALE_TYPE_INDEX.Hybrid
+        return Config.SPRITE_SHEET .. "_" .. tostring(bases.maleBase + cond * 9 + t * 3 + (math.min(stage, 5) - 3))
     end
     local slot = 0  -- seedling
     if stage and stage > 1 then
         local offset = SPRITE_TYPE_OFFSET[plantType] or SPRITE_TYPE_OFFSET.Hybrid
         slot = offset + math.min(stage, 5) - 2
     end
-    return Config.SPRITE_SHEET .. "_" .. tostring(block * 13 + slot)
+    return Config.SPRITE_SHEET .. "_" .. tostring(bases.plantBase + cond * 13 + slot)
 end
 
 --- Sprite of an empty bag. `soiled` false/nil = the new, unfilled bag.
@@ -217,23 +236,29 @@ end
 function Config.bagIsUnfilled(spriteName)
     if type(spriteName) ~= "string" then return false end
     local n = tonumber(spriteName:match("^" .. Config.SPRITE_SHEET .. "_(%d+)$"))
-    return n == 201 or n == 202
+    for _, def in pairs(Config.GrowBag) do
+        if n == def.drySprite then return true end
+    end
+    return false
 end
 
---- Which bag size a sprite name shows, or nil for ground / other sprites.
---- Clients use this to tell a bag plot from a plowed one (the bag registry
---- lives on the server).
+--- Which container kind a sprite name shows, or nil for ground / other sprites.
+--- Clients use this to tell a bag or bucket plot from a plowed one (the registry lives on the server).
 function Config.bagFromSprite(spriteName)
     if type(spriteName) ~= "string" then return nil end
     local n = tonumber(spriteName:match("^" .. Config.SPRITE_SHEET .. "_(%d+)$"))
     if not n then return nil end
-    if n == 195 then return "small" end
-    if n == 196 then return "large" end
-    if n == 201 then return "small" end
-    if n == 202 then return "large" end
-    if n >= 65 and n < 130 then return "small" end
-    if n >= 130 and n < 195 then return "large" end
+    for kind, def in pairs(Config.GrowBag) do
+        if n == def.emptySprite or n == def.drySprite then return kind end
+        if n >= def.plantBase and n < def.plantBase + 65 then return kind end
+        if n >= def.maleBase and n < def.maleBase + 45 then return kind end
+    end
     return nil
+end
+
+--- True if a container kind is a hydro system rather than a soil pot.
+function Config.isHydro(bag)
+    return bag ~= nil and Config.GrowBag[bag] ~= nil and Config.GrowBag[bag].hydro ~= nil
 end
 
 -- Water level (0-100, vanilla's scale) outside this range hurts the plant.
@@ -417,6 +442,28 @@ function Config.Timer.vegBonus(extraHours)
     return Config.Timer.VEG_BONUS_MAX * (1 - math.exp(-days / Config.Timer.VEG_BONUS_DAYS))
 end
 
+-- Hydroponics: reservoirs that plants drink from, nutrient strength that runs down, and root rot.
+Config.Hydro = {
+    RESERVOIR_L = { dwc = 15 },                 -- litres each system holds
+    -- litres a plant drinks per hour, by stage (seedling, veg, pre-flower, flowering, ripe)
+    DRINK_PER_HOUR = { 0.1, 0.3, 0.4, 0.5, 0.3 },
+    PLOT_WATER = 70,                            -- the plot's water level while the reservoir has water
+    DRY_PLOT_WATER = 10,                        -- and when it has run dry
+    NUTRIENT_HOURS = 72,                        -- a full dose runs out over about three days
+    HUNGRY_BELOW = 0.2,                         -- nutrient strength under this starves the plant
+    HUNGRY_PER_HOUR = 0.3,                      -- care lost per hour while starved
+    BURN_ABOVE = 0.6,                           -- dosing a reservoir still this strong burns the plant
+    STALE_DAYS = 7,                             -- days before a reservoir goes stale and needs changing
+    TREAT_WITHIN_HOURS = 6,                     -- bleach only works on a reservoir changed this recently
+    BLEACH_L = 0.1,                             -- bleach used per treatment
+    -- Root rot: risk per hour from each cause, and the stages it passes through (0-100).
+    ROT_NO_AIR = 3, ROT_STALE = 1, ROT_TAINTED = 0.5, ROT_SPREAD = 0.5,
+    ROT_EARLY = 30, ROT_DEAD = 100,
+    ROT_CARE_PER_HOUR = 1.0,                    -- care lost per hour once rot is past early
+    MEDIUM_ITEMS = { rockwool = "CannabisMod.RockwoolCube", pebbles = "CannabisMod.ClayPebbles" },
+    PEBBLE_SEED_FAIL = 25,                      -- % of seeds sown straight into clay pebbles that don't take
+}
+
 Config.Care = {
     START                 = 100,
     OVERWATER_PER_HOUR    = 0.5,
@@ -448,6 +495,9 @@ Config.Quality = {
 Config.Drying = {
     RACK_ITEM = "CannabisMod.DryingRack", RACK_CAPACITY = 8,
     JAR_ITEM  = "CannabisMod.CuringJar",  JAR_CAPACITY  = 30,
+    -- The curing barrel: a one-tile furniture container (sprite 236) that cures like a big jar.
+    BARREL_ITEM = "CannabisMod.CuringBarrel", BARREL_CAPACITY = 300,
+    BARREL_SPRITE = "dazeddank_plants_01_236",
     FAN_ITEM  = "CannabisMod.DryingFan",  FAN_RADIUS = 3,
     -- Placed furniture, by sprite name: the rack tiles (206-213) and the fan.
     RACK_SPRITES = {},
@@ -498,8 +548,8 @@ end
 -- inspecting network traffic or client memory.
 Config.InfoTiers = {
     { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container" } },
-    { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld" } },
-    { level = 3,  fields = { "type", "sex", "light", "lightCycle" } },
+    { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir" } },
+    { level = 3,  fields = { "type", "sex", "light", "lightCycle", "roots" } },
     { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },
     { level = 9,  fields = { "generation", "geneticsBand" } },
@@ -529,6 +579,10 @@ Config.SandboxDefaults = {
     LampRange         = 1.0,  -- multiplier on how far grow lamps reach
     LampsNeedPower    = true, -- placed grow lamps only work with power
     RecipeMagazine    = true, -- crafting recipes must be learned from the Grower's Handbook
+    RootRotRisk       = 1.0,  -- multiplier on how fast root rot builds and spreads, 0 = off
+    ReservoirUseRate  = 1.0,  -- multiplier on how fast reservoirs drain and go stale
+    HydroQualityBonus = 0.15, -- extra quality ceiling RDWC can reach (0.15 = up to 115)
+    PumpsNeedPower    = true, -- hydro pumps only run with power
 }
 
 --- Hours a wet plant takes to dry fully (sandbox DryingHours).

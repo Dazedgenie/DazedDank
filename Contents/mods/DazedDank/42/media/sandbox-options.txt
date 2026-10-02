@@ -133,3 +133,41 @@ option CannabisMod.RecipeMagazine
     page = CannabisMod,
     translation = CannabisMod_RecipeMagazine,
 }
+
+option CannabisMod.RootRotRisk
+{
+    type = double,
+    min = 0.0,
+    max = 10.0,
+    default = 1.0,
+    page = CannabisMod,
+    translation = CannabisMod_RootRotRisk,
+}
+
+option CannabisMod.ReservoirUseRate
+{
+    type = double,
+    min = 0.1,
+    max = 10.0,
+    default = 1.0,
+    page = CannabisMod,
+    translation = CannabisMod_ReservoirUseRate,
+}
+
+option CannabisMod.HydroQualityBonus
+{
+    type = double,
+    min = 0.0,
+    max = 0.5,
+    default = 0.15,
+    page = CannabisMod,
+    translation = CannabisMod_HydroQualityBonus,
+}
+
+option CannabisMod.PumpsNeedPower
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_PumpsNeedPower,
+}

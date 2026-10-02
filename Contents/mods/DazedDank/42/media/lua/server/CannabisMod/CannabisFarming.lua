@@ -115,7 +115,7 @@ function Farming.syncWithVanilla()
                 applyStage(plant, luaObject)
             end
             -- A plant grown bigger by extra veg drinks more.
-            local bonus = Config.Timer.vegBonus(plant.extraVegHours)
+            local bonus = Config.isHydro(plant.bag) and 0 or Config.Timer.vegBonus(plant.extraVegHours)
             if bonus > 0 and plant.stage < Config.STAGE.Ripe and (luaObject.waterLvl or 0) > 0 then
                 local extra = Config.Timer.EXTRA_WATER_PER_HOUR / 6 * bonus / Config.Timer.VEG_BONUS_MAX
                 luaObject.waterLvl = math.max(0, luaObject.waterLvl - extra)
@@ -204,9 +204,22 @@ local originalSeedComplete = ISSeedActionNew.complete
 function ISSeedActionNew:complete()
     -- A grow bag has to be filled with soil before its first planting.
     local pl = self.plant
-    if pl and Registry.getBag(pl.x, pl.y, pl.z) and not Registry.isBagSoiled(pl.x, pl.y, pl.z) then
-        if Net and self.character then Net.notify(self.character, "Fill the grow bag with soil first") end
+    local bagKind = pl and Registry.getBag(pl.x, pl.y, pl.z)
+    if bagKind and not Registry.isBagSoiled(pl.x, pl.y, pl.z) then
+        local msg = Config.isHydro(bagKind) and "Add a rockwool cube or clay pebbles first" or "Fill the grow bag with soil first"
+        if Net and self.character then Net.notify(self.character, msg) end
         return false
+    end
+    -- A seed sown straight into clay pebbles can slip down between them and never take.
+    local Hydro = CannabisMod.Hydro
+    if bagKind and Config.isHydro(bagKind) and self.seed and Seeds.kind(self.seed) == "seed" and Hydro and Hydro.seedFails(pl.x, pl.y, pl.z) then
+        local container = self.seed:getContainer()
+        if container then
+            container:Remove(self.seed)
+            sendRemoveItemFromContainer(container, self.seed)
+        end
+        if Net and self.character then Net.notify(self.character, "The seed slipped down between the pebbles and didn't take") end
+        return true
     end
     -- Read everything we need NOW, before vanilla removes the item.
     local kind, data, ageHours = nil, nil, 0

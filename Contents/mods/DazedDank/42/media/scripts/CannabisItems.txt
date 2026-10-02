@@ -97,6 +97,7 @@ module CannabisMod
         Capacity        = 3,
         WeightReduction = 0,
         Icon            = CloningDome,
+        WorldStaticModel = PlasticTray_Ground,
     }
 
     /* Whole harvested plants, one item per plant type so they can be told
@@ -254,6 +255,19 @@ module CannabisMod
         Capacity        = 3,
         WeightReduction = 0,
         Icon            = CuringJar,
+        WorldStaticModel = JarGlass_Ground,
+    }
+
+    /* Curing barrel: furniture placed on the floor, a container that cures
+       buds like a big jar (up to 300). Burp it like a jar. */
+    item CuringBarrel
+    {
+        DisplayName     = Curing Barrel,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 12.0,
+        Icon            = CuringBarrel,
+        WorldObjectSprite = dazeddank_plants_01_236,
     }
 
     /* Placeable furniture fan. It needs power and works near a rack. */
@@ -321,7 +335,64 @@ module CannabisMod
         Icon            = GrowersHandbook,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDSwapPapers,
+        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDMakeCuringBarrel;DDSwapPapers,
+        StaticModel     = Magazine,
+        WorldStaticModel = MagazineGround,
+        Tags            = base:magazine,
+        OnCreate        = ItemCodeOnCreate.onCreateRecipeMagazine,
+    }
+
+    /* HYDROPONICS. The DWC bucket is placed like furniture and turns into a
+       hydro plot; it needs a rockwool cube or clay pebbles in its net pot. */
+    item DWCBucket
+    {
+        DisplayName     = DWC Bucket,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 4.0,
+        Icon            = DWCBucket,
+        WorldObjectSprite = dazeddank_plants_01_372,
+    }
+
+    item RockwoolCube
+    {
+        DisplayName     = Rockwool Cube,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.05,
+        Icon            = RockwoolCube,
+    }
+
+    /* Homemade hydroton: rolled from clay, fired in a kiln, reusable. */
+    item ClayPebblesUnfired
+    {
+        DisplayName     = Unfired Clay Pebbles,
+        DisplayCategory = Material,
+        ItemType        = base:normal,
+        Weight          = 1.2,
+        Icon            = ClayPebblesUnfired,
+    }
+
+    item ClayPebbles
+    {
+        DisplayName     = Clay Pebbles,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 1.0,
+        Icon            = ClayPebbles,
+    }
+
+    /* Recipe magazine for the hydro gear. */
+    item HydroMagazine
+    {
+        DisplayName     = Hydroponics Monthly,
+        DisplayCategory = RecipeResource,
+        ItemType        = base:literature,
+        Weight          = 0.5,
+        Icon            = HydroMagazine,
+        BoredomChange   = -20,
+        StressChange    = -15,
+        LearnedRecipes  = DDMakeDWCBucket;DDMakeClayPebbles,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,

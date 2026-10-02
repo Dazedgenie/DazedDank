@@ -83,6 +83,21 @@ local function racksAt(square)
     return out
 end
 
+--- Containers of the curing barrels standing on a square.
+local function barrelsAt(square)
+    local out = {}
+    for _, obj in ipairs(objectsWhere(square, function(n) return n == D.BARREL_SPRITE end)) do
+        local container = obj:getContainer()
+        if container then out[#out + 1] = container end
+    end
+    return out
+end
+
+--- Jar records are keyed by item ID; a barrel, being furniture, by its tile.
+local function barrelKey(square)
+    return "barrel_" .. Config.tileKey(square:getX(), square:getY(), square:getZ())
+end
+
 --- The squares of the rack standing on a tile: the tile itself and its other half.
 local function rackSquares(square)
     if not square then return {} end
@@ -249,17 +264,18 @@ function Drying.advanceJar(jar, buds, elapsed, now)
     end
 end
 
-local function settleJar(jarItem, key, now)
+--- Settle any curing container (a jar's inventory or a barrel's) whose burp record lives under `cureKey`.
+local function settleCure(container, cureKey, key, now)
     local station = db.stations[key]
     local prev = station.lastTick or now
     local elapsed = Config.clamp(now - prev, 0, D.MAX_CATCHUP_HOURS)
-    local jar = db.jars[jarItem:getID()]
+    local jar = db.jars[cureKey]
     if not jar then
         jar = { lastBurp = now }
-        db.jars[jarItem:getID()] = jar
+        db.jars[cureKey] = jar
     end
     local present = {}
-    for _, item in ipairs(budsIn(jarItem:getInventory())) do
+    for _, item in ipairs(budsIn(container)) do
         local rec = db.buds[item:getID()]
         if rec then
             if rec.at == key and rec.seen == prev then present[#present + 1] = rec end
@@ -267,6 +283,14 @@ local function settleJar(jarItem, key, now)
         end
     end
     if elapsed > 0 then Drying.advanceJar(jar, present, elapsed, now) end
+end
+
+local function settleJar(jarItem, key, now)
+    settleCure(jarItem:getInventory(), jarItem:getID(), key, now)
+end
+
+local function settleBarrels(square, key, now)
+    for _, barrel in ipairs(barrelsAt(square)) do settleCure(barrel, barrelKey(square), key, now) end
 end
 
 -- --------------------------------------------------------------------------
@@ -302,7 +326,7 @@ function Drying.discover()
             for dx = -r, r do
                 for dy = -r, r do
                     local sq = cell:getGridSquare(px + dx, py + dy, pz)
-                    if sq and (#racksAt(sq) > 0 or #worldItemsAt(sq, D.JAR_ITEM) > 0) then
+                    if sq and (#racksAt(sq) > 0 or #worldItemsAt(sq, D.JAR_ITEM) > 0 or #barrelsAt(sq) > 0) then
                         register(sq)
                     end
                 end
@@ -319,12 +343,13 @@ function Drying.tick()
         local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
         local square = x and getCell():getGridSquare(tonumber(x), tonumber(y), tonumber(z))
         if square then
-            local racks, jars = racksAt(square), worldItemsAt(square, D.JAR_ITEM)
-            if #racks == 0 and #jars == 0 then
+            local racks, jars, barrels = racksAt(square), worldItemsAt(square, D.JAR_ITEM), barrelsAt(square)
+            if #racks == 0 and #jars == 0 and #barrels == 0 then
                 db.stations[key] = nil
             else
                 for _, rack in ipairs(racks) do settleRack(rack, key, square, now) end
                 for _, jar in ipairs(jars) do settleJar(jar, key, now) end
+                settleBarrels(square, key, now)
                 station.lastTick = now
             end
         end
@@ -363,6 +388,7 @@ local function settleNow(square)
     local now = Registry.nowHours()
     for _, rack in ipairs(racksAt(square)) do settleRack(rack, key, square, now) end
     for _, jar in ipairs(worldItemsAt(square, D.JAR_ITEM)) do settleJar(jar, key, now) end
+    settleBarrels(square, key, now)
     db.stations[key].lastTick = now
 end
 
@@ -392,13 +418,11 @@ commands.checkRack = function(player, args)
     Net.notify(player, "Rack: " .. table.concat(lines, "; "))
 end
 
-commands.checkJar = function(player, args)
-    local jar, square = findStation(player, args, D.JAR_ITEM)
-    if not jar then return end
-    if square then settleNow(square) end
-    local items = budsIn(jar:getInventory())
+--- Tell the player how a curing container is doing: bud count, curing days, time since the last burp and mold.
+local function reportCure(player, container, cureKey, label)
+    local items = budsIn(container)
     if #items == 0 then
-        Net.notify(player, "The jar is empty")
+        Net.notify(player, "The " .. label:lower() .. " is empty")
         return
     end
     local days, moldy = 0, false
@@ -409,28 +433,63 @@ commands.checkJar = function(player, args)
             if rec.moldy then moldy = true end
         end
     end
-    local info = db.jars[jar:getID()]
+    local info = db.jars[cureKey]
     local sinceBurp = info and (Registry.nowHours() - info.lastBurp) or 0
-    local msg = string.format("Jar: %d buds, curing %.0f of %d days, burped %.0fh ago", #items, days, Config.cureDays(), sinceBurp)
+    local msg = string.format("%s: %d buds, curing %.0f of %d days, burped %.0fh ago", label, #items, days, Config.cureDays(), sinceBurp)
     if moldy then msg = msg .. ". It smells musty: MOLD" end
     Net.notify(player, msg)
+end
+
+--- Burp a curing container: resets its mold clock and lets moist buds finish drying.
+local function burpCure(player, container, cureKey, label)
+    local info = db.jars[cureKey]
+    if not info then
+        info = {}
+        db.jars[cureKey] = info
+    end
+    info.lastBurp = Registry.nowHours()
+    for _, item in ipairs(budsIn(container)) do
+        local rec = db.buds[item:getID()]
+        if rec and rec.moist and (rec.cureHours or 0) >= 24 then rec.moist = false end
+    end
+    Net.notify(player, "Burped the " .. label:lower())
+end
+
+commands.checkJar = function(player, args)
+    local jar, square = findStation(player, args, D.JAR_ITEM)
+    if not jar then return end
+    if square then settleNow(square) end
+    reportCure(player, jar:getInventory(), jar:getID(), "Jar")
 end
 
 commands.burpJar = function(player, args)
     local jar, square = findStation(player, args, D.JAR_ITEM)
     if not jar then return end
     if square then settleNow(square) end
-    local info = db.jars[jar:getID()]
-    if not info then
-        info = {}
-        db.jars[jar:getID()] = info
-    end
-    info.lastBurp = Registry.nowHours()
-    for _, item in ipairs(budsIn(jar:getInventory())) do
-        local rec = db.buds[item:getID()]
-        if rec and rec.moist and (rec.cureHours or 0) >= 24 then rec.moist = false end
-    end
-    Net.notify(player, "Burped the jar")
+    burpCure(player, jar:getInventory(), jar:getID(), "Jar")
+end
+
+--- The barrel standing on the tile a player is acting on, after checking they're close enough.
+local function barrelFor(player, args)
+    local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
+    if not (x and y and z) or not SC.isNear(player, x, y, z) then return nil end
+    local square = getCell():getGridSquare(x, y, z)
+    local barrel = square and barrelsAt(square)[1]
+    return barrel, square
+end
+
+commands.checkBarrel = function(player, args)
+    local barrel, square = barrelFor(player, args)
+    if not barrel then return end
+    settleNow(square)
+    reportCure(player, barrel, barrelKey(square), "Barrel")
+end
+
+commands.burpBarrel = function(player, args)
+    local barrel, square = barrelFor(player, args)
+    if not barrel then return end
+    settleNow(square)
+    burpCure(player, barrel, barrelKey(square), "Barrel")
 end
 
 --- Trim a whole plant into buds. Dry time, mold and sun exposure set the quality.
@@ -486,12 +545,13 @@ commands.debugDryingKit = function(player, args)
     if not debugAllowed(player) then return end
     Farming.giveItems(player, D.RACK_ITEM, 1)
     Farming.giveItems(player, D.JAR_ITEM, 1)
+    Farming.giveItems(player, D.BARREL_ITEM, 1)
     Farming.giveItems(player, D.FAN_ITEM, 1)
     Farming.giveItems(player, "Base.Scissors", 1)
     Farming.giveItems(player, Config.WET_PLANT_ITEMS.Indica, 2, function(item)
         item:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 6, genetics = 80, generation = 1 }
     end)
-    Net.notify(player, "Gave a rack, jar, fan, scissors and 2 wet plants. Place the rack and fan like furniture; set the jar down")
+    Net.notify(player, "Gave a rack, jar, barrel, fan, scissors and 2 wet plants. Place the rack, barrel and fan like furniture; set the jar down")
 end
 
 --- Pretend `hours` hours have passed at every station (applied at the next settle).

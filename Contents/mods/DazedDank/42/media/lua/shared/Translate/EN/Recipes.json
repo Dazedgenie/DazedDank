@@ -11,6 +11,10 @@
     "DDMakeLightTimer": "Make Light Timer",
     "DDMakeGrowFloodBasic": "Make Flood Grow Light",
     "DDMakeGrowFloodPro": "Make Pro Flood Grow Light",
+    "DDMakeDWCBucket": "Make DWC Bucket",
+    "DDMakeClayPebbles": "Roll Clay Pebbles",
+    "DDFireClayPebbles": "Fire Clay Pebbles",
+    "DDMakeCuringBarrel": "Make Curing Barrel",
     "DDMakeCuringJar": "Make Curing Jar",
     "DDSwapPapers": "Repack Rolling Papers"
 }

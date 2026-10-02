@@ -20,6 +20,8 @@ local FEED_MESSAGES = {
     good  = "The plant looks happier",
     wrong = "That's the wrong food for this stage",
     burn  = "Nutrient burn! Once per stage is plenty",
+    mixed = "Mixed the nutrients into the reservoir",
+    noWater = "The reservoir is empty: top it up first",
 }
 
 commands.feedPlant = function(player, args)

@@ -38,6 +38,8 @@ local WARNINGS = {
     nutrientBurn = { "Nutrient burn", "bad" }, wrongNutrient = { "Wrong nutrient", "bad" }, overwatered = { "Overwatered", "bad" },
     underwatered = { "Underwatered", "warn" }, noLight = { "No light", "bad" }, lightInterrupted = { "Light interrupted", "warn" },
     lightLeak = { "Light leak", "bad" }, hungry = { "Hungry", "warn" },
+    reservoirDry = { "Reservoir dry", "bad" }, staleReservoir = { "Stale reservoir", "warn" },
+    pumpOff = { "Pumps off", "bad" }, rootRot = { "Root rot", "bad" },
 }
 
 --- "1 d 6 h" style text for a number of hours.
@@ -111,8 +113,26 @@ function Layout.build(data, fontH, measure)
     end
     if data.rooting then row("", data.rooting, COLORS.warn) end
 
+    -- Hydro: the reservoir replaces the water bar.
+    if data.reservoir then
+        local r = data.reservoir
+        text("Reservoir", PAD, y, COLORS.muted)
+        text(r.level .. " / " .. r.cap .. " L" .. (r.stale and "  (stale)" or ""), W - PAD, y, r.stale and COLORS.warn or COLORS.text, "Small", "right")
+        y = y + small + 2
+        local bw = W - 2 * PAD
+        rect(PAD, y, bw, 8, COLORS.track)
+        rect(PAD, y, bw * Config.clamp(r.level / math.max(1, r.cap), 0, 1), 8, r.level > 0 and COLORS.water or COLORS.bad)
+        y = y + 8 + GAP
+        local food = r.nutrient and (r.nutrient .. " " .. r.strength .. "%") or "None"
+        local low = r.strength < Config.Hydro.HUNGRY_BELOW * 100
+        row("Nutrients", food, low and COLORS.warn or COLORS.text)
+    end
+    if data.roots then
+        row("Roots", data.roots, data.roots == "Healthy" and COLORS.good or (data.roots == "Browning" and COLORS.warn or COLORS.bad))
+    end
+
     -- Water: a bar with the healthy zone marked.
-    if data.water then
+    if data.water and not data.reservoir then
         text("Water", PAD, y, COLORS.muted)
         text(tostring(data.water), W - PAD, y, COLORS.text, "Small", "right")
         y = y + small + 2

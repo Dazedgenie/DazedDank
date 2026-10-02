@@ -27,5 +27,13 @@
     "Sandbox_CannabisMod_LootRarity": "Loot Rarity",
     "Sandbox_CannabisMod_LootRarity_tooltip": "Multiplier on how often the mod's items appear in world loot (0 = none). Applies to newly generated containers.",
     "Sandbox_CannabisMod_RecipeMagazine": "Recipes Need Magazine",
-    "Sandbox_CannabisMod_RecipeMagazine_tooltip": "If enabled, the mod's crafting recipes must be learned from the Grower's Handbook magazine. If disabled, every character knows them from the start."
+    "Sandbox_CannabisMod_RecipeMagazine_tooltip": "If enabled, the mod's crafting recipes must be learned from the Grower's Handbook magazine. If disabled, every character knows them from the start.",
+    "Sandbox_CannabisMod_RootRotRisk": "Root Rot Risk",
+    "Sandbox_CannabisMod_RootRotRisk_tooltip": "Multiplier on how fast root rot builds in hydro systems and spreads through RDWC. 0 turns root rot off.",
+    "Sandbox_CannabisMod_ReservoirUseRate": "Reservoir Use Rate",
+    "Sandbox_CannabisMod_ReservoirUseRate_tooltip": "Multiplier on how fast hydro reservoirs drain, use up nutrients and go stale.",
+    "Sandbox_CannabisMod_HydroQualityBonus": "Hydro Quality Bonus",
+    "Sandbox_CannabisMod_HydroQualityBonus_tooltip": "How far above 100 an RDWC grow's quality can reach (0.15 = up to 115). 0 removes the Top Shelf tier.",
+    "Sandbox_CannabisMod_PumpsNeedPower": "Pumps Need Power",
+    "Sandbox_CannabisMod_PumpsNeedPower_tooltip": "If enabled, hydro air and water pumps only run with power. Without air, roots start to rot."
 }

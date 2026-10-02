@@ -12,12 +12,14 @@ CannabisMod.Loot = Loot
 Loot.TABLE = {
     GardenStoreMisc = {
         ["CannabisMod.CannabisSeed"] = 0.6, ["CannabisMod.SoilSack"] = 4, ["CannabisMod.GrowBagSmallPlaceable"] = 3,
-        ["CannabisMod.GrowBagLargePlaceable"] = 2, ["CannabisMod.GrowersHandbook"] = 0.8, ["CannabisMod.LightTimer"] = 3, ["CannabisMod.VegNutrients"] = 2, ["CannabisMod.BloomNutrients"] = 2,
+        ["CannabisMod.GrowBagLargePlaceable"] = 2, ["CannabisMod.GrowersHandbook"] = 0.8, ["CannabisMod.LightTimer"] = 3,
+        ["CannabisMod.RockwoolCube"] = 3, ["CannabisMod.HydroMagazine"] = 0.6, ["CannabisMod.VegNutrients"] = 2, ["CannabisMod.BloomNutrients"] = 2,
     },
     GardenStoreTools = {
         ["CannabisMod.GrowLampBasic"] = 1.5, ["CannabisMod.GrowLampPro"] = 0.5, ["CannabisMod.GrowLampLargeBasic"] = 0.3,
         ["CannabisMod.DryingFan"] = 0.6, ["CannabisMod.GrowFloodBasic"] = 0.5, ["CannabisMod.GrowFloodPro"] = 0.15, ["CannabisMod.SoilSack"] = 3, ["CannabisMod.VegNutrients"] = 1, ["CannabisMod.BloomNutrients"] = 1,
         ["CannabisMod.RootingGel"] = 0.6, ["CannabisMod.CloningDomeTray"] = 0.4, ["CannabisMod.GrowersHandbook"] = 0.4, ["CannabisMod.LightTimer"] = 3,
+        ["CannabisMod.RockwoolCube"] = 2, ["CannabisMod.DWCBucket"] = 0.4,
     },
     GardenerTools = {
         ["CannabisMod.CannabisSeed"] = 0.3, ["CannabisMod.SoilSack"] = 1, ["CannabisMod.GrowBagSmallPlaceable"] = 1,
@@ -35,13 +37,15 @@ Loot.TABLE = {
         ["CannabisMod.CannabisSeed"] = 4, ["CannabisMod.RollingPapers"] = 6, ["CannabisMod.SmokingPipe"] = 3,
         ["CannabisMod.GrowLampBasic"] = 1, ["CannabisMod.VegNutrients"] = 1, ["CannabisMod.BloomNutrients"] = 1,
         ["CannabisMod.GrowersHandbook"] = 2, ["CannabisMod.LightTimer"] = 3,
+        ["CannabisMod.RockwoolCube"] = 2, ["CannabisMod.HydroMagazine"] = 1,
     },
     DrugLabSupplies = {
         ["CannabisMod.CannabisSeed"] = 2, ["CannabisMod.GrowLampPro"] = 1, ["CannabisMod.GrowLampLargePro"] = 0.3, ["CannabisMod.GrowFloodPro"] = 0.5,
         ["CannabisMod.VegNutrients"] = 2, ["CannabisMod.BloomNutrients"] = 2, ["CannabisMod.RootingGel"] = 1,
-        ["CannabisMod.CloningDomeTray"] = 1, ["CannabisMod.CuringJar"] = 1.5, ["CannabisMod.GrowersHandbook"] = 1.5, ["CannabisMod.LightTimer"] = 3,
+        ["CannabisMod.CloningDomeTray"] = 1, ["CannabisMod.CuringJar"] = 1.5, ["CannabisMod.CuringBarrel"] = 0.3,
+        ["CannabisMod.RockwoolCube"] = 4, ["CannabisMod.HydroMagazine"] = 1.5, ["CannabisMod.DWCBucket"] = 0.6, ["CannabisMod.GrowersHandbook"] = 1.5, ["CannabisMod.LightTimer"] = 3,
     },
-    MagazineRackMixed = { ["CannabisMod.GrowersHandbook"] = 1.5 },
+    MagazineRackMixed = { ["CannabisMod.GrowersHandbook"] = 1.5, ["CannabisMod.HydroMagazine"] = 1 },
     MagazineRackFancy = { ["CannabisMod.GrowersHandbook"] = 0.6 },
     TobaccoStoreAccessories = { ["CannabisMod.RollingPapers"] = 30 },
     StoreCounterTobacco = { ["CannabisMod.RollingPapers"] = 6 },

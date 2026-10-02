@@ -1,4 +1,4 @@
--- Ceiling grow lamps need every tile indoors and off tables, while floor flood lights can go anywhere. Also feeds the range preview.
+-- Ceiling grow lamps need every tile indoors and off tables, floor flood lights can go anywhere, and hydro gear stays indoors. Also feeds the range preview.
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisRangePreview"
@@ -20,6 +20,12 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
                 end)
                 if not (ok and indoors) then return false end
             end
+        end
+        -- Hydro systems are indoor gear: the reservoir and pumps need shelter.
+        local kind = Config.bagFromFurnSprite(self.spriteName)
+        if kind and Config.isHydro(kind) then
+            local ok, indoors = pcall(function() return square ~= nil and not square:isOutside() end)
+            if not (ok and indoors) then return false end
         end
         return originalCanPlace(self, character, square, item)
     end

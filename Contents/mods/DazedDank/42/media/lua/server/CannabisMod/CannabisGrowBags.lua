@@ -26,6 +26,7 @@ CannabisMod.GrowBags = GrowBags
 function GrowBags.reset(luaObject)
     local x, y, z = luaObject.x, luaObject.y, luaObject.z
     Registry.removePlant(x, y, z)
+    if CannabisMod.Hydro then CannabisMod.Hydro.onReset(x, y, z) end
     luaObject:initNew()  -- vanilla's "freshly plowed" state
     pcall(function() luaObject.exterior = luaObject:getSquare():isOutside() end)
     luaObject:setSpriteName(farming_vegetableconf.getSpriteName(luaObject))
@@ -99,6 +100,7 @@ commands.fillGrowBag = function(player, args)
     local luaObject, size = bagPlot(player, args)
     if not luaObject then return end
     local x, y, z = luaObject.x, luaObject.y, luaObject.z
+    if Config.isHydro(size) then return end
     if Registry.isBagSoiled(x, y, z) then
         Net.notify(player, "That bag already has soil")
         return
@@ -121,6 +123,9 @@ commands.pickUpGrowBag = function(player, args)
     if luaObject.state ~= "plow" then
         Net.notify(player, "Empty the bag first")
         return
+    end
+    if Config.isHydro(size) and CannabisMod.Hydro then
+        CannabisMod.Hydro.onPickUp(player, luaObject.x, luaObject.y, luaObject.z)
     end
     Registry.clearBag(luaObject.x, luaObject.y, luaObject.z)
     SFarmingSystem.instance:removePlant(luaObject)

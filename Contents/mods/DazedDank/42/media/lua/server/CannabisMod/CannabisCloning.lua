@@ -174,6 +174,21 @@ local function domeSquare(dome, player)
     return square or player:getCurrentSquare()
 end
 
+-- Domes seen this session, by item id, so their rooting cuttings can be kept fresh between player checks.
+local liveDomes = {}
+
+--- Hold a cutting's age where it was when it went into the dome, so a cutting that is rooting never goes stale.
+local function holdAge(item, entry)
+    if not entry.success then return end
+    pcall(function()
+        if entry.age == nil then entry.age = item:getAge() end
+        if item:getAge() ~= entry.age then
+            item:setAge(entry.age)
+            pcall(function() item:syncItemFields() end)
+        end
+    end)
+end
+
 --- Match the registry to what is physically in the dome. New cuttings get
 --- their rooting roll now (conditions where the dome sits); records for
 --- cuttings that are gone are dropped.
@@ -189,6 +204,7 @@ local function domeSync(dome, player)
         if entry.id and present[entry.id] then
             keep[#keep + 1] = entry
             known[entry.id] = true
+            holdAge(present[entry.id], entry)
         end
     end
 
@@ -204,18 +220,39 @@ local function domeSync(dome, player)
             })
             -- A cutting that already rotted can't root.
             local ok, rotten = pcall(function() return item:isRotten() end)
+            local ageOk, age = pcall(function() return item:getAge() end)
             keep[#keep + 1] = {
                 id        = item:getID(),
                 data      = data,
                 startedAt = now,
                 readyAt   = now + hours,
                 success   = Config.rollPercent(chance) and not (ok and rotten),
+                age       = ageOk and age or nil,
             }
         end
     end
     Registry.setDome(dome:getID(), keep)
+    liveDomes[dome:getID()] = dome
     return keep, present
 end
+
+--- Every ten minutes, keep the rooting cuttings in every dome seen this session from ageing.
+function Cloning.holdDomes()
+    local gone = {}
+    for id, dome in pairs(liveDomes) do
+        local ok = pcall(function()
+            local byId = {}
+            for _, entry in ipairs(Registry.getDome(id)) do byId[entry.id] = entry end
+            for _, item in ipairs(cuttingsIn(dome)) do
+                local entry = byId[item:getID()]
+                if entry then holdAge(item, entry) end
+            end
+        end)
+        if not ok then gone[#gone + 1] = id end
+    end
+    for _, id in ipairs(gone) do liveDomes[id] = nil end
+end
+Events.EveryTenMinutes.Add(Cloning.holdDomes)
 
 --- Count cuttings by state. Returns pending, rooted, failed, hours until the
 --- next one finishes.

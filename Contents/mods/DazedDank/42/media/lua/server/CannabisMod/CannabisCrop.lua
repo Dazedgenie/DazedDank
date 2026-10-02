@@ -104,7 +104,8 @@ farming_vegetableconf.getSpriteName = function(plot)
     local record = Registry and Registry.getPlant(plot.x, plot.y, plot.z)
     local plantType = record and record.type or Config.TYPES.HYBRID
     local stage = record and record.stage or NBOFGROW_TO_STAGE[plot.nbOfGrow] or Config.STAGE.Seedling
-    return Config.spriteName(plantType, stage, vanillaCondition(plot), bag)
+    local male = record and record.sex == Config.SEX.MALE
+    return Config.spriteName(plantType, stage, vanillaCondition(plot), bag, male)
 end
 
 -- Name shown over a plot: an empty bag is a "Small Grow Bag", not "Plowed
@@ -117,7 +118,9 @@ farming_vegetableconf.getObjectName = function(plot)
         local bag = Registry and Registry.getBag and Registry.getBag(plot.x, plot.y, plot.z)
         if bag and Config.GrowBag[bag] then
             local name = Config.GrowBag[bag].name
-            if not Registry.isBagSoiled(plot.x, plot.y, plot.z) then name = name .. ", needs soil" end
+            if not Registry.isBagSoiled(plot.x, plot.y, plot.z) then
+                name = name .. (Config.isHydro(bag) and ", needs a medium" or ", needs soil")
+            end
             return name
         end
     end

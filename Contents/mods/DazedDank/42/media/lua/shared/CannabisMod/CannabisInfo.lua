@@ -125,6 +125,23 @@ builders.extraVeg = function(plant)
     return { hours = math.floor(hours), bonus = math.floor(bonus * 100 + 0.5) }
 end
 
+-- A hydro plant's reservoir: litres, capacity, nutrient and its strength.
+builders.reservoir = function(plant)
+    local h = plant.hydro
+    if not h then return nil end
+    return { level = math.floor(h.level * 10 + 0.5) / 10, cap = h.cap, nutrient = h.nutrient,
+             strength = math.floor((h.strength or 0) * 100 + 0.5), stale = h.stale == true }
+end
+
+-- How the roots of a hydro plant look.
+builders.roots = function(plant)
+    if not plant.hydro then return nil end
+    local rot = plant.rootRot or 0
+    if rot >= Config.Hydro.ROT_EARLY then return "Rotting" end
+    if rot > 0 then return "Browning" end
+    return "Healthy"
+end
+
 builders.healthBand = function(plant)
     return band(plant.care or 100, HEALTH_BANDS)
 end

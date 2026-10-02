@@ -223,6 +223,9 @@ end
 --- Take care points away and add matching stress. One function for every kind
 --- of mistake, so care and stress always move together.
 function Registry.applyPenalty(plant, amount, warningName)
+    -- Hydro systems are more forgiving: their containers scale every care penalty.
+    local def = plant.bag and Config.GrowBag[plant.bag]
+    if def and def.careMult then amount = amount * def.careMult end
     plant.care = Config.clamp(plant.care - amount, 0, 100)
     plant.stress = Config.clamp(plant.stress + amount * Config.Care.STRESS_FROM_CARE,
         0, Config.Stress.MAX)
@@ -234,6 +237,8 @@ end
 --- Feed a plant. nutrient = "Veg" or "Bloom". Right nutrient for the stage,
 --- first feed this stage: small bonus.
 function Registry.feed(plant, nutrient)
+    -- Hydro plants are fed through their reservoir.
+    if Config.isHydro(plant.bag) and CannabisMod.Hydro then return CannabisMod.Hydro.feed(plant, nutrient) end
     local stageName = Config.STAGES[plant.stage]
     plant.fedThisStage = plant.fedThisStage + 1
     plant.lastNutrient = nutrient
@@ -321,6 +326,8 @@ end
 function Registry.extendVeg(plant, now)
     plant.extraVegHours = (plant.extraVegHours or 0) + 1 / 6
     plant.vegHeld = true
+    -- Hydro plants eat from their reservoir instead of a feeding schedule.
+    if Config.isHydro(plant.bag) then return end
     plant.vegFeedDueAt = plant.vegFeedDueAt or (now + Config.Timer.FEED_EVERY_HOURS)
     if now >= plant.vegFeedDueAt then
         if (plant.fedThisStage or 0) == 0 then
@@ -428,6 +435,9 @@ local function onEveryTenMinutes()
             end
             if plant.stage == Config.STAGE.Flowering then
                 flowerChecks(plant)
+            end
+            if Config.isHydro(plant.bag) and CannabisMod.Hydro and not plant.dead then
+                CannabisMod.Hydro.update(plant, now)
             end
             Registry.waterCheck(plant)
         end

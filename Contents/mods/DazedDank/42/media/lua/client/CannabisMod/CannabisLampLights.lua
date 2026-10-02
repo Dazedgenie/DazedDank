@@ -10,13 +10,15 @@ CannabisMod.LampLights = LampLights
 
 -- Light colours by lamp tier: basic lamps run blurple LEDs, pro lamps a warm full-spectrum yellow.
 LampLights.COLORS = {
-    basic = { 0.70, 0.40, 1.00 },
+    basic = { 0.85, 0.25, 1.00 },
     pro   = { 1.00, 0.82, 0.45 },
 }
+-- How many light sources each tier stacks on its tile: two for the purple so it reads strongly.
+LampLights.LAYERS = { basic = 2, pro = 1 }
 LampLights.SCAN_RADIUS = 30   -- tiles around the player that get lamp lights
 LampLights.EVERY_TICKS = 60   -- rescan about once a second
 
-local active = {}             -- tileKey -> IsoLightSource
+local active = {}             -- tileKey -> { x, y, z, lights = { IsoLightSource... } }
 local ticks = 0
 local warned = false
 
@@ -51,25 +53,56 @@ local function lampOn(square, obj)
     return Config.Timer.isOn(schedule, getGameTime():getHour())
 end
 
-local function removeLight(key)
-    local light = active[key]
-    if light then
-        pcall(function() getCell():removeLamppost(light) end)
-        active[key] = nil
+--- Ask the game to redo its lighting soon, so a light switched off or removed stops showing.
+local function refreshLighting()
+    pcall(function() IsoGridSquare.setRecalcLightTime(-1) end)
+    pcall(function() GameTime.getInstance():setLightSourceUpdate(100) end)
+end
+
+--- Switch a lamp's light sources on or off; called on every scan so the game can't leave them in the wrong state.
+local function setLit(entry, on)
+    local changed = entry.on ~= on
+    for _, light in ipairs(entry.lights) do
+        pcall(function()
+            if light:isActive() ~= on then changed = true end
+            light:setActive(on)
+            if not on then light:clearInfluence() end
+        end)
     end
+    entry.on = on
+    if changed then refreshLighting() end
+end
+
+--- Remove every light source on a lamp tile, trying each way the game offers so none is left glowing.
+local function removeLight(key)
+    local entry = active[key]
+    if not entry then return end
+    setLit(entry, false)
+    for _, light in ipairs(entry.lights) do
+        pcall(function() getCell():removeLamppost(light) end)
+    end
+    pcall(function() getCell():removeLamppost(entry.x, entry.y, entry.z) end)
+    active[key] = nil
+    refreshLighting()
 end
 
 local function addLight(key, x, y, z, def)
-    local c = LampLights.COLORS[LampLights.tier(def)]
-    local ok, light = pcall(function()
-        local l = IsoLightSource.new(x, y, z, c[1], c[2], c[3], LampLights.radius(def))
-        getCell():addLamppost(l)
-        return l
-    end)
-    if ok and light then active[key] = light else warnOnce(light) end
+    local tier = LampLights.tier(def)
+    local c = LampLights.COLORS[tier]
+    local entry = { x = x, y = y, z = z, lights = {}, on = true }
+    for _ = 1, LampLights.LAYERS[tier] do
+        local ok, light = pcall(function()
+            local l = IsoLightSource.new(x, y, z, c[1], c[2], c[3], LampLights.radius(def))
+            getCell():addLamppost(l)
+            return l
+        end)
+        if ok and light then entry.lights[#entry.lights + 1] = light else warnOnce(light) end
+    end
+    if #entry.lights > 0 then active[key] = entry end
+    refreshLighting()
 end
 
---- Rescan the lamps around the player and switch their lights on or off to match.
+--- Rescan the lamps around the player and switch their lights on or off to match power and timer.
 function LampLights.update()
     local player = getPlayer()
     if not player then return end
@@ -88,9 +121,12 @@ function LampLights.update()
                     local def = sprite and Config.Light.SPRITES[sprite:getName()]
                     if def then
                         local key = Config.tileKey(x, y, pz)
-                        if lampOn(square, obj) then
-                            seen[key] = true
-                            if not active[key] then addLight(key, x, y, pz, def) end
+                        seen[key] = true
+                        local on = lampOn(square, obj)
+                        if not active[key] then
+                            if on then addLight(key, x, y, pz, def) end
+                        else
+                            setLit(active[key], on)
                         end
                         break
                     end
@@ -98,7 +134,7 @@ function LampLights.update()
             end
         end
     end
-    -- Anything lit last time but not this time was switched off, picked up or left behind.
+    -- Lamps picked up, or left behind when the player moved away or changed floor.
     local gone = {}
     for key in pairs(active) do
         if not seen[key] then gone[#gone + 1] = key end
