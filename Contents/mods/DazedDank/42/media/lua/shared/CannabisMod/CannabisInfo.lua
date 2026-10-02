@@ -29,7 +29,8 @@ local STRESS_BANDS  = { { upTo = 20, word = "Low" }, { upTo = 50, word = "Modera
                         { upTo = 75, word = "High" }, { upTo = 100, word = "Severe" } }
 local GENETIC_BANDS = { { upTo = 60, word = "Degraded" }, { upTo = 85, word = "Drifting" },
                         { upTo = 100, word = "Strong" } }
-local QUALITY_BANDS = HEALTH_BANDS
+local QUALITY_BANDS = { { upTo = 40, word = "Poor" }, { upTo = 65, word = "Fair" }, { upTo = 85, word = "Good" },
+                        { upTo = 100, word = "Excellent" }, { upTo = 1000, word = "Top Shelf" } }
 
 -- Rough stage names for low-skill players.
 local ROUGH_STAGE = {
@@ -130,7 +131,8 @@ builders.reservoir = function(plant)
     local h = plant.hydro
     if not h then return nil end
     return { level = math.floor(h.level * 10 + 0.5) / 10, cap = h.cap, nutrient = h.nutrient,
-             strength = math.floor((h.strength or 0) * 100 + 0.5), stale = h.stale == true }
+             strength = math.floor((h.strength or 0) * 100 + 0.5), stale = h.stale == true,
+             sites = h.sites, unlinked = h.unlinked == true }
 end
 
 -- How the roots of a hydro plant look.
@@ -140,6 +142,12 @@ builders.roots = function(plant)
     if rot >= Config.Hydro.ROT_EARLY then return "Rotting" end
     if rot > 0 then return "Browning" end
     return "Healthy"
+end
+
+-- Root rot level, 0-100 (early rot below ROT_EARLY can still be treated).
+builders.rootRot = function(plant)
+    if not plant.hydro then return nil end
+    return math.floor((plant.rootRot or 0) + 0.5)
 end
 
 builders.healthBand = function(plant)

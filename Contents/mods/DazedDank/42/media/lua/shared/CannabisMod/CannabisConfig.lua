@@ -177,6 +177,11 @@ Config.GrowBag = {
               drain = 1, yield = 1.3, careMult = 0.75, emptySprite = 374,
               drySprite = 373, soil = 0, plantBase = 375, maleBase = 440, lastSprite = 484,
               furnItem = "CannabisMod.DWCBucket", furnSprite = 372 },
+    -- Recirculating DWC site bucket: shares the reservoir of a control bucket nearby; its buds can reach Top Shelf.
+    rdwc  = { name = "RDWC Site Bucket", hydro = "rdwc", topShelf = true,
+              drain = 1, yield = 1.4, careMult = 0.6, emptySprite = 487,
+              drySprite = 486, soil = 0, plantBase = 488, maleBase = 553, lastSprite = 597,
+              furnItem = "CannabisMod.RDWCSite", furnSprite = 485 },
 }
 -- Ground plants: the first 65 sprites, and males from MALE_SPRITE_BASE.
 Config.GROUND_SPRITES = { plantBase = 0, maleBase = 237 }
@@ -461,6 +466,9 @@ Config.Hydro = {
     ROT_EARLY = 30, ROT_DEAD = 100,
     ROT_CARE_PER_HOUR = 1.0,                    -- care lost per hour once rot is past early
     MEDIUM_ITEMS = { rockwool = "CannabisMod.RockwoolCube", pebbles = "CannabisMod.ClayPebbles" },
+    -- RDWC: a control bucket (furniture) runs up to 6 site buckets within 3 tiles on the same floor.
+    CONTROL_ITEM = "CannabisMod.RDWCControl", CONTROL_SPRITE = "dazeddank_plants_01_598",
+    RDWC_CONTROL_L = 40, RDWC_SITE_L = 20, RDWC_RANGE = 3, RDWC_MAX_SITES = 6,
     PEBBLE_SEED_FAIL = 25,                      -- % of seeds sown straight into clay pebbles that don't take
 }
 
@@ -531,8 +539,8 @@ Config.Curing = {
     MOIST_BELOW = 0.8,                   -- buds trimmed under 80% dry go in "moist"
     BUD_WEIGHT = 0.03,
 }
--- Item name prefix by final quality.
-Config.QualityTiers = { { 85, "Premium" }, { 65, "Good" }, { 40, "Average" }, { 0, "Poor" } }
+-- Item name prefix by final quality; only RDWC buds can pass 100 and reach Top Shelf.
+Config.QualityTiers = { { 101, "Top Shelf" }, { 85, "Premium" }, { 65, "Good" }, { 40, "Average" }, { 0, "Poor" } }
 function Config.qualityTier(q)
     for _, t in ipairs(Config.QualityTiers) do
         if (q or 0) >= t[1] then return t[2] end
@@ -549,7 +557,7 @@ end
 Config.InfoTiers = {
     { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container" } },
     { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir" } },
-    { level = 3,  fields = { "type", "sex", "light", "lightCycle", "roots" } },
+    { level = 3,  fields = { "type", "sex", "light", "lightCycle", "roots", "rootRot" } },
     { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },
     { level = 9,  fields = { "generation", "geneticsBand" } },
@@ -674,3 +682,9 @@ Config.Use = {
     ANXIETY_ABOVE = 0.9, ANXIETY_STRESS = 0.1,   -- an overly strong sativa-leaning hit gets anxious
     WITHDRAWAL = { STRESS = 0.12, UNHAPPINESS = 8, BOREDOM = 8, HUNGER = -0.02 },
 }
+
+--- The highest quality buds can reach: 100, or above it for RDWC grows (the Hydro Quality Bonus sandbox option).
+function Config.maxQuality(topShelf)
+    if not topShelf then return 100 end
+    return 100 * (1 + math.max(0, Config.sandbox("HydroQualityBonus") or 0))
+end
