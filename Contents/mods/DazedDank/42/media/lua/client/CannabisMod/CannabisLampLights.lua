@@ -53,43 +53,21 @@ local function lampOn(square, obj)
     return Config.Timer.isOn(schedule, getGameTime():getHour())
 end
 
---- Ask the game to redo its lighting soon, so a light switched off or removed stops showing.
-local function refreshLighting()
-    pcall(function() IsoGridSquare.setRecalcLightTime(-1) end)
-    pcall(function() GameTime.getInstance():setLightSourceUpdate(100) end)
-end
-
---- Switch a lamp's light sources on or off; called on every scan so the game can't leave them in the wrong state.
-local function setLit(entry, on)
-    local changed = entry.on ~= on
-    for _, light in ipairs(entry.lights) do
-        pcall(function()
-            if light:isActive() ~= on then changed = true end
-            light:setActive(on)
-            if not on then light:clearInfluence() end
-        end)
-    end
-    entry.on = on
-    if changed then refreshLighting() end
-end
-
---- Remove every light source on a lamp tile, trying each way the game offers so none is left glowing.
+--- Switch a lamp off: deactivate and remove each of its light sources. Only these two calls are safe with Build 42's lighting engine.
 local function removeLight(key)
     local entry = active[key]
     if not entry then return end
-    setLit(entry, false)
     for _, light in ipairs(entry.lights) do
+        pcall(function() light:setActive(false) end)
         pcall(function() getCell():removeLamppost(light) end)
     end
-    pcall(function() getCell():removeLamppost(entry.x, entry.y, entry.z) end)
     active[key] = nil
-    refreshLighting()
 end
 
 local function addLight(key, x, y, z, def)
     local tier = LampLights.tier(def)
     local c = LampLights.COLORS[tier]
-    local entry = { x = x, y = y, z = z, lights = {}, on = true }
+    local entry = { lights = {} }
     for _ = 1, LampLights.LAYERS[tier] do
         local ok, light = pcall(function()
             local l = IsoLightSource.new(x, y, z, c[1], c[2], c[3], LampLights.radius(def))
@@ -99,10 +77,9 @@ local function addLight(key, x, y, z, def)
         if ok and light then entry.lights[#entry.lights + 1] = light else warnOnce(light) end
     end
     if #entry.lights > 0 then active[key] = entry end
-    refreshLighting()
 end
 
---- Rescan the lamps around the player and switch their lights on or off to match power and timer.
+--- Rescan the lamps around the player: add a light when a lamp should be on, remove it when power or the timer turns it off.
 function LampLights.update()
     local player = getPlayer()
     if not player then return end
@@ -123,11 +100,8 @@ function LampLights.update()
                         local key = Config.tileKey(x, y, pz)
                         seen[key] = true
                         local on = lampOn(square, obj)
-                        if not active[key] then
-                            if on then addLight(key, x, y, pz, def) end
-                        else
-                            setLit(active[key], on)
-                        end
+                        if on and not active[key] then addLight(key, x, y, pz, def) end
+                        if not on and active[key] then removeLight(key) end
                         break
                     end
                 end
