@@ -1,0 +1,14 @@
+{
+  "name": "dazeddank-workshop-art",
+  "private": true,
+  "description": "Renders the Steam Workshop page graphics from page.html",
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0"
+  }
+}

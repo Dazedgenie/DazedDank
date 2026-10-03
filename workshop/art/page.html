@@ -1,0 +1,270 @@
+<!doctype html>
+<!-- Every Workshop graphic, one <section class="shot"> each. render.mjs screenshots
+     each section by id into ../images/<id>.png. Open this file in a browser to preview. -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: "Display"; font-weight: 800; src: url(node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-800-normal.woff2); }
+@font-face { font-family: "Display"; font-weight: 600; src: url(node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-600-normal.woff2); }
+@font-face { font-family: "Body"; font-weight: 400; src: url(node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2); }
+@font-face { font-family: "Body"; font-weight: 700; src: url(node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2); }
+@font-face { font-family: "Mono"; font-weight: 500; src: url(node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2); }
+@font-face { font-family: "Mono"; font-weight: 700; src: url(node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2); }
+
+:root {
+  --night: #0d0716;
+  --panel: #190f27;
+  --panel-2: #21142f;
+  --well: #120a1c;
+  --line: #36254f;
+  --text: #f1ebf8;
+  --muted: #a898bf;
+  --leaf: #8fdc6a;
+  --leaf-deep: #4f9a3a;
+  --violet: #b98cff;
+  --amber: #f0b45a;
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: #1b2838; padding: 40px; font-family: "Body"; color: var(--text); }
+.shot { width: 1260px; margin-bottom: 40px; position: relative; }
+b { font-weight: 700; color: var(--text); }
+.leaf { color: var(--leaf); }
+img.px { image-rendering: auto; }
+
+/* ---------- banner ---------- */
+#banner { height: 540px; border-radius: 14px; overflow: hidden;
+  background:
+    radial-gradient(ellipse 520px 260px at 30% 10%, rgba(150, 70, 255, .45), transparent 70%),
+    radial-gradient(ellipse 480px 240px at 74% 8%, rgba(150, 70, 255, .38), transparent 70%),
+    radial-gradient(ellipse 900px 380px at 50% 70%, #2a1544, transparent 75%),
+    linear-gradient(180deg, #160b26, #0b0613); }
+#banner .floor { position: absolute; inset: 0; opacity: .16;
+  background:
+    repeating-linear-gradient(26.565deg, transparent 0 31px, #8a6bc0 31px 32px),
+    repeating-linear-gradient(-26.565deg, transparent 0 31px, #8a6bc0 31px 32px);
+  -webkit-mask-image: linear-gradient(180deg, transparent 18%, #000 55%, transparent 92%); }
+#banner .sp { position: absolute; width: 179px; height: 358px; }
+#banner .shade { position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 45%, rgba(9, 4, 15, .82) 74%, rgba(9, 4, 15, .97)); }
+#banner .title { position: absolute; left: 60px; bottom: 98px; display: flex; align-items: baseline; gap: 30px; }
+#banner h1 { font-family: "Display"; font-weight: 800; font-size: 150px; line-height: .8; letter-spacing: 1px; }
+#banner h2 { font-family: "Display"; font-weight: 800; font-size: 54px; letter-spacing: 4px; color: var(--leaf); }
+#banner p { position: absolute; left: 62px; bottom: 44px; font-size: 27px; color: #ddd3ea; }
+
+/* ---------- section headers ---------- */
+.hdr { height: 112px; padding: 0 0 8px; }
+.hdr .bar { height: 104px; border-radius: 10px; background: linear-gradient(90deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line); border-left: 10px solid var(--leaf);
+  display: flex; align-items: center; padding: 0 36px 0 30px; gap: 28px; }
+.hdr h3 { font-family: "Display"; font-weight: 800; font-size: 66px; letter-spacing: .5px; white-space: nowrap; line-height: 1; padding-top: 4px; }
+.hdr .rule { flex: 1; height: 2px; background: linear-gradient(90deg, var(--line), transparent); }
+.hdr .tag { font-family: "Mono"; font-weight: 500; font-size: 23px; letter-spacing: 6px; color: var(--leaf); white-space: nowrap; }
+
+/* ---------- link buttons ---------- */
+.btn { width: 305px; height: 62px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--line);
+  border-left: 5px solid var(--violet); padding: 6px 16px; display: flex; align-items: center; }
+.btn div { flex: 1; }
+.btn strong { display: block; font-family: "Display"; font-weight: 800; font-size: 28px; line-height: 1; letter-spacing: .5px; }
+.btn span { font-size: 14px; color: var(--muted); }
+.btn i { font-style: normal; font-family: "Mono"; font-weight: 700; color: var(--leaf); font-size: 22px; }
+
+/* ---------- shared figure pieces ---------- */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px 30px; }
+.well { background: var(--well); border-radius: 10px; display: flex; align-items: flex-end; justify-content: center; gap: 6px; }
+.chips { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.chip { display: inline-flex; border: 1px solid #4a3768; border-radius: 6px; overflow: hidden; font-family: "Mono"; font-weight: 500; font-size: 19px; }
+.chip span { padding: 6px 12px; background: #150c22; }
+.chip span:first-child { color: var(--amber); border-right: 1px solid #4a3768; }
+.card p { font-size: 22px; line-height: 1.5; color: var(--muted); }
+
+/* ---------- steps ---------- */
+#steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+#steps .card { display: flex; flex-direction: column; gap: 16px; }
+#steps h4 { display: flex; align-items: center; gap: 16px; font-family: "Display"; font-weight: 800; font-size: 40px; letter-spacing: .5px; }
+#steps h4 em { font-style: normal; width: 50px; height: 50px; border-radius: 50%; background: var(--leaf); color: #12210c;
+  display: grid; place-items: center; font-size: 32px; flex: none; }
+#steps .well { height: 230px; overflow: hidden; }
+#steps .well img.sp { height: 262px; margin: 0 -24px -10px; }
+#steps .well img.ico { width: 84px; height: 84px; margin-bottom: 22px; }
+#steps p { font-size: 20px; }
+
+/* ---------- strains ---------- */
+#strains { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+#strains .card { padding: 20px 22px 24px; text-align: center; }
+#strains .well { height: 300px; }
+#strains .well img { height: 290px; }
+#strains h4 { font-family: "Display"; font-weight: 800; font-size: 42px; margin: 14px 0 4px; letter-spacing: 1px; }
+#strains p { font-size: 18px; line-height: 1.45; }
+#strains .male h4 { color: var(--violet); }
+
+/* ---------- where to grow ---------- */
+#grow table { width: 100%; border-collapse: collapse; }
+#grow th { font-family: "Display"; font-weight: 800; font-size: 34px; letter-spacing: 1px; padding: 6px 0 12px; }
+#grow th small { display: block; font-family: "Mono"; font-weight: 500; font-size: 15px; letter-spacing: 2px; color: var(--leaf); }
+#grow td { border-top: 1px solid var(--line); text-align: center; padding: 12px 6px; font-family: "Mono"; font-weight: 700; font-size: 27px; }
+#grow td:first-child { text-align: left; font-family: "Body"; font-weight: 400; font-size: 22px; color: #d6cbe6; width: 210px; }
+#grow td:first-child small { display: block; font-size: 15px; color: var(--muted); }
+#grow td.art { height: 200px; padding: 0; vertical-align: bottom; }
+#grow td.art img { height: 196px; display: block; margin: 0 auto; }
+#grow td.note { font-family: "Body"; font-weight: 400; font-size: 17px; color: var(--muted); line-height: 1.35; }
+#grow .top { color: var(--amber); }
+
+/* ---------- lights ---------- */
+#lights { display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; }
+#lights .well { height: 300px; align-items: flex-end; gap: 0; position: relative; overflow: hidden; }
+#lights .well img { height: 280px; position: relative; }
+#lights .glow { position: absolute; width: 260px; height: 260px; border-radius: 50%; top: -30px;
+  background: radial-gradient(circle, rgba(170, 90, 255, .55), transparent 70%); }
+#lights .meter { display: flex; flex-direction: column; gap: 18px; justify-content: center; }
+#lights .row { display: grid; grid-template-columns: 150px 1fr 70px; align-items: center; gap: 16px; font-size: 22px; color: #d6cbe6; }
+#lights .row .track { height: 18px; border-radius: 9px; background: var(--well); overflow: hidden; }
+#lights .row .fill { height: 100%; border-radius: 9px; }
+#lights .row b { font-family: "Mono"; font-size: 26px; text-align: right; }
+
+/* ---------- quality ladder ---------- */
+#quality { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 22px; }
+#quality .well { height: 100%; min-height: 330px; gap: 4px; align-items: flex-end; padding-bottom: 20px; }
+#quality .well { overflow: hidden; }
+#quality .well img { height: 420px; margin: 0 -40px -36px; }
+#quality .well img.ico { height: 84px; width: 84px; margin: 0 0 14px; }
+#quality .tiers { display: flex; flex-direction: column; gap: 10px; }
+#quality .tier { display: grid; grid-template-columns: 200px 1fr 92px; align-items: center; gap: 18px; }
+#quality .tier strong { font-family: "Display"; font-weight: 800; font-size: 36px; letter-spacing: 1px; }
+#quality .tier .track { height: 26px; border-radius: 6px; background: var(--well); overflow: hidden; }
+#quality .tier .fill { height: 100%; border-radius: 6px; }
+#quality .tier b { font-family: "Mono"; font-size: 24px; color: var(--muted); text-align: right; }
+</style>
+</head>
+<body>
+
+<!-- ============================ BANNER ============================ -->
+<section class="shot" id="banner">
+  <div class="floor"></div>
+  <!-- left to right: flood light, soil plants, grow bag, DWC, RDWC, flood table, drying rack, barrel.
+       Sprites are 128x256 tiles drawn at 1.4x; tops are offset so the bases sit on one iso row. -->
+  <img class="sp" src="sprites/p234.png" style="left: -6px;  top: 70px">
+  <img class="sp" src="sprites/p197.png" style="left: 300px; top: -60px">
+  <img class="sp" src="sprites/p198.png" style="left: 640px; top: -60px">
+  <img class="sp" src="sprites/p4.png"   style="left: 110px; top: 40px">
+  <img class="sp" src="sprites/p8.png"   style="left: 220px; top: 4px">
+  <img class="sp" src="sprites/p12.png"  style="left: 320px; top: 46px">
+  <img class="sp" src="sprites/p134.png" style="left: 440px; top: 10px">
+  <img class="sp" src="sprites/p379.png" style="left: 560px; top: 42px">
+  <img class="sp" src="sprites/h113.png" style="left: 680px; top: 18px">
+  <img class="sp" src="sprites/h7.png"   style="left: 760px; top: 40px">
+  <img class="sp" src="sprites/h127.png" style="left: 880px; top: 20px">
+  <img class="sp" src="sprites/p209.png" style="left: 1010px; top: 30px">
+  <img class="sp" src="sprites/p236.png" style="left: 1110px; top: 70px">
+  <div class="shade"></div>
+  <div class="title"><h1>DAZED DANK</h1><h2>CANNABIS GROWING</h2></div>
+  <p>From seed to smoke, in soil or hydro, for <b>Project Zomboid Build 42</b>.</p>
+</section>
+
+<!-- ============================ BUTTONS ============================ -->
+<section class="shot" style="width:305px" id="b-changes"><div class="btn"><div><strong>CHANGE NOTES</strong><span>What's new in each build</span></div><i>›</i></div></section>
+<section class="shot" style="width:305px" id="b-discuss"><div class="btn"><div><strong>DISCUSSIONS</strong><span>Bugs, questions and ideas</span></div><i>›</i></div></section>
+
+<!-- ============================ HEADERS ============================ -->
+<section class="shot hdr" id="h-whats-in"><div class="bar"><h3>WHAT'S IN IT</h3><div class="rule"></div><div class="tag">SEED TO SMOKE</div></div></section>
+<section class="shot hdr" id="h-steps"><div class="bar"><h3>GROW IN SIX STEPS</h3><div class="rule"></div><div class="tag">VANILLA FARMING</div></div></section>
+<section class="shot hdr" id="h-genetics"><div class="bar"><h3>GENETICS &amp; CLONING</h3><div class="rule"></div><div class="tag">KEEP YOUR BEST MOTHER</div></div></section>
+<section class="shot hdr" id="h-lights"><div class="bar"><h3>GROW LIGHTS &amp; TIMERS</h3><div class="rule"></div><div class="tag">18/6 · 12/12</div></div></section>
+<section class="shot hdr" id="h-grow"><div class="bar"><h3>WHERE TO GROW</h3><div class="rule"></div><div class="tag">SOIL OR HYDRO</div></div></section>
+<section class="shot hdr" id="h-cure"><div class="bar"><h3>DRY, TRIM &amp; CURE</h3><div class="rule"></div><div class="tag">POOR TO TOP SHELF</div></div></section>
+<section class="shot hdr" id="h-smoke"><div class="bar"><h3>SMOKING</h3><div class="rule"></div><div class="tag">TOLERANCE · DEPENDENCY</div></div></section>
+<section class="shot hdr" id="h-settings"><div class="bar"><h3>SANDBOX &amp; SERVERS</h3><div class="rule"></div><div class="tag">18 SETTINGS</div></div></section>
+<section class="shot hdr" id="h-help"><div class="bar"><h3>FOUND A BUG?</h3><div class="rule"></div><div class="tag">CONSOLE.TXT</div></div></section>
+
+<!-- ============================ STEPS ============================ -->
+<section class="shot" id="steps">
+  <div class="card">
+    <h4><em>1</em>SOW</h4>
+    <div class="well"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_CannabisSeed.png"><img class="sp" src="sprites/p0.png"><img class="sp" src="sprites/p1.png"></div>
+    <div class="chips"><span class="chip"><span>Plot</span><span>Sow Seed</span></span></div>
+    <p>Plow a plot or place a <b>grow bag</b>. Seeds hide their type and sex until <b>Agriculture 3</b>.</p>
+  </div>
+  <div class="card">
+    <h4><em>2</em>GROW &amp; FEED</h4>
+    <div class="well"><img class="sp" src="sprites/p2.png"><img class="sp" src="sprites/p3.png"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_VegNutrients.png"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_BloomNutrients.png"></div>
+    <div class="chips"><span class="chip"><span>Plant</span><span>Feed Veg Nutrients</span></span></div>
+    <p>Five stages, <b>1-2 days</b> each. Water, light and the right food raise quality.</p>
+  </div>
+  <div class="card">
+    <h4><em>3</em>FLOWER</h4>
+    <div class="well"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_LightTimer.png"><img class="sp" src="sprites/p4.png"></div>
+    <div class="chips"><span class="chip"><span>Lamp</span><span>Set to 12/12 (flower)</span></span></div>
+    <p>Indoors, a <b>Light Timer</b> on 12/12 starts flowering. 18/6 keeps plants in veg.</p>
+  </div>
+  <div class="card">
+    <h4><em>4</em>HARVEST &amp; DRY</h4>
+    <div class="well"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_WetIndicaPlant.png"><img class="sp" src="sprites/p209.png"><img class="sp" src="sprites/p205.png"></div>
+    <div class="chips"><span class="chip"><span>Rack</span><span>Check Drying Rack</span></span></div>
+    <p>Hang the wet plant on a <b>drying rack</b>. A fan nearby speeds it up and keeps mold away.</p>
+  </div>
+  <div class="card">
+    <h4><em>5</em>TRIM &amp; CURE</h4>
+    <div class="well"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_CannabisBud.png"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_CuringJar.png"><img class="sp" src="sprites/p236.png"></div>
+    <div class="chips"><span class="chip"><span>Jar</span><span>Burp Jar</span></span></div>
+    <p><b>Trim</b> the dry plant into buds, then cure them in a jar or barrel. Remember to burp it.</p>
+  </div>
+  <div class="card">
+    <h4><em>6</em>SMOKE</h4>
+    <div class="well"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_RollingPapers.png"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_Joint.png"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_SmokingPipe.png"></div>
+    <div class="chips"><span class="chip"><span>Bud</span><span>Roll Joint</span></span></div>
+    <p>Roll a joint or pack a pipe. Better buds hit harder and <b>last longer</b>.</p>
+  </div>
+</section>
+
+<!-- ============================ STRAINS ============================ -->
+<section class="shot" id="strains">
+  <div class="card"><div class="well"><img src="sprites/p4.png"></div><h4>INDICA</h4><p>Short and bushy. A heavy body high: <b>stress</b> and <b>unhappiness</b> melt, you get sleepy and hungry.</p></div>
+  <div class="card"><div class="well"><img src="sprites/p8.png"></div><h4>SATIVA</h4><p>Tall, with a long cola. An up high that <b>kills boredom</b> and wakes you up. Too strong makes you anxious.</p></div>
+  <div class="card"><div class="well"><img src="sprites/p12.png"></div><h4>HYBRID</h4><p>A bit of both. Cross an <b>Indica</b> with a <b>Sativa</b> to breed hybrid seeds.</p></div>
+  <div class="card male"><div class="well"><img src="sprites/p241.png"></div><h4>MALE</h4><p>No buds. Shows its sex at <b>pre-flower</b>: pull it, or keep it to <b>pollinate</b> females for seeds.</p></div>
+</section>
+
+<!-- ============================ LIGHTS ============================ -->
+<section class="shot" id="lights">
+  <div class="card" style="padding:20px">
+    <div class="well">
+      <div class="glow" style="left:10px"></div><div class="glow" style="left:280px; background: radial-gradient(circle, rgba(255,200,90,.45), transparent 70%)"></div>
+      <img src="sprites/p197.png" style="top:-60px"><img src="sprites/p198.png" style="top:-60px; margin-left:-40px">
+      <img src="sprites/p8.png" style="margin-left:-150px"><img src="sprites/p235.png" style="margin-left:-20px">
+    </div>
+  </div>
+  <div class="card meter">
+    <div class="row">Sun<div class="track"><div class="fill" style="width:70%; background:#e8c35a"></div></div><b>70</b></div>
+    <div class="row">Basic lamp<div class="track"><div class="fill" style="width:85%; background:var(--violet)"></div></div><b>85</b></div>
+    <div class="row">Pro lamp<div class="track"><div class="fill" style="width:100%; background:var(--leaf)"></div></div><b>100</b></div>
+    <p style="font-size:19px; margin-top:6px">The most quality a plant's light allows. Lamps need <b>power</b>, and outdoors they add to the sun.</p>
+  </div>
+</section>
+
+<!-- ============================ WHERE TO GROW ============================ -->
+<section class="shot card" id="grow">
+  <table>
+    <tr><th></th><th>SOIL<small>PLOWED</small></th><th>GROW BAG<small>SMALL · LARGE</small></th><th>DWC<small>BUCKET</small></th><th>RDWC<small>UP TO 6 SITES</small></th><th>FLOOD TABLE<small>EBB &amp; FLOW</small></th></tr>
+    <tr><td></td><td class="art"><img src="sprites/p12.png"></td><td class="art"><img src="sprites/p137.png"></td><td class="art"><img src="sprites/p383.png"></td><td class="art"><img src="sprites/h11.png"></td><td class="art"><img src="sprites/h131.png"></td></tr>
+    <tr><td>Yield</td><td>×1.0</td><td>×1.0 · ×1.25</td><td>×1.3</td><td>×1.4</td><td>×1.2</td></tr>
+    <tr><td>Care penalties<small>lower is easier</small></td><td>×1.0</td><td class="note">less damage from overwatering</td><td>×0.75</td><td>×0.6</td><td>×0.85</td></tr>
+    <tr><td>Best quality</td><td>100</td><td>100</td><td>100</td><td class="top">115</td><td>100</td></tr>
+    <tr><td>Watch out for</td><td class="note">outdoors only</td><td class="note">one sack of soil to fill</td><td class="note">root rot, air pump needs power</td><td class="note">rot spreads to every site</td><td class="note">rockwool only, use a Flood Timer</td></tr>
+  </table>
+</section>
+
+<!-- ============================ QUALITY ============================ -->
+<section class="shot" id="quality">
+  <div class="card" style="padding:20px"><div class="well"><img src="sprites/p209.png"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_CuringJar.png"><img class="ico" src="../../Contents/mods/DazedDank/42/media/textures/Item_CannabisBud.png"></div></div>
+  <div class="card tiers">
+    <div class="tier"><strong class="top" style="color:var(--amber)">TOP SHELF</strong><div class="track"><div class="fill" style="width:100%; background:var(--amber)"></div></div><b>101+</b></div>
+    <div class="tier"><strong class="leaf">PREMIUM</strong><div class="track"><div class="fill" style="width:85%; background:var(--leaf)"></div></div><b>85+</b></div>
+    <div class="tier"><strong>GOOD</strong><div class="track"><div class="fill" style="width:65%; background:#73b85a"></div></div><b>65+</b></div>
+    <div class="tier"><strong>AVERAGE</strong><div class="track"><div class="fill" style="width:40%; background:#8a6bc0"></div></div><b>40+</b></div>
+    <div class="tier"><strong style="color:var(--muted)">POOR</strong><div class="track"><div class="fill" style="width:12%; background:#5b4a73"></div></div><b>0+</b></div>
+    <p style="font-size:19px; margin-top:8px">Genetics, light and care set the harvest. A full cure adds up to <b>10%</b>. Only <b>RDWC</b> buds pass 100. Mold ruins a bud.</p>
+  </div>
+</section>
+
+</body>
+</html>
