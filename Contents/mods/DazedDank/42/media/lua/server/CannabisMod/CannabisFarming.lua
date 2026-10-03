@@ -210,8 +210,18 @@ function ISSeedActionNew:complete()
         if Net and self.character then Net.notify(self.character, msg) end
         return false
     end
-    -- A seed sown straight into clay pebbles can slip down between them and never take.
+    -- A hydro plant drinks only from its reservoir, so it must be connected and hold water before anything goes in.
     local Hydro = CannabisMod.Hydro
+    if bagKind and Config.isHydro(bagKind) and Hydro then
+        local r = Hydro.reservoirOf(pl.x, pl.y, pl.z)
+        local why = (not r and "Connect this site to an RDWC control bucket first")
+            or (r.level <= 0 and "Fill the reservoir first") or nil
+        if why then
+            if Net and self.character then Net.notify(self.character, why) end
+            return false
+        end
+    end
+    -- A seed sown straight into clay pebbles can slip down between them and never take.
     if bagKind and Config.isHydro(bagKind) and self.seed and Seeds.kind(self.seed) == "seed" and Hydro and Hydro.seedFails(pl.x, pl.y, pl.z) then
         local container = self.seed:getContainer()
         if container then

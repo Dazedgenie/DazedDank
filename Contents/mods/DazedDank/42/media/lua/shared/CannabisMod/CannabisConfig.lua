@@ -280,6 +280,19 @@ function Config.bagFromSprite(spriteName)
     return nil
 end
 
+--- True if a sprite shows a male plant (in the ground or any container), which is only once its sex shows.
+function Config.isMaleSprite(spriteName)
+    local sheet, n = Config.splitSprite(spriteName)
+    if not sheet then return false end
+    if sheet == Config.SPRITE_SHEET and n >= Config.GROUND_SPRITES.maleBase and n < Config.GROUND_SPRITES.maleBase + 45 then
+        return true
+    end
+    for kind, def in pairs(Config.GrowBag) do
+        if sheet == Config.sheetOf(kind) and n >= def.maleBase and n < def.maleBase + 45 then return true end
+    end
+    return false
+end
+
 --- True if a container kind is a hydro system rather than a soil pot.
 function Config.isHydro(bag)
     return bag ~= nil and Config.GrowBag[bag] ~= nil and Config.GrowBag[bag].hydro ~= nil
@@ -381,6 +394,7 @@ Config.LightCap = {
     SUN        = 70,
     BASIC_LAMP = 85,
     GOOD_LAMP  = 100,
+    SUN_BOOST  = 10, -- a lit lamp on an outdoor plant adds to the sun: the stronger of the two plus this, up to 100
 }
 
 -- --------------------------------------------------------------------------
@@ -485,6 +499,7 @@ Config.Hydro = {
     ROT_EARLY = 30, ROT_DEAD = 100,
     ROT_CARE_PER_HOUR = 1.0,                    -- care lost per hour once rot is past early
     ROT_RECOVER_PER_HOUR = 2,                   -- rot lost per hour while bleach-treated roots recover
+    IDLE_HOURS = 0.5,                           -- a reservoir untouched this long counts as idle (no roots, no rot)
     MEDIUM_ITEMS = { rockwool = "CannabisMod.RockwoolCube", pebbles = "CannabisMod.ClayPebbles" },
     -- RDWC: a control bucket (furniture) runs up to 6 site buckets within 3 tiles on the same floor.
     CONTROL_ITEM = "CannabisMod.RDWCControl", CONTROL_SPRITE = "dazeddank_hydro_01_113",

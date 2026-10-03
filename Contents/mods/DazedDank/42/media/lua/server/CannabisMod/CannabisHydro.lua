@@ -180,6 +180,7 @@ Hydro.advanceReservoir = advanceReservoir
 --- Every 10 minutes for each living hydro plant: drink from its reservoir, and suffer hunger or root rot from it.
 function Hydro.update(plant, now)
     local r = Hydro.reservoirOf(plant.x, plant.y, plant.z)
+    local fresh = plant.hydroTick == nil
     local hours = Config.clamp(now - (plant.hydroTick or now), 0, 24)
     plant.hydroTick = now
     if not r then
@@ -190,6 +191,10 @@ function Hydro.update(plant, now)
         return
     end
     plant.warnings.noControl = nil
+    -- Fresh roots in a reservoir nothing has drunk from lately: the idle time grew no rot, so its clock starts now.
+    if fresh then
+        if r.lastTick and now - r.lastTick > H.IDLE_HOURS then r.lastTick = now end
+    end
     advanceReservoir(r, now)
     local rate = Config.sandbox("ReservoirUseRate") or 1
 
@@ -447,7 +452,8 @@ end
 commands.hydroCheck = function(player, args)
     local r = reservoirFor(player, args)
     if not r then return end
-    advanceReservoir(r, Registry.nowHours())
+    -- Only a reservoir with roots in it moves on; an idle one is read as it stands.
+    if Hydro.hasLivingPlants(r) then advanceReservoir(r, Registry.nowHours()) end
     local parts = { string.format("%.1f of %d L", math.min(r.level, Hydro.capacity(r)), Hydro.capacity(r)) }
     if r.kind == "rdwc" then
         local n = Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z))
@@ -490,6 +496,9 @@ function Hydro.onReset(x, y, z)
     end
     -- A DWC bucket's own reservoir starts clean for the next plant; an RDWC site shares its control's water.
     if r and kind == "dwc" then r.rot = 0 end
+    -- With no roots left in the water, its clock stops until the next plant goes in.
+    local shared = Hydro.reservoirOf(x, y, z)
+    if shared and not Hydro.hasLivingPlants(shared) then shared.lastTick = nil end
 end
 
 --- Picking up an empty bucket hands back its clay pebbles (or an unused rockwool cube) and forgets the reservoir.

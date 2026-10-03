@@ -148,6 +148,20 @@ commands.emptyGrowBag = function(player, args)
     Net.notify(player, "Emptied the bag")
 end
 
+--- Pull an unwanted male plant (any container or the ground) before it can pollinate; the plot is left ready to replant.
+commands.pullMalePlant = function(player, args)
+    local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
+    if not (x and y and z) or not SC.isNear(player, x, y, z) then return end
+    local luaObject = Farming.getVanilla(x, y, z)
+    local plant = Registry.getPlant(x, y, z)
+    if not (luaObject and plant) or plant.sex ~= Config.SEX.MALE or plant.stage < Config.STAGE.PreFlower then
+        Net.notify(player, "That isn't a male plant you can tell apart yet")
+        return
+    end
+    GrowBags.reset(luaObject)
+    Net.notify(player, "Pulled the male plant")
+end
+
 -- Vanilla's shovel "Remove" on a dead plant in a bag empties the bag instead of deleting it.
 local originalRemovePlant = SFarmingSystem.removePlant
 function SFarmingSystem:removePlant(luaObject)

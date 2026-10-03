@@ -92,6 +92,11 @@ function Light.measure(plant)
     if not ok or outside then sun = true end
 
     local sunCap = sun and Config.LightCap.SUN or 0
+    -- Outdoors a lit lamp supplements the sun rather than replacing it, for a small boost.
+    if sun and lamps.cap and lamps.cap > 0 then
+        local cap = math.min(Config.LightCap.GOOD_LAMP, math.max(sunCap, lamps.cap) + Config.LightCap.SUN_BOOST)
+        return cap, "Sun + " .. tostring(lamps.name), lamps
+    end
     if lamps.cap and lamps.cap >= sunCap then return lamps.cap, lamps.name, lamps end
     if sun then return sunCap, "Sun", lamps end
     return Config.LightCap.NONE, "None", lamps

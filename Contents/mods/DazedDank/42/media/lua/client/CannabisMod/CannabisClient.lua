@@ -11,6 +11,7 @@ require "CannabisMod/CannabisNet"
 require "CannabisMod/ISTakeCannabisCuttingAction"
 require "CannabisMod/ISGrowBagAction"
 require "CannabisMod/CannabisPlumbing"
+require "ISUI/ISModalDialog"
 require "CannabisMod/ISCannabisSmokeAction"
 require "CannabisMod/CannabisHigh"
 require "CannabisMod/CannabisStatusWindow"
@@ -391,6 +392,19 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
                 send(p, "feedPlant", a)
             end)
             if not has then option.notAvailable = true end
+        end
+
+        -- Pull a male once its pollen sacs show, after a yes/no check so a misclick can't lose a plant.
+        if Config.isMaleSprite(plot.spriteName) then
+            context:addOption("Pull Male Plant", player, function()
+                local text = "Pull this male plant? It will be thrown away."
+                local modal = ISModalDialog:new(getCore():getScreenWidth() / 2 - 175, getCore():getScreenHeight() / 2 - 75,
+                    350, 150, text, true, nil, function(_, button)
+                        if button.internal == "YES" then bagAction("pullMalePlant") end
+                    end, playerNum)
+                modal:initialise()
+                modal:addToUIManager()
+            end)
         end
 
         -- Take Cutting: only in veg or pre-flower. The client reads the stage
