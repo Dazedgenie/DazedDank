@@ -376,6 +376,39 @@ module CannabisMod
         WorldObjectSprite = dazeddank_hydro_01_113,
     }
 
+    /* EBB AND FLOW: a 1x2 flood table (each tile is a site) and the flood
+       reservoir that stands beside a row of touching tables. The flood timer
+       installs on the reservoir and floods automatically while powered. */
+    item FloodTable
+    {
+        DisplayName     = Flood Table,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 9.0,
+        Icon            = FloodTable,
+        WorldObjectSprite = dazeddank_hydro_01_114,
+    }
+
+    item FloodReservoir
+    {
+        DisplayName     = Flood Reservoir,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 8.0,
+        Icon            = FloodReservoir,
+        WorldObjectSprite = dazeddank_hydro_01_234,
+    }
+
+    item FloodTimer
+    {
+        DisplayName     = Flood Timer,
+        DisplayCategory = Electronics,
+        ItemType        = base:normal,
+        Weight          = 0.4,
+        Icon            = FloodTimer,
+        Tooltip         = Tooltip_DD_FloodTimer,
+    }
+
     item RockwoolCube
     {
         DisplayName     = Rockwool Cube,
@@ -414,7 +447,7 @@ module CannabisMod
         Icon            = HydroMagazine,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeDWCBucket;DDMakeClayPebbles;DDMakeRDWCSite;DDMakeRDWCControl,
+        LearnedRecipes  = DDMakeDWCBucket;DDMakeClayPebbles;DDMakeRDWCSite;DDMakeRDWCControl;DDMakeFloodTable;DDMakeFloodReservoir;DDMakeFloodTimer,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,

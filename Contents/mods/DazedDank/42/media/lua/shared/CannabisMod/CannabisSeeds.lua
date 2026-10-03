@@ -128,13 +128,29 @@ end
 
 --- True if an item has any of the given vanilla ItemTag names. Each lookup is
 --- wrapped so a tag name missing from this game version is just skipped.
+-- Tag names resolved to the game's tag objects, once per list of names.
+local resolvedTags = {}
+
+local function readTag(name) return ItemTag[name] end
+local function itemHasTag(item, tag) return item:hasTag(tag) end
+
+--- The tag objects for a list of tag names, skipping names this game version doesn't have.
+local function tagsFor(tagNames)
+    local tags = resolvedTags[tagNames]
+    if tags then return tags end
+    tags = {}
+    for _, name in ipairs(tagNames) do
+        local ok, tag = pcall(readTag, name)
+        if ok and tag ~= nil then tags[#tags + 1] = tag end
+    end
+    resolvedTags[tagNames] = tags
+    return tags
+end
+
 local function hasAnyTag(item, tagNames)
     if not item or not item.hasTag or not ItemTag then return false end
-    for _, name in ipairs(tagNames) do
-        local ok, result = pcall(function()
-            local tag = ItemTag[name]
-            return tag ~= nil and item:hasTag(tag)
-        end)
+    for _, tag in ipairs(tagsFor(tagNames)) do
+        local ok, result = pcall(itemHasTag, item, tag)
         if ok and result then return true end
     end
     return false

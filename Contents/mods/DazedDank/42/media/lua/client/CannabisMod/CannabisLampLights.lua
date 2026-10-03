@@ -16,11 +16,13 @@ LampLights.COLORS = {
 -- How many light sources each tier stacks on its tile: two each, so both colours read strongly.
 LampLights.LAYERS = { basic = 2, pro = 2 }
 LampLights.SCAN_RADIUS = 30   -- tiles around the player that get lamp lights
-LampLights.EVERY_TICKS = 60   -- rescan about once a second
+LampLights.ROWS_PER_TICK = 1  -- rows of the scan area read each tick, so a full pass takes about a second
 
-local active = {}             -- tileKey -> { x, y, z, lights = { IsoLightSource... } }
-local ticks = 0
+local active = {}             -- tileKey -> { lights = { IsoLightSource... } }
 local warned = false
+
+-- The pass in progress: it reads one row of squares per tick around a centre fixed when the pass began.
+local sweep = nil             -- { cx, cy, z, row, seen = { tileKey = true } }
 
 --- Print the first failure to console.txt so a changed game API shows up instead of silently giving no light.
 local function warnOnce(err)
@@ -39,93 +41,120 @@ function LampLights.radius(def)
     return math.ceil(def.radius) + 2
 end
 
---- True if the lamp on this square should be glowing right now.
-local function lampOn(square, obj)
-    if Config.sandbox("LampsNeedPower") then
-        local ok, powered = pcall(function()
-            if square:haveElectricity() then return true end
-            return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
-        end)
-        if not (ok and powered) then return false end
-    end
-    local schedule = nil
-    pcall(function() schedule = obj:getModData().DDTimer end)
-    return Config.Timer.isOn(schedule, getGameTime():getHour())
+--- True if this square has power for a lamp.
+local function powered(square)
+    if square:haveElectricity() then return true end
+    return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
+end
+
+--- Switch one light source off and take it out of the cell.
+local function dropSource(cell, light)
+    light:setActive(false)
+    cell:removeLamppost(light)
 end
 
 --- Switch a lamp off: deactivate and remove each of its light sources. Only these two calls are safe with Build 42's lighting engine.
 local function removeLight(key)
     local entry = active[key]
     if not entry then return end
-    for _, light in ipairs(entry.lights) do
-        pcall(function() light:setActive(false) end)
-        pcall(function() getCell():removeLamppost(light) end)
-    end
+    local cell = getCell()
+    for _, light in ipairs(entry.lights) do pcall(dropSource, cell, light) end
     active[key] = nil
+end
+
+--- Make one light source and add it to the cell.
+local function makeSource(cell, x, y, z, c, radius)
+    local light = IsoLightSource.new(x, y, z, c[1], c[2], c[3], radius)
+    cell:addLamppost(light)
+    return light
 end
 
 local function addLight(key, x, y, z, def)
     local tier = LampLights.tier(def)
     local c = LampLights.COLORS[tier]
+    local radius = LampLights.radius(def)
+    local cell = getCell()
     local entry = { lights = {} }
     for _ = 1, LampLights.LAYERS[tier] do
-        local ok, light = pcall(function()
-            local l = IsoLightSource.new(x, y, z, c[1], c[2], c[3], LampLights.radius(def))
-            getCell():addLamppost(l)
-            return l
-        end)
+        local ok, light = pcall(makeSource, cell, x, y, z, c, radius)
         if ok and light then entry.lights[#entry.lights + 1] = light else warnOnce(light) end
     end
     if #entry.lights > 0 then active[key] = entry end
 end
 
---- Rescan the lamps around the player: add a light when a lamp should be on, remove it when power or the timer turns it off.
-function LampLights.update()
-    local player = getPlayer()
-    if not player then return end
-    local cell = getCell()
-    local px, py, pz = math.floor(player:getX()), math.floor(player:getY()), math.floor(player:getZ())
-    local R = LampLights.SCAN_RADIUS
-    local seen = {}
-    for x = px - R, px + R do
-        for y = py - R, py + R do
-            local square = cell:getGridSquare(x, y, pz)
-            if square then
-                local objects = square:getObjects()
-                for i = 0, objects:size() - 1 do
-                    local obj = objects:get(i)
-                    local sprite = obj:getSprite()
-                    local def = sprite and Config.Light.SPRITES[sprite:getName()]
-                    if def then
-                        local key = Config.tileKey(x, y, pz)
-                        seen[key] = true
-                        local on = lampOn(square, obj)
-                        if on and not active[key] then addLight(key, x, y, pz, def) end
-                        if not on and active[key] then
-                            removeLight(key)
-                            -- One line per switch-off, so a glow that won't go out can be traced in console.txt.
-                            local schedule = nil
-                            pcall(function() schedule = obj:getModData().DDTimer end)
-                            print("[DazedDank] lamp glow off at " .. key .. " (timer " .. tostring(schedule) .. ", hour " .. tostring(getGameTime():getHour()) .. ")")
-                        end
-                        break
+--- Read one row of the pass: switch each lamp's glow to match its power and timer, and note which lamps are still there.
+local function scanRow(cell, s, needPower, hour)
+    local sprites, isOn = Config.Light.SPRITES, Config.Timer.isOn
+    local R, z = LampLights.SCAN_RADIUS, s.z
+    local y = s.cy - R + s.row
+    for x = s.cx - R, s.cx + R do
+        local square = cell:getGridSquare(x, y, z)
+        if square then
+            local objects = square:getObjects()
+            for i = 0, objects:size() - 1 do
+                local obj = objects:get(i)
+                local sprite = obj:getSprite()
+                local def = sprite and sprites[sprite:getName()]
+                if def then
+                    local key = Config.tileKey(x, y, z)
+                    s.seen[key] = true
+                    local schedule = obj:getModData().DDTimer
+                    local on = (not needPower or powered(square)) and isOn(schedule, hour)
+                    if on and not active[key] then addLight(key, x, y, z, def) end
+                    if not on and active[key] then
+                        removeLight(key)
+                        -- One line per switch-off in debug mode, so a glow that won't go out can be traced in console.txt.
+                        Config.debugLog("lamp glow off at " .. key .. " (timer " .. tostring(schedule) .. ", hour " .. tostring(hour) .. ")")
                     end
+                    break
                 end
             end
         end
     end
-    -- Lamps picked up, or left behind when the player moved away or changed floor.
+end
+
+--- Close a finished pass: lamps it didn't see were picked up, or left behind when the player moved or changed floor.
+local function finishSweep(s)
     local gone = {}
     for key in pairs(active) do
-        if not seen[key] then gone[#gone + 1] = key end
+        if not s.seen[key] then gone[#gone + 1] = key end
     end
     for _, key in ipairs(gone) do removeLight(key) end
 end
 
+--- Advance the scan by a few rows, starting a new pass around the player when the last one is done.
+function LampLights.step()
+    local player = getPlayer()
+    if not player then return end
+    local R = LampLights.SCAN_RADIUS
+    if not sweep then
+        sweep = { cx = math.floor(player:getX()), cy = math.floor(player:getY()), z = math.floor(player:getZ()),
+                  row = 0, seen = {} }
+    end
+    local cell = getCell()
+    local needPower = Config.sandbox("LampsNeedPower")
+    local hour = getGameTime():getHour()
+    for _ = 1, LampLights.ROWS_PER_TICK do
+        scanRow(cell, sweep, needPower, hour)
+        sweep.row = sweep.row + 1
+        if sweep.row > 2 * R then
+            finishSweep(sweep)
+            sweep = nil
+            return
+        end
+    end
+end
+
+--- Run one whole pass at once (used by tests and when a pass must finish now).
+function LampLights.update()
+    sweep = nil
+    repeat LampLights.step() until sweep == nil or not getPlayer()
+end
+
 Events.OnTick.Add(function()
-    ticks = ticks + 1
-    if ticks < LampLights.EVERY_TICKS then return end
-    ticks = 0
-    local ok, err = pcall(LampLights.update)
-    if not ok then warnOnce(err) end
+    local ok, err = pcall(LampLights.step)
+    if not ok then
+        sweep = nil
+        warnOnce(err)
+    end
 end)

@@ -132,7 +132,8 @@ builders.reservoir = function(plant)
     if not h then return nil end
     return { level = math.floor(h.level * 10 + 0.5) / 10, cap = h.cap, nutrient = h.nutrient,
              strength = math.floor((h.strength or 0) * 100 + 0.5), stale = h.stale == true,
-             sites = h.sites, unlinked = h.unlinked == true }
+             sites = h.sites, unlinked = h.unlinked == true, ebb = h.ebb == true,
+             wetHours = h.wetHours and math.floor(h.wetHours * 10 + 0.5) / 10 or nil, floodTimer = h.floodTimer == true }
 end
 
 -- How the roots of a hydro plant look.

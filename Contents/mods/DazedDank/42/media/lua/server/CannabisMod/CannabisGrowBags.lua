@@ -117,19 +117,44 @@ commands.fillGrowBag = function(player, args)
     Net.notify(player, "Filled the bag with soil")
 end
 
-commands.pickUpGrowBag = function(player, args)
-    local luaObject, size = bagPlot(player, args)
-    if not luaObject then return end
-    if luaObject.state ~= "plow" then
-        Net.notify(player, "Empty the bag first")
-        return
-    end
+--- The other half of a flood table as its plot, or nil (no partner, not loaded, or already gone).
+local function partnerPlot(x, y, z)
+    local Hydro = CannabisMod.Hydro
+    local site = Hydro and Hydro.get(x, y, z, "ebb")
+    if not (site and site.partner) then return nil end
+    local px, py, pz = site.partner:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+    if not px then return nil end
+    px, py, pz = tonumber(px), tonumber(py), tonumber(pz)
+    if Registry.getBag(px, py, pz) ~= "ebb" then return nil end
+    -- Only a partner that points back is the same table.
+    if Hydro.get(px, py, pz, "ebb").partner ~= Config.tileKey(x, y, z) then return nil end
+    return Farming.getVanilla(px, py, pz)
+end
+
+--- Take one plot off the map, handing back an unused medium.
+local function removePlot(player, luaObject, size)
     if Config.isHydro(size) and CannabisMod.Hydro then
         CannabisMod.Hydro.onPickUp(player, luaObject.x, luaObject.y, luaObject.z)
     end
     Registry.clearBag(luaObject.x, luaObject.y, luaObject.z)
     SFarmingSystem.instance:removePlant(luaObject)
-    giveBag(player, size)
+end
+
+commands.pickUpGrowBag = function(player, args)
+    local luaObject, size = bagPlot(player, args)
+    if not luaObject then return end
+    local other = size == "ebb" and partnerPlot(luaObject.x, luaObject.y, luaObject.z) or nil
+    if luaObject.state ~= "plow" or (other and other.state ~= "plow") then
+        Net.notify(player, size == "ebb" and "Clear both halves of the table first" or "Empty the bag first")
+        return
+    end
+    -- A lone flood table half (its pair never matched) gives the table back only from its first half, so no table is doubled.
+    local site = size == "ebb" and CannabisMod.Hydro and CannabisMod.Hydro.get(luaObject.x, luaObject.y, luaObject.z, "ebb") or nil
+    local give = not site or other ~= nil or site.part ~= 1
+    removePlot(player, luaObject, size)
+    if other then removePlot(player, other, size) end
+    if CannabisMod.Hydro then CannabisMod.Hydro.forgetLinks() end
+    if give then giveBag(player, size) end
 end
 
 commands.emptyGrowBag = function(player, args)
@@ -191,6 +216,54 @@ local function furnitureBagAt(square)
     return found, size
 end
 
+local FACINGS = { "E", "S", "W", "N" }
+
+--- A placed flood table tile's facing (1-4, E S W N) and part (0 or 1), from its sprite; nil if it isn't one.
+function GrowBags.tablePart(spriteName)
+    local sheet, n = Config.splitSprite(spriteName)
+    local def = Config.GrowBag.ebb
+    if sheet ~= Config.sheetOf("ebb") or not n or n < def.furnSprites[1] or n > def.furnSprites[#def.furnSprites] then return nil end
+    local i = n - def.furnSprites[1]
+    return math.floor(i / 2) + 1, i % 2
+end
+
+--- Where the other tile of a flood table is expected, from one tile's sprite (south and north run along x, east and west along y).
+function GrowBags.tablePartner(spriteName, x, y, z)
+    local facing, part = GrowBags.tablePart(spriteName)
+    if not facing then return nil end
+    local step = part == 0 and 1 or -1
+    if FACINGS[facing] == "S" or FACINGS[facing] == "N" then return x + step, y, z end
+    return x, y + step, z
+end
+
+--- Pair a newly converted table tile with its other half: the neighbour holding the complementary part of the same table,
+--- checked on the map rather than assumed, so a wrong guess about tile order can never pair two different tables.
+local function pairTable(x, y, z, facing, part)
+    local Hydro = CannabisMod.Hydro
+    local me = Hydro.get(x, y, z, "ebb")
+    me.facing, me.part, me.partner = facing, part, nil
+    local def = Config.GrowBag.ebb
+    local wantSprite = Config.sheetOf("ebb") .. "_" .. (def.furnSprites[1] + (facing - 1) * 2 + (1 - part))
+    for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+        local nx, ny = x + d[1], y + d[2]
+        local other = Registry.getBag(nx, ny, z) == "ebb" and Hydro.get(nx, ny, z, "ebb") or nil
+        local mine = Config.tileKey(x, y, z)
+        local match = other and other.facing == facing and other.part == 1 - part
+            and (other.partner == nil or other.partner == mine)
+        if not match then
+            -- The other half may still be furniture, waiting to be converted.
+            local square = getCell():getGridSquare(nx, ny, z)
+            local furn = square and furnitureBagAt(square)
+            match = furn ~= nil and furn:getSprite():getName() == wantSprite
+        end
+        if match then
+            me.partner = Config.tileKey(nx, ny, z)
+            if other then other.partner = Config.tileKey(x, y, z) end
+            return
+        end
+    end
+end
+
 --- Swap a placed furniture bag for a bag plot. Returns true when done.
 local function convertBagAt(x, y, z)
     local square = getCell():getGridSquare(x, y, z)
@@ -198,7 +271,16 @@ local function convertBagAt(x, y, z)
     local obj, size = furnitureBagAt(square)
     if not obj then return false end
     if Farming.getVanilla(x, y, z) then return false end
+    local spriteName = obj:getSprite():getName()
+    -- A fresh bucket or table starts with a clean record, whatever stood here before.
+    if CannabisMod.Hydro then CannabisMod.Hydro.clear(x, y, z) end
     if not GrowBags.makePlot(square, size) then return false end
+    -- Each half of a flood table remembers the other, so picking either up takes the whole table.
+    if size == "ebb" and CannabisMod.Hydro then
+        local facing, part = GrowBags.tablePart(spriteName)
+        if facing then pairTable(x, y, z, facing, part) end
+    end
+    if CannabisMod.Hydro then CannabisMod.Hydro.forgetLinks() end
     pcall(function() square:transmitRemoveItemFromSquare(obj) end)
     pcall(function() square:RemoveTileObject(obj) end)
     return true
@@ -209,7 +291,15 @@ GrowBags.convertBagAt = convertBagAt
 local pendingConvert = {}
 
 local function queueConvert(x, y, z, ticks)
-    pendingConvert[#pendingConvert + 1] = { x = x, y = y, z = z, ticks = ticks or 120 }
+    ticks = ticks or 120
+    -- One job per tile: a second request just restarts the wait.
+    for _, job in ipairs(pendingConvert) do
+        if job.x == x and job.y == y and job.z == z then
+            job.ticks = math.max(job.ticks, ticks)
+            return
+        end
+    end
+    pendingConvert[#pendingConvert + 1] = { x = x, y = y, z = z, ticks = ticks }
 end
 
 Events.OnTick.Add(function()
@@ -225,12 +315,18 @@ end)
 
 -- Where the furniture is placed on the server (and in single player).
 Events.OnObjectAdded.Add(function(obj)
-    local ok, x, y, z, isBag = pcall(function()
+    local ok, x, y, z, isBag, name = pcall(function()
         local sprite = obj:getSprite()
         local sq = obj:getSquare()
-        return sq:getX(), sq:getY(), sq:getZ(), sprite and Config.bagFromFurnSprite(sprite:getName()) ~= nil
+        local n = sprite and sprite:getName()
+        return sq:getX(), sq:getY(), sq:getZ(), n and Config.bagFromFurnSprite(n) ~= nil, n
     end)
     if ok and isBag then queueConvert(x, y, z) end
+    -- A new flood reservoir changes which tables are fed.
+    if ok and name == Config.Hydro.FLOOD_SPRITE and CannabisMod.Hydro then
+        CannabisMod.Hydro.forgetLinks()
+        CannabisMod.Hydro.syncFloodObject(x, y, z)
+    end
 end)
 
 -- Where the placing client asks for it (when placement runs client-side).

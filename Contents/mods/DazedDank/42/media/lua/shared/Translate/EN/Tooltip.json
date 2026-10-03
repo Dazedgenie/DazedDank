@@ -1,3 +1,4 @@
 {
-    "Tooltip_DD_LightTimer": "Install on a placed grow lamp. 18/6 keeps plants in veg; 12/12 flips them to flower. Lamps without a timer run 24/0."
+    "Tooltip_DD_LightTimer": "Install on a placed grow lamp. 18/6 keeps plants in veg; 12/12 flips them to flower. Lamps without a timer run 24/0.",
+    "Tooltip_DD_FloodTimer": "Install on a flood reservoir. While it has power and water it floods the tables a few times a day, so the rockwool never dries out."
 }

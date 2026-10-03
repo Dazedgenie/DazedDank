@@ -20,24 +20,28 @@ local function worldHours() return getGameTime():getWorldAgeHours() end
 local missing = {}
 local lastLog = 0
 
---- Writes a [DazedDank] line to console.txt so effects can be checked from the log.
-local function log(text) print("[DazedDank] " .. text) end
+--- Writes a [DazedDank] tracing line to console.txt in debug mode, so effects can be checked from the log.
+local function log(text) Config.debugLog(text) end
+
+--- Move one stat by delta and return its value before and after.
+local function moveStat(stats, stat, delta)
+    local before = stats:get(stat)
+    if delta >= 0 then stats:add(stat, delta) else stats:remove(stat, -delta) end
+    return before, stats:get(stat)
+end
 
 --- Add `delta` to a character stat by name, ignoring stats this game version doesn't have; returns before and after values.
 local function applyStat(player, name, delta)
-    local before, after
-    local ok, err = pcall(function()
-        local stat = CharacterStat and CharacterStat[name]
-        if not stat then
-            if not missing[name] then missing[name] = true; log("stat " .. name .. " does not exist in this game version, skipped") end
-            return
-        end
-        local stats = player:getStats()
-        before = stats:get(stat)
-        if delta >= 0 then stats:add(stat, delta) else stats:remove(stat, -delta) end
-        after = stats:get(stat)
-    end)
-    if not ok then log("stat " .. name .. " failed: " .. tostring(err)) end
+    local stat = CharacterStat and CharacterStat[name]
+    if not stat then
+        if not missing[name] then missing[name] = true; log("stat " .. name .. " does not exist in this game version, skipped") end
+        return nil, nil
+    end
+    local ok, before, after = pcall(moveStat, player:getStats(), stat, delta)
+    if not ok then
+        log("stat " .. name .. " failed: " .. tostring(before))
+        return nil, nil
+    end
     return before, after
 end
 
@@ -65,8 +69,8 @@ function High.tickPlayer(player, now)
         player:setHaloNote("The high fades")
     end
     if not effects then return end
-    -- Log a snapshot every ten game minutes: what was asked for and what the stat did.
-    local report = (now - lastLog) >= (10 / 60)
+    -- In debug mode, log a snapshot every ten game minutes: what was asked for and what the stat did.
+    local report = (now - lastLog) >= (10 / 60) and Config.debugOn()
     local parts = {}
     for stat, perHour in pairs(effects) do
         local before, after = applyStat(player, stat, perHour * step)
@@ -85,9 +89,14 @@ local function eachLocalPlayer(fn)
     end
 end
 
+-- Nothing to do while sober and not craving, which is most of the time.
 Events.EveryOneMinute.Add(function()
+    if not state.high and state.withdrawal <= 0 then return end
     local now = worldHours()
-    eachLocalPlayer(function(p) High.tickPlayer(p, now) end)
+    for i = 0, 3 do
+        local p = getSpecificPlayer(i)
+        if p and not p:isDead() then High.tickPlayer(p, now) end
+    end
 end)
 
 local function requestState(player)
@@ -112,8 +121,10 @@ Net.clientHandlers.smoked = function(args)
     local player = getSpecificPlayer(0)
     if not player then return end
     local now = worldHours()
-    log(string.format("smoked reply: %s strength %.2f for %.2fh, moldy=%s, tolerance %s, dependency %s", tostring(args.type),
-        args.strength or -1, args.hours or -1, tostring(args.moldy), tostring(args.tolerance), tostring(args.dependency)))
+    if Config.debugOn() then
+        log(string.format("smoked reply: %s strength %.2f for %.2fh, moldy=%s, tolerance %s, dependency %s", tostring(args.type),
+            args.strength or -1, args.hours or -1, tostring(args.moldy), tostring(args.tolerance), tostring(args.dependency)))
+    end
     state.high = { type = args.type, moldy = args.moldy, strength = args.strength,
                    startedAt = now, endsAt = now + args.hours }
     pcall(function() player:getModData().DazedHigh = state.high end)
@@ -132,7 +143,9 @@ end
 Net.clientHandlers.useState = function(args)
     local before = state.withdrawal
     state.withdrawal = args.withdrawal or 0
-    log(string.format("use state: withdrawal %.2f, tolerance %s, dependency %s", state.withdrawal, tostring(args.tolerance), tostring(args.dependency)))
+    if Config.debugOn() then
+        log(string.format("use state: withdrawal %.2f, tolerance %s, dependency %s", state.withdrawal, tostring(args.tolerance), tostring(args.dependency)))
+    end
     if before < 0.1 and state.withdrawal >= 0.1 and not state.high then
         local player = getSpecificPlayer(0)
         if player then player:setHaloNote("You're craving a smoke") end

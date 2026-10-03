@@ -87,17 +87,20 @@ end
 local originalGetSpriteName = farming_vegetableconf.getSpriteName
 
 farming_vegetableconf.getSpriteName = function(plot)
-    -- Grow bags are registered on the server by tile.
-    local Registry = CannabisMod.Registry
-    local bag = plot and Registry and Registry.getBag and Registry.getBag(plot.x, plot.y, plot.z) or nil
-
-    -- An empty grow bag shows the bag, not plowed soil.
-    if plot and plot.state == "plow" and bag then
-        return Config.bagEmptySprite(bag, Registry.isBagSoiled(plot.x, plot.y, plot.z))
-    end
-    if not plot or plot.typeOfSeed ~= CROP or plot.state == "plow" then
+    -- Other crops go straight to vanilla, without a bag lookup.
+    local plowed = plot and plot.state == "plow"
+    if not plot or (not plowed and plot.typeOfSeed ~= CROP) then
         return originalGetSpriteName(plot)
     end
+    -- Grow bags are registered on the server by tile.
+    local Registry = CannabisMod.Registry
+    local bag = Registry and Registry.getBag and Registry.getBag(plot.x, plot.y, plot.z) or nil
+
+    -- An empty grow bag shows the bag, not plowed soil.
+    if plowed and bag then
+        return Config.bagEmptySprite(bag, Registry.isBagSoiled(plot.x, plot.y, plot.z))
+    end
+    if plowed then return originalGetSpriteName(plot) end
     -- Type and stage come from the server registry. It only exists on the
     -- server, which is the side that sets sprites anyway; clients receive the
     -- result.

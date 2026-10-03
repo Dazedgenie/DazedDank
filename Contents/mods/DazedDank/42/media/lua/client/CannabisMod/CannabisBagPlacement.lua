@@ -14,6 +14,11 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.placeMoveableInternal then
             sendClientCommand(character, Config.COMMAND_MODULE, "convertBag",
                 { x = square:getX(), y = square:getY(), z = square:getZ() })
         end
+        -- A flood reservoir changes which tables are fed; tell the server in case its object event didn't fire.
+        if isClient() and spriteName == Config.Hydro.FLOOD_SPRITE and square and character then
+            sendClientCommand(character, Config.COMMAND_MODULE, "floodPlaced",
+                { x = square:getX(), y = square:getY(), z = square:getZ() })
+        end
         return result
     end
 end

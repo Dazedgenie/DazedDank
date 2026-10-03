@@ -88,6 +88,12 @@ function Farming.onStageChanged(plant)
     end
 end
 
+--- Mark a bag's plot as plowed today, so vanilla doesn't let an empty one fade away.
+local function freshenPlot(luaObject, today)
+    local square = luaObject:getSquare()
+    if square then square:getModData().plowDay = today end
+end
+
 --- Runs every 10 minutes before the registry's own checks.
 function Farming.syncWithVanilla()
     local sys = farmingSystem()
@@ -98,15 +104,16 @@ function Farming.syncWithVanilla()
 
     for i = 1, count do
         local luaObject = sys:getLuaObjectByIndex(i)
-        if luaObject and luaObject.typeOfSeed == CROP and luaObject.state ~= "plow"
-        and not isOurLivePlant(luaObject) then
+        local ours = luaObject and luaObject.typeOfSeed == CROP
+        local live = ours and isOurLivePlant(luaObject)
+        if ours and not live and luaObject.state ~= "plow" then
             -- dead, rotten, harvested or destroyed: keep the record, frozen
             local plant = Registry.getPlant(luaObject.x, luaObject.y, luaObject.z)
             if plant then
                 plant.dead = true
                 seen[Config.tileKey(luaObject.x, luaObject.y, luaObject.z)] = true
             end
-        elseif isOurLivePlant(luaObject) then
+        elseif live then
             local x, y, z = luaObject.x, luaObject.y, luaObject.z
             local plant = Registry.getPlant(x, y, z)
             if not plant then
@@ -119,7 +126,7 @@ function Farming.syncWithVanilla()
             if bonus > 0 and plant.stage < Config.STAGE.Ripe and (luaObject.waterLvl or 0) > 0 then
                 local extra = Config.Timer.EXTRA_WATER_PER_HOUR / 6 * bonus / Config.Timer.VEG_BONUS_MAX
                 luaObject.waterLvl = math.max(0, luaObject.waterLvl - extra)
-                pcall(function() luaObject:saveData() end)
+                pcall(luaObject.saveData, luaObject)
             end
             plant.water = luaObject.waterLvl
             holdVanillaClock(luaObject)
@@ -131,18 +138,14 @@ function Farming.syncWithVanilla()
     -- plots from fading away (vanilla slowly removes old unplanted plots).
     if count > 0 then
         local lostBags = {}
+        local today = getGameTime():getWorldAgeHours() / 24
         for key, size in Registry.eachBag() do
             local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
             local luaObject = x and Farming.getVanilla(tonumber(x), tonumber(y), tonumber(z))
             if not luaObject then
                 lostBags[#lostBags + 1] = { tonumber(x), tonumber(y), tonumber(z) }
             else
-                pcall(function()
-                    local square = luaObject:getSquare()
-                    if square then
-                        square:getModData().plowDay = getGameTime():getWorldAgeHours() / 24
-                    end
-                end)
+                pcall(freshenPlot, luaObject, today)
             end
         end
         for _, c in ipairs(lostBags) do Registry.clearBag(c[1], c[2], c[3]) end
@@ -214,7 +217,9 @@ function ISSeedActionNew:complete()
     local Hydro = CannabisMod.Hydro
     if bagKind and Config.isHydro(bagKind) and Hydro then
         local r = Hydro.reservoirOf(pl.x, pl.y, pl.z)
-        local why = (not r and "Connect this site to an RDWC control bucket first")
+        local unlinked = bagKind == "ebb" and "Stand a flood reservoir beside this row of tables first"
+            or "Connect this site to an RDWC control bucket first"
+        local why = (not r and unlinked)
             or (r.level <= 0 and "Fill the reservoir first") or nil
         if why then
             if Net and self.character then Net.notify(self.character, why) end
@@ -254,7 +259,8 @@ function ISSeedActionNew:complete()
                 local tempC, hasLight = Farming.conditionsAt(luaObject:getSquare())
                 local chance, hours = Genetics.rootingOdds(self.character:getPerkLevel(Perks.Farming), {
                     gel = data.gel, soil = true, tempC = tempC, hasLight = hasLight,
-                    moist = (luaObject.waterLvl or 0) >= Config.Water.LOW,
+                    moist = (Config.isHydro(Registry.getBag(p.x, p.y, p.z)) and CannabisMod.Hydro
+                        and CannabisMod.Hydro.isMoist(p.x, p.y, p.z)) or (luaObject.waterLvl or 0) >= Config.Water.LOW,
                     wiltHours = ageHours,
                 })
                 Registry.startRooting(plant, hours, Config.rollPercent(chance))

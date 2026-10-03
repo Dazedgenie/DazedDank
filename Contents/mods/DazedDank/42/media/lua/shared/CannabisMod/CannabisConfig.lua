@@ -185,6 +185,11 @@ Config.GrowBag = {
               drain = 1, yield = 1.4, careMult = 0.6, emptySprite = 2, sheet = "dazeddank_hydro_01",
               drySprite = 1, soil = 0, plantBase = 3, maleBase = 68, lastSprite = 112,
               furnItem = "CannabisMod.RDWCSite", furnSprite = 0 },
+    -- Ebb and Flow table: a 1x2 bench placed like the drying rack, each tile a site. Flooded from a flood reservoir beside the tables.
+    ebb   = { name = "Flood Table", hydro = "ebb", rockwoolOnly = true, sheet = "dazeddank_hydro_01",
+              drain = 1, yield = 1.2, careMult = 0.85, emptySprite = 123, drySprite = 122, soil = 0,
+              plantBase = 124, maleBase = 189, lastSprite = 233,
+              furnItem = "CannabisMod.FloodTable", furnSprite = 114, furnSprites = { 114, 115, 116, 117, 118, 119, 120, 121 } },
 }
 -- Ground plants: the first 65 sprites, and males from MALE_SPRITE_BASE.
 Config.GROUND_SPRITES = { plantBase = 0, maleBase = 237 }
@@ -213,12 +218,35 @@ function Config.splitSprite(spriteName)
     return sheet, tonumber(n)
 end
 
+-- Furniture sprite name -> bag kind, built on first use (the bag table never changes while playing).
+local furnKinds = nil
+
 --- Which bag size a furniture sprite (the one placed from a bag item) is, or nil.
 function Config.bagFromFurnSprite(spriteName)
-    for size, def in pairs(Config.GrowBag) do
-        if spriteName == Config.sheetOf(size) .. "_" .. def.furnSprite then return size end
+    if not furnKinds then
+        furnKinds = {}
+        for size, def in pairs(Config.GrowBag) do
+            furnKinds[Config.sheetOf(size) .. "_" .. def.furnSprite] = size
+            for _, n in ipairs(def.furnSprites or {}) do furnKinds[Config.sheetOf(size) .. "_" .. n] = size end
+        end
     end
-    return nil
+    return spriteName and furnKinds[spriteName] or nil
+end
+
+--- Wrap a lookup on a sprite name so each name is worked out once; `miss` is what a "no" answer returns (nil or false).
+local function memoBySprite(fn, miss)
+    local cache = {}
+    return function(spriteName)
+        if type(spriteName) ~= "string" then return miss end
+        local hit = cache[spriteName]
+        if hit == nil then
+            hit = fn(spriteName)
+            if hit == nil then hit = false end
+            cache[spriteName] = hit
+        end
+        if hit == false then return miss end
+        return hit
+    end
 end
 
 -- Male plants from pre-flower on have their own sprites: per container, 5 conditions x 3 types x 3 stages.
@@ -292,6 +320,11 @@ function Config.isMaleSprite(spriteName)
     end
     return false
 end
+
+-- Sprite names are parsed once each: these run per object in menus, placement and the plant tick.
+Config.bagIsUnfilled = memoBySprite(Config.bagIsUnfilled, false)
+Config.bagFromSprite = memoBySprite(Config.bagFromSprite, nil)
+Config.isMaleSprite = memoBySprite(Config.isMaleSprite, false)
 
 --- True if a container kind is a hydro system rather than a soil pot.
 function Config.isHydro(bag)
@@ -440,8 +473,8 @@ for _, def in pairs(Config.Light.SPRITES) do
 end
 
 --- True if a square (dx, dy) from a lamp tile is lit: a round zone, so a bar lamp's tiles together make a capsule.
-function Config.Light.reaches(dx, dy, radius)
-    radius = radius * Config.sandbox("LampRange")
+function Config.Light.reaches(dx, dy, radius, range)
+    radius = radius * (range or Config.sandbox("LampRange"))
     return dx * dx + dy * dy <= radius * radius + 0.01
 end
 
@@ -505,6 +538,16 @@ Config.Hydro = {
     CONTROL_ITEM = "CannabisMod.RDWCControl", CONTROL_SPRITE = "dazeddank_hydro_01_113",
     RDWC_CONTROL_L = 40, RDWC_SITE_L = 20, RDWC_RANGE = 3, RDWC_MAX_SITES = 6,
     PEBBLE_SEED_FAIL = 25,                      -- % of seeds sown straight into clay pebbles that don't take
+    -- Ebb and Flow: tables that touch each other share the flood reservoir standing beside any of them.
+    FLOOD_ITEM = "CannabisMod.FloodReservoir", FLOOD_SPRITE = "dazeddank_hydro_01_234",
+    FLOOD_TIMER_ITEM = "CannabisMod.FloodTimer",
+    EBB_RESERVOIR_L = 60, EBB_MAX_SITES = 12,
+    EBB_WET_HOURS = 12,                         -- rockwool stays wet this long after a flood
+    EBB_FLOOD_L = 0.5,                          -- litres a flood needs per site in the reservoir
+    EBB_ROT_MULT = 0.25,                        -- roots air out between floods, so rot builds slowly
+    EBB_SCAN_MAX = 64,                          -- most table tiles one network search walks
+    LINK_CACHE_HOURS = 1 / 6,                   -- how long an unsure link (a square not loaded, no control in range) is trusted
+    EBB_LINK_HOURS = 1,                         -- how long a worked-out table network is trusted (changes clear it at once)
 }
 
 Config.Care = {
@@ -558,6 +601,9 @@ Config.Drying = {
     SUN_LOSS_PER_HOUR = 0.004, SUN_LOSS_MAX = 0.25,   -- direct sun bleaches buds
     MOLDY_MULT = 0.2,
     MAX_CATCHUP_HOURS = 24 * 30,
+    -- Each bud carries its own data in ModData under BUD_DATA; the save only keeps records for drying and curing in progress.
+    BUD_DATA = "DDBud",
+    RECORD_KEEP_DAYS = 90,   -- records untouched this long are dropped, and the item's own data takes over
 }
 -- Pairs of rack sprites: first tile of a facing, then its partner (E and W run along y, S and N along x).
 for n = 206, 212, 2 do
@@ -683,6 +729,16 @@ function Config.tileKey(x, y, z)
     return tostring(x) .. "_" .. tostring(y) .. "_" .. tostring(z)
 end
 
+--- True when the game runs in debug mode, where the mod writes its tracing lines.
+function Config.debugOn()
+    return isDebugEnabled ~= nil and isDebugEnabled() == true
+end
+
+--- Write a [DazedDank] tracing line to console.txt, in debug mode only, so normal play keeps the log quiet.
+function Config.debugLog(text)
+    if Config.debugOn() then print("[DazedDank] " .. text) end
+end
+
 
 -- --------------------------------------------------------------------------
 -- Smoking, effects, tolerance and dependency
@@ -690,6 +746,7 @@ end
 Config.Smoking = {
     PAPER_ITEM = "CannabisMod.RollingPapers",
     JOINT_ITEM = "CannabisMod.Joint",
+    JOINT_DATA = "DDJoint",   -- ModData key a joint keeps its bud's type, quality and mold under
     PIPE_ITEM  = "CannabisMod.SmokingPipe",
     -- Anything in the bag that can light it (vanilla item types).
     LIGHTERS = { "Base.Lighter", "Base.LighterDisposable", "Base.Matches", "Base.MatchesBox" },

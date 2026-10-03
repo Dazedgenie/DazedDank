@@ -40,6 +40,20 @@ commands.feedPlant = function(player, args)
         return
     end
 
+    -- A hydro plant is fed through its reservoir: check it can take the dose before a bottle is used.
+    local Hydro = CannabisMod.Hydro
+    if Hydro and Config.isHydro(Registry.getBag(x, y, z)) then
+        local r = Hydro.reservoirOf(x, y, z)
+        if not r then
+            Net.notify(player, "This plant isn't connected to a reservoir")
+            return
+        end
+        if r.level <= 0 then
+            Net.notify(player, FEED_MESSAGES.noWater)
+            return
+        end
+    end
+
     local bottle = Seeds.findItem(player:getInventory(), function(item)
         return item:getFullType() == itemType
     end)

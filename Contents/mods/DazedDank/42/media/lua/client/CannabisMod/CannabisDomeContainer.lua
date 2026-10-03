@@ -11,29 +11,42 @@ local Seeds  = CannabisMod.Seeds
 local Dome = {}
 CannabisMod.DomeContainer = Dome
 
+--- The item that holds this container (a dome or a jar), or nil.
+local function holderOf(container)
+    return container:getContainingItem()
+end
+
 --- The dome item that owns this container, or nil if it isn't a dome.
 function Dome.itemOf(container)
     if not container or not container.getContainingItem then return nil end
-    local ok, owner = pcall(function() return container:getContainingItem() end)
+    local ok, owner = pcall(holderOf, container)
     if ok and owner and owner:getFullType() == Config.DOME_ITEM then
         return owner
     end
     return nil
 end
 
---- Which kind of station (rack or jar) this container belongs to, or nil.
-local function stationOwner(container)
-    if not container then return nil end
-    local ok, kind = pcall(function()
-        local owner = container.getContainingItem and container:getContainingItem()
-        if owner and owner:getFullType() == Config.Drying.JAR_ITEM then return "jar" end
-        local parent = container.getParent and container:getParent()
-        local sprite = parent and parent.getSprite and parent:getSprite()
-        if sprite and Config.Drying.RACK_SPRITES[sprite:getName()] then return "rack" end
-        if sprite and sprite:getName() == Config.Drying.BARREL_SPRITE then return "barrel" end
-        return nil
-    end)
-    return ok and kind or nil
+--- Read which kind of special container this is: "jar", "dome", "rack", "barrel", or false.
+local function readKind(container)
+    local owner = container.getContainingItem and container:getContainingItem()
+    if owner then
+        local fullType = owner:getFullType()
+        if fullType == Config.Drying.JAR_ITEM then return "jar" end
+        if fullType == Config.DOME_ITEM then return "dome" end
+    end
+    local parent = container.getParent and container:getParent()
+    local sprite = parent and parent.getSprite and parent:getSprite()
+    local name = sprite and sprite:getName()
+    if name and Config.Drying.RACK_SPRITES[name] then return "rack" end
+    if name and name == Config.Drying.BARREL_SPRITE then return "barrel" end
+    return false
+end
+
+--- Which kind of station or dome this container belongs to, or false for any other container.
+function Dome.kindOf(container)
+    if not container then return false end
+    local ok, kind = pcall(readKind, container)
+    return ok and kind or false
 end
 
 --- Why `item` can't go into a rack, jar or barrel, or nil if it can.
@@ -51,14 +64,13 @@ local function stationRefusal(container, item, ownerType)
     return nil
 end
 
---- Why `item` can't go into `container`, or nil if it can.
-function Dome.refusal(container, item)
-    local owner = stationOwner(container)
-    if owner then return stationRefusal(container, item, owner) end
-    local dome = Dome.itemOf(container)
-    if not dome then return nil end
-    local kind = Seeds.kind(item)
-    if kind ~= "cutting" and kind ~= "rooted" then
+--- Why `item` can't go into `container`, or nil if it can. Pass the container's kind when it is already known.
+function Dome.refusal(container, item, kind)
+    if kind == nil then kind = Dome.kindOf(container) end
+    if not kind then return nil end
+    if kind ~= "dome" then return stationRefusal(container, item, kind) end
+    local seedKind = Seeds.kind(item)
+    if seedKind ~= "cutting" and seedKind ~= "rooted" then
         return "The dome only holds cuttings"
     end
     -- Already inside this dome (moving it around): no count check.
@@ -75,14 +87,23 @@ end
 
 local originalIsValid = ISInventoryTransferAction.isValid
 
+-- isValid runs every tick of a transfer, so the destination's kind is worked out once per action.
 function ISInventoryTransferAction:isValid()
-    local why = Dome.refusal(self.destContainer, self.item)
-    if why then
-        if not self.dazedDankWarned and self.character and self.character.setHaloNote then
-            self.dazedDankWarned = true
-            self.character:setHaloNote(why)
+    local dest = self.destContainer
+    if self.dazedDankDest ~= dest then
+        self.dazedDankDest = dest
+        self.dazedDankKind = Dome.kindOf(dest)
+    end
+    local kind = self.dazedDankKind
+    if kind then
+        local why = Dome.refusal(dest, self.item, kind)
+        if why then
+            if not self.dazedDankWarned and self.character and self.character.setHaloNote then
+                self.dazedDankWarned = true
+                self.character:setHaloNote(why)
+            end
+            return false
         end
-        return false
     end
     return originalIsValid(self)
 end

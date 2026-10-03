@@ -111,6 +111,25 @@ commands.debugNextStage = function(player, args)
     Net.notify(player, "Now: " .. Config.STAGES[plant.stage])
 end
 
+--- Raise the plant's quality factors (genetics, light score, care) by args.amount, or to the top with "max"; stress is cleared.
+commands.debugBoostQuality = function(player, args)
+    if not isDebugAllowed(player) then return end
+    local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
+    local plant = x and y and z and Registry.getPlant(x, y, z)
+    if not plant then
+        Net.notify(player, "No cannabis plant here")
+        return
+    end
+    local add = args.amount == "max" and 1000 or (tonumber(args.amount) or 20)
+    plant.genetics = Config.clamp((plant.genetics or 0) + add, 0, 100)
+    plant.lightCap = Config.clamp((plant.lightCap or Config.LightCap.SUN) + add, 0, 100)
+    plant.care = Config.clamp((plant.care or Config.Care.START) + add, 0, 100)
+    plant.stress = 0
+    local q = CannabisMod.Genetics.calcQuality(plant, 0, nil)
+    Net.notify(player, string.format("Genetics %d, light %d, care %d. Harvested on time and dried well: quality %d",
+        plant.genetics, math.floor(plant.lightCap + 0.5), math.floor(plant.care + 0.5), q))
+end
+
 --- Entry point for every client command from every mod. We ignore any command
 --- that isn't ours.
 local function onClientCommand(module, command, player, args)

@@ -35,10 +35,12 @@ end
 --- The lamp object on a square, or nil.
 local function lampObject(square)
     local objects = square:getObjects()
+    local sprites = Config.Light.SPRITES
     for i = 0, objects:size() - 1 do
         local obj = objects:get(i)
-        local ok, name = pcall(function() return obj:getSprite():getName() end)
-        if ok and name and Config.Light.SPRITES[name] then return obj end
+        local sprite = obj:getSprite()
+        local name = sprite and sprite:getName()
+        if name and sprites[name] then return obj end
     end
     return nil
 end
@@ -140,8 +142,7 @@ end
 
 --- The schedule the lamp object carries for clients, or nil.
 local function objectSchedule(obj)
-    local ok, s = pcall(function() return obj:getModData().DDTimer end)
-    return ok and s or nil
+    return obj:getModData().DDTimer
 end
 
 --- Drop the timer on the floor when its lamp has been picked up, so it is never lost.

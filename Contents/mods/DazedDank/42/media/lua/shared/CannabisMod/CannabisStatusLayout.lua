@@ -40,6 +40,7 @@ local WARNINGS = {
     lightLeak = { "Light leak", "bad" }, hungry = { "Hungry", "warn" },
     reservoirDry = { "Reservoir dry", "bad" }, staleReservoir = { "Stale reservoir", "warn" },
     pumpOff = { "Pumps off", "bad" }, rootRot = { "Root rot", "bad" }, noControl = { "No control bucket", "bad" },
+    noFlood = { "No flood reservoir", "bad" }, mediumDry = { "Rockwool dry", "bad" },
 }
 
 --- "1 d 6 h" style text for a number of hours.
@@ -129,7 +130,8 @@ function Layout.build(data, fontH, measure)
     -- Hydro: the reservoir replaces the water bar; an RDWC site shows the shared reservoir of its control bucket.
     if data.reservoir then
         local r = data.reservoir
-        text(r.sites and ("Shared reservoir (" .. r.sites .. " sites)") or "Reservoir", PAD, y, COLORS.muted)
+        local title = r.ebb and "Flood reservoir" or "Shared reservoir"
+        text(r.sites and (title .. " (" .. r.sites .. " sites)") or "Reservoir", PAD, y, COLORS.muted)
         if r.unlinked then
             text("Not connected", W - PAD, y, COLORS.bad, "Small", "right")
             y = y + small + GAP
@@ -143,6 +145,12 @@ function Layout.build(data, fontH, measure)
             local food = r.nutrient and (r.nutrient .. " " .. r.strength .. "%") or "None"
             local low = r.strength < Config.Hydro.HUNGRY_BELOW * 100
             row("Nutrients", food, low and COLORS.warn or COLORS.text)
+            -- Ebb and Flow: how long the rockwool stays wet, or that a timer keeps it flooded.
+            if r.ebb then
+                local wet = r.wetHours and r.wetHours > 0
+                local text2 = r.floodTimer and wet and "Wet (flood timer)" or (wet and ("Wet for " .. Layout.formatHours(r.wetHours)) or "Dry: flood the tables")
+                row("Rockwool", text2, wet and COLORS.text or COLORS.bad)
+            end
         end
     end
     if data.roots then

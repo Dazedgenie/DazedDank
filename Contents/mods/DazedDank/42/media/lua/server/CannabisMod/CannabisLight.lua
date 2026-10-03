@@ -15,11 +15,8 @@ CannabisMod.Light = Light
 
 --- True if this square has power for a lamp.
 local function isPowered(square)
-    local ok, powered = pcall(function()
-        if square:haveElectricity() then return true end
-        return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
-    end)
-    return ok and powered == true
+    if square:haveElectricity() then return true end
+    return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
 end
 
 --- Schedule of the timer on a lamp tile, or nil for a lamp without one (24/0).
@@ -28,45 +25,89 @@ local function scheduleAt(x, y, z)
     return Timers and Timers.scheduleAt(x, y, z) or nil
 end
 
+-- During the plant tick every plant asks about the same squares, so each square's lamps are read once per tick.
+-- tickCache[z][x][y] = list of { def, schedule, powered }, or false for a square with none (nil = not read yet).
+local tickCache = nil
+
+--- Start sharing square reads between plants (the Registry calls this at the top of its tick).
+function Light.beginTick() tickCache = {} end
+
+--- Stop sharing, so later reads see the world as it is.
+function Light.endTick() tickCache = nil end
+
+--- The lamps on one square, as a list of { def, schedule, powered }, or false when there are none.
+local function readSquare(square, x, y, z)
+    local found = false
+    local sprites, items = Config.Light.SPRITES, Config.Light.ITEMS
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local sprite = objects:get(i):getSprite()
+        local def = sprite and sprites[sprite:getName()]
+        if def then
+            found = found or {}
+            found[#found + 1] = { def = def, schedule = scheduleAt(x, y, z), powered = isPowered(square) }
+        end
+    end
+    -- Loose lamp items lying on the ground have no timer.
+    local worldItems = square:getWorldObjects()
+    for i = 0, worldItems:size() - 1 do
+        local item = worldItems:get(i):getItem()
+        local def = item and items[item:getFullType()]
+        if def then
+            found = found or {}
+            found[#found + 1] = { def = def, powered = isPowered(square) }
+        end
+    end
+    return found
+end
+
+--- The lamps on the square at x, y, z: from this tick's shared reads when there are any.
+local function lampsOn(cell, x, y, z)
+    if not tickCache then
+        local square = cell:getGridSquare(x, y, z)
+        return square and readSquare(square, x, y, z) or false
+    end
+    local floor = tickCache[z]
+    if not floor then floor = {} tickCache[z] = floor end
+    local column = floor[x]
+    if not column then column = {} floor[x] = column end
+    local lamps = column[y]
+    if lamps == nil then
+        local square = cell:getGridSquare(x, y, z)
+        lamps = square and readSquare(square, x, y, z) or false
+        column[y] = lamps
+    end
+    return lamps
+end
+
 --- The powered lamps reaching a plant, summed up for this moment.
 --- Returns { cap, name } for the brightest lamp lit right now (nil when none is lit), plus
 --- anyLong / anyShort for whether any reaching lamp runs a veg (24/0, 18/6) or a 12/12 schedule.
 function Light.lampsAt(x, y, z)
     local out = { cap = nil, name = nil, anyLong = false, anyShort = false, longOn = false }
     local hour = getGameTime():getHour()
-    local R = math.ceil(Config.Light.MAX_RADIUS * Config.sandbox("LampRange"))
-    local function consider(def, dx, dy, square, schedule)
-        if not def then return end
-        if not Config.Light.reaches(dx, dy, def.radius) then return end
-        if Config.sandbox("LampsNeedPower") and not isPowered(square) then return end
-        local on = Config.Timer.isOn(schedule, hour)
-        if Config.Timer.isLongDay(schedule) then
-            out.anyLong = true
-            if on then out.longOn = true end
-        else
-            out.anyShort = true
-        end
-        if on and (not out.cap or def.cap > out.cap) then out.cap, out.name = def.cap, def.name end
-    end
+    local range = Config.sandbox("LampRange")
+    local needPower = Config.sandbox("LampsNeedPower")
+    local R = math.ceil(Config.Light.MAX_RADIUS * range)
+    local reaches, isOn, isLongDay = Config.Light.reaches, Config.Timer.isOn, Config.Timer.isLongDay
     pcall(function()
         local cell = getCell()
         for dx = -R, R do
             for dy = -R, R do
-                local square = cell:getGridSquare(x + dx, y + dy, z)
-                if square then
-                    -- placed furniture lamps: match the object's sprite name
-                    local objects = square:getObjects()
-                    for i = 0, objects:size() - 1 do
-                        local ok, name = pcall(function() return objects:get(i):getSprite():getName() end)
-                        if ok and name and Config.Light.SPRITES[name] then
-                            consider(Config.Light.SPRITES[name], dx, dy, square, scheduleAt(x + dx, y + dy, z))
+                local lamps = lampsOn(cell, x + dx, y + dy, z)
+                if lamps then
+                    for _, lamp in ipairs(lamps) do
+                        local def = lamp.def
+                        if reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
+                            local on = isOn(lamp.schedule, hour)
+                            if isLongDay(lamp.schedule) then
+                                out.anyLong = true
+                                if on then out.longOn = true end
+                            else
+                                out.anyShort = true
+                            end
+                            if on and (not out.cap or def.cap > out.cap) then out.cap, out.name = def.cap, def.name end
                         end
-                    end
-                    -- loose lamp items lying on the ground have no timer
-                    local worldItems = square:getWorldObjects()
-                    for i = 0, worldItems:size() - 1 do
-                        local item = worldItems:get(i):getItem()
-                        if item then consider(Config.Light.ITEMS[item:getFullType()], dx, dy, square, nil) end
                     end
                 end
             end
@@ -84,12 +125,9 @@ end
 --- Current light ceiling and its source name for a plant's tile, plus the lamp summary.
 function Light.measure(plant)
     local lamps = Light.lampsAt(plant.x, plant.y, plant.z)
-    local sun = false
-    local ok, outside = pcall(function()
-        local square = getCell():getGridSquare(plant.x, plant.y, plant.z)
-        return square == nil or square:isOutside()  -- unknown square: assume sun
-    end)
-    if not ok or outside then sun = true end
+    local cell = getCell and getCell()
+    local square = cell and cell:getGridSquare(plant.x, plant.y, plant.z)
+    local sun = square == nil or square:isOutside()  -- unknown square: assume sun
 
     local sunCap = sun and Config.LightCap.SUN or 0
     -- Outdoors a lit lamp supplements the sun rather than replacing it, for a small boost.
@@ -113,6 +151,10 @@ end
 --- Runs for each living, rooted plant every 10 minutes. Returns true if the
 --- plant is stalled (the caller skips stage growth).
 function Light.update(plant)
+    -- Nobody near: keep the last light reading (an indoor plant mustn't read as sunlit and drop out of veg),
+    -- and let it grow on as it was.
+    local cell = getCell and getCell()
+    if cell and not cell:getGridSquare(plant.x, plant.y, plant.z) then return plant.lightStalled == true end
     local cap, source, lamps = Light.measure(plant)
     local cycle = Light.cycleOf(lamps)
     plant.lightCycle = cycle
@@ -123,6 +165,7 @@ function Light.update(plant)
     if scheduledDark then
         plant.warnings.noLight = nil
         plant.lightOn = false
+        plant.lightStalled = false
         return false
     end
 
@@ -157,6 +200,7 @@ function Light.update(plant)
     end
     if lightOn then plant.warnings.lightInterrupted = nil end
     plant.lightOn = lightOn
+    plant.lightStalled = stalled
 
     return stalled
 end

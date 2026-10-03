@@ -1,4 +1,4 @@
--- Optional Dazed Plumbing hookup: DWC buckets and RDWC control buckets take a water line from a tank.
+-- Optional Dazed Plumbing hookup: DWC buckets, RDWC control buckets and flood reservoirs take a water line from a tank.
 -- After "Change Reservoir" the line refills the emptied reservoir; it does not top up a reservoir otherwise.
 
 require "CannabisMod/CannabisConfig"
@@ -17,11 +17,13 @@ function Plumb.available()
     return DazedPlumb ~= nil and DazedPlumb.Links ~= nil and DazedPlumb.Links.register ~= nil
 end
 
---- Which reservoir an object is: "dwc" for a DWC bucket plot, "rdwc" for an RDWC control bucket, or nil.
+--- Which reservoir an object is: "dwc" for a DWC bucket plot, "rdwc" for an RDWC control bucket, "ebb" for a flood reservoir, or nil.
 function Plumb.kindOf(obj)
-    local ok, name = pcall(function() return obj:getSprite():getName() end)
-    if not ok or type(name) ~= "string" then return nil end
+    local sprite = obj and obj.getSprite and obj:getSprite()
+    local name = sprite and sprite:getName()
+    if type(name) ~= "string" then return nil end
     if name == Config.Hydro.CONTROL_SPRITE then return "rdwc" end
+    if name == Config.Hydro.FLOOD_SPRITE then return "ebb" end
     if Config.bagFromSprite(name) == "dwc" then return "dwc" end
     return nil
 end
@@ -56,7 +58,7 @@ local function reservoir(obj)
     local kind = Plumb.kindOf(obj)
     local square = obj and obj:getSquare()
     if not (Hydro and kind and square) then return nil end
-    return Hydro.reservoirAt(square:getX(), square:getY(), square:getZ(), kind)
+    return Hydro.reservoirOfObject(square:getX(), square:getY(), square:getZ(), kind)
 end
 
 --- Litres the line may pour in this minute: only while a changed reservoir is waiting to be refilled.

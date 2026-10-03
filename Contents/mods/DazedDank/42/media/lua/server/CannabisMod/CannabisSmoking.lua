@@ -28,7 +28,8 @@ local Smoke    = Config.Smoking
 local Smoking = {}
 CannabisMod.Smoking = Smoking
 
--- db.users[username] = { tol, dep, lastUse, at, doses }     db.joints[itemId] = { type, quality, moldy }
+-- db.users[username] = { tol, dep, lastUse, at, doses }
+-- A joint carries { type, quality, moldy } under Smoke.JOINT_DATA; db.joints[itemId] only holds joints rolled before that.
 local db = nil
 
 local function onInitGlobalModData()
@@ -51,9 +52,9 @@ local function userOf(player)
     return db.users[key]
 end
 
---- What a bud is made of: type, final quality and mold, from its record (a plain bud counts as middling hybrid).
+--- What a bud is made of: type, final quality and mold, from its record or its own data (a plain bud counts as middling hybrid).
 local function budInfo(bud)
-    local rec = Drying.data().buds[bud:getID()]
+    local rec = Drying.budRecord(bud)
     if not rec then return { type = "Hybrid", quality = 50, moldy = false } end
     return { type = rec.type, quality = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked),
              moldy = rec.moldy == true }
@@ -93,9 +94,10 @@ commands.rollJoint = function(player, args)
     take(player, paper)
     Drying.data().buds[id] = nil
     local name = (info.moldy and "Moldy " or (Config.qualityTier(info.quality) .. " ")) .. info.type .. " Joint"
+    -- The joint carries what it was rolled from; set before the item is sent, so clients get it too.
     Farming.giveItems(player, Smoke.JOINT_ITEM, 1, function(item)
         item:setName(name)
-        db.joints[item:getID()] = info
+        item:getModData()[Smoke.JOINT_DATA] = info
     end)
     Net.notify(player, "Rolled a " .. name)
 end
@@ -103,12 +105,12 @@ end
 commands.smoke = function(player, args)
     local id = tonumber(args.id)
     local method = args.method
-    print("[DazedDank] smoke command: id " .. tostring(id) .. ", method " .. tostring(method))
+    Config.debugLog("smoke command: id " .. tostring(id) .. ", method " .. tostring(method))
     if not (id and Smoke.METHODS[method]) then return end
     local item, info
     if method == "joint" then
         item = findById(player, id, Smoke.JOINT_ITEM)
-        info = item and db.joints[id]
+        info = item and (item:getModData()[Smoke.JOINT_DATA] or db.joints[id])
     else
         item = findById(player, id, Config.Drying.BUD_ITEM)
         if item and not findType(player, Smoke.PIPE_ITEM) then
@@ -117,7 +119,7 @@ commands.smoke = function(player, args)
         end
         info = item and budInfo(item)
     end
-    if not item then print("[DazedDank] smoke: item " .. tostring(id) .. " not found in inventory"); return end
+    if not item then Config.debugLog("smoke: item " .. tostring(id) .. " not found in inventory"); return end
     info = info or { type = "Hybrid", quality = 50, moldy = false }
 
     take(player, item)
@@ -126,7 +128,9 @@ commands.smoke = function(player, args)
 
     local user = userOf(player)
     local strength, hours = Use.dose(user, now(), Use.potency(info.quality, info.moldy), method)
-    print(string.format("[DazedDank] smoke: dose strength %.2f for %.2fh (quality %s)", strength, hours, tostring(info.quality)))
+    if Config.debugOn() then
+        Config.debugLog(string.format("smoke: dose strength %.2f for %.2fh (quality %s)", strength, hours, tostring(info.quality)))
+    end
     Net.toPlayer(player, "smoked", {
         type = info.type, moldy = info.moldy, strength = strength, hours = hours,
         tolerance = user.tol, dependency = user.dep, method = method,
@@ -156,7 +160,7 @@ commands.debugSmokeKit = function(player, args)
     for _, kind in ipairs({ "Indica", "Sativa", "Hybrid" }) do
         Farming.giveItems(player, Config.Drying.BUD_ITEM, 3, function(item)
             item:setName("Good " .. kind .. " Bud")
-            Drying.data().buds[item:getID()] = { type = kind, quality = 80, cureHours = 0, moldy = false }
+            item:getModData()[Config.Drying.BUD_DATA] = { type = kind, quality = 80, cureHours = 0, moldy = false }
         end)
     end
     Net.notify(player, "Gave papers, a pipe, a lighter and 9 buds")

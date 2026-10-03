@@ -37,5 +37,8 @@
     "CannabisMod.DriedHybridPlant": "Dried Whole Plant (Hybrid)",
     "CannabisMod.RollingPapers": "Rolling Papers",
     "CannabisMod.Joint": "Joint",
-    "CannabisMod.SmokingPipe": "Smoking Pipe"
+    "CannabisMod.SmokingPipe": "Smoking Pipe",
+    "CannabisMod.FloodTable": "Flood Table",
+    "CannabisMod.FloodReservoir": "Flood Reservoir",
+    "CannabisMod.FloodTimer": "Flood Timer"
 }

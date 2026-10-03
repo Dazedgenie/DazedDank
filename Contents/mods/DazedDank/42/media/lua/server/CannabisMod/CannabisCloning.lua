@@ -240,9 +240,11 @@ end
 function Cloning.holdDomes()
     local gone = {}
     for id, dome in pairs(liveDomes) do
-        local ok = pcall(function()
+        local list = Registry.getDome(id)
+        -- An empty dome has nothing to hold; it is watched again once cuttings go in and it syncs.
+        local ok = #list > 0 and pcall(function()
             local byId = {}
-            for _, entry in ipairs(Registry.getDome(id)) do byId[entry.id] = entry end
+            for _, entry in ipairs(list) do byId[entry.id] = entry end
             for _, item in ipairs(cuttingsIn(dome)) do
                 local entry = byId[item:getID()]
                 if entry then holdAge(item, entry) end

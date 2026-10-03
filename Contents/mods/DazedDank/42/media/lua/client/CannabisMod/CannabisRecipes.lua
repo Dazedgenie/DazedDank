@@ -13,6 +13,7 @@ Recipes.NAMES = {
     "DDMakeGrowFloodBasic", "DDMakeGrowFloodPro", "DDMakeLightTimer",
     "DDMakeCuringJar", "DDMakeCuringBarrel", "DDSwapPapers",
     "DDMakeDWCBucket", "DDMakeClayPebbles", "DDMakeRDWCSite", "DDMakeRDWCControl",
+    "DDMakeFloodTable", "DDMakeFloodReservoir", "DDMakeFloodTimer",
 }
 
 --- Learn every recipe on this player unless the magazine is required; returns how many were newly learned.

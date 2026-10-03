@@ -167,26 +167,26 @@ for stageName in pairs(Config.CLONEABLE_STAGES) do
     CLONEABLE_NBOFGROW[Config.STAGE_TO_NBOFGROW[stageName]] = true
 end
 
---- The vanilla client plot on this square, if it's a cannabis plant. pcall: a
+--- Ask vanilla's client farming system for the plot on a square.
+local function plotOnSquare(square)
+    return CFarmingSystem.instance:getLuaObjectOnSquare(square)
+end
+
+--- The vanilla client plot on this square, of any crop, or nil. pcall: a
 --- renamed function in a future B42 patch then logs a warning instead of
 --- breaking every right-click menu in the game.
 local function getAnyPlot(square)
     if not CFarmingSystem or not CFarmingSystem.instance then return nil end
-    local ok, plot = pcall(function()
-        return CFarmingSystem.instance:getLuaObjectOnSquare(square)
-    end)
-    return ok and plot or nil
-end
-
-local function getCannabisPlot(square)
-    if not CFarmingSystem or not CFarmingSystem.instance then return nil end
-    local ok, plot = pcall(function()
-        return CFarmingSystem.instance:getLuaObjectOnSquare(square)
-    end)
+    local ok, plot = pcall(plotOnSquare, square)
     if not ok then
         print("[DazedDank] WARNING: farming lookup failed: " .. tostring(plot))
         return nil
     end
+    return plot
+end
+
+--- The plot if it is a living cannabis plant, or nil.
+local function asCannabisPlot(plot)
     if plot and plot.typeOfSeed == Config.CROP_TYPE and plot:isAlive() then
         return plot
     end
@@ -197,28 +197,26 @@ local addDomeOptions
 local addStationOptions
 local addHydroOptions
 
---- A water or tainted-water container with something in it, or nil.
-local function hasWater(player)
-    return Seeds.findItem(player:getInventory(), function(i)
-        local ok, yes = pcall(function()
-            local fc = i:getFluidContainer()
-            if not fc or fc:getAmount() <= 0 or not fc:getPrimaryFluid() then return false end
-            local t = fc:getPrimaryFluid():getFluidTypeString()
-            return t == "Water" or t == "TaintedWater"
-        end)
-        return ok and yes
-    end) ~= nil
+--- The fluid in an item with something in it, by name, or nil.
+local function fluidIn(item)
+    local fc = item:getFluidContainer()
+    if not fc or fc:getAmount() <= 0 then return nil end
+    local fluid = fc:getPrimaryFluid()
+    return fluid and fluid:getFluidTypeString() or nil
 end
 
---- A bleach bottle with some left, or nil.
-local function hasBleach(player)
-    return Seeds.findItem(player:getInventory(), function(i)
-        local ok, yes = pcall(function()
-            local fc = i:getFluidContainer()
-            return fc and fc:getPrimaryFluid() and fc:getPrimaryFluid():getFluidTypeString() == "Bleach" and fc:getAmount() > 0
-        end)
-        return ok and yes
-    end) ~= nil
+--- Whether the player carries water (or tainted water) and bleach, found in one walk of the inventory.
+local function fluidsOnHand(player)
+    local water, bleach = false, false
+    Seeds.findItem(player:getInventory(), function(i)
+        local ok, name = pcall(fluidIn, i)
+        if ok and name then
+            if name == "Water" or name == "TaintedWater" then water = true
+            elseif name == "Bleach" then bleach = true end
+        end
+        return water and bleach
+    end)
+    return water, bleach
 end
 
 --- Grey out an option with a short reason.
@@ -230,14 +228,25 @@ local function needs(option, ok, why)
     option.toolTip = tip
 end
 
---- Reservoir, medium and root options on a hydro plot, or (with no plot) on an RDWC control bucket.
+--- Reservoir, medium and root options on a hydro plot, or (with no plot) on an RDWC control bucket or flood reservoir.
 function addHydroOptions(player, context, plot, kind, action, square)
     local inv = player:getInventory()
+    local def = Config.GrowBag[kind]
     if plot and plot.state == "plow" and Config.bagIsUnfilled(plot.spriteName) then
         local rw = context:addOption("Add Rockwool Cube", player, function() action("hydroAddMedium", { medium = "rockwool" }) end)
         needs(rw, inv:containsTypeRecurse(Config.Hydro.MEDIUM_ITEMS.rockwool), "Needs a rockwool cube. Best for starting seeds.")
-        local cp = context:addOption("Fill With Clay Pebbles", player, function() action("hydroAddMedium", { medium = "pebbles" }) end)
-        needs(cp, inv:containsTypeRecurse(Config.Hydro.MEDIUM_ITEMS.pebbles), "Needs clay pebbles. Reusable; some seeds sown straight in fail.")
+        if not (def and def.rockwoolOnly) then
+            local cp = context:addOption("Fill With Clay Pebbles", player, function() action("hydroAddMedium", { medium = "pebbles" }) end)
+            needs(cp, inv:containsTypeRecurse(Config.Hydro.MEDIUM_ITEMS.pebbles), "Needs clay pebbles. Reusable; some seeds sown straight in fail.")
+        end
+    end
+    -- Ebb and Flow: flood the tables by hand from the reservoir or any table.
+    if kind == "ebb" then
+        local flood = context:addOption("Flood Tables", player, function() action("floodTables") end)
+        local tip = ISInventoryPaneContextMenu.addToolTip()
+        tip.description = "Runs the flood pump: every table the reservoir feeds stays wet for about "
+            .. Config.Hydro.EBB_WET_HOURS .. " hours. Needs power and water in the reservoir."
+        flood.toolTip = tip
     end
     if plot and plot.state ~= "plow" and plot:isAlive() then
         -- The server checks the rot: only roots past saving (30%+) can be pulled.
@@ -250,7 +259,7 @@ function addHydroOptions(player, context, plot, kind, action, square)
     local sub = ISContextMenu:getNew(context)
     context:addSubMenu(parent, sub)
     sub:addOption("Check Reservoir", player, function() action("hydroCheck") end)
-    local water = hasWater(player)
+    local water, bleach = fluidsOnHand(player)
     needs(sub:addOption("Top Up Reservoir", player, function() action("hydroTopUp") end), water, "Needs water in a bottle, pot or bucket.")
     -- A plumbed reservoir refills from its line; an RDWC site's reservoir is the control's, so the server decides there.
     local plumbed = CannabisMod.Plumbing.isPlumbed(CannabisMod.Plumbing.objectAt(square))
@@ -259,10 +268,11 @@ function addHydroOptions(player, context, plot, kind, action, square)
         local tip = ISInventoryPaneContextMenu.addToolTip()
         tip.description = "Dumps the old water; the water line refills it."
         change.toolTip = tip
-    elseif kind ~= "rdwc" or not plot then
+    elseif kind == "dwc" or not plot then
+        -- RDWC sites and flood tables share a reservoir elsewhere (maybe plumbed), so the server decides for them.
         needs(change, water, "Drains the old water and refills it. Needs water.")
     end
-    needs(sub:addOption("Treat Roots With Bleach", player, function() action("hydroBleach") end), hasBleach(player),
+    needs(sub:addOption("Treat Roots With Bleach", player, function() action("hydroBleach") end), bleach,
         "Cures early root rot after a reservoir change. Needs bleach.")
 end
 local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, test)
@@ -313,67 +323,79 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         end
     end
 
-    -- Placed grow lamp: install, set or remove a light timer.
-    for i = 0, square:getObjects():size() - 1 do
-        local obj = square:getObjects():get(i)
+    -- One pass over the square's objects finds each kind of placed furniture the menu cares about.
+    local lampObj, reservoirObj, reservoirKind, barrel, rack = nil, nil, nil, false, false
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
         local sprite = obj:getSprite()
-        if sprite and Config.Light.SPRITES[sprite:getName()] then
-            local schedule = obj:getModData().DDTimer
-            if not schedule then
-                local opt = context:addOption("Install Light Timer", player, function() bagAction("installTimer") end)
-                if not player:getInventory():containsTypeRecurse(Config.Timer.ITEM) then
-                    opt.notAvailable = true
-                    local tip = ISInventoryPaneContextMenu.addToolTip()
-                    tip.description = "Needs a light timer. Without one this lamp runs 24/0, so plants under it stay in veg."
-                    opt.toolTip = tip
-                end
-            else
-                local parent = context:addOption("Light Timer: " .. schedule, player, nil)
-                local sub = ISContextMenu:getNew(context)
-                context:addSubMenu(parent, sub)
-                local labels = { ["18/6"] = "Set to 18/6 (veg)", ["12/12"] = "Set to 12/12 (flower)" }
-                for _, s in ipairs(Config.Timer.ORDER) do
-                    if s ~= schedule then
-                        sub:addOption(labels[s], player, function() bagAction("setTimer", { schedule = s }) end)
-                    end
-                end
-                sub:addOption("Remove Light Timer", player, function() bagAction("removeTimer") end)
+        local name = sprite and sprite:getName()
+        if name then
+            if not lampObj and Config.Light.SPRITES[name] then
+                lampObj = obj
+            elseif not reservoirObj and name == Config.Hydro.CONTROL_SPRITE then
+                reservoirObj, reservoirKind = obj, "rdwc"
+            elseif not reservoirObj and name == Config.Hydro.FLOOD_SPRITE then
+                reservoirObj, reservoirKind = obj, "ebb"
+            elseif name == Config.Drying.BARREL_SPRITE then
+                barrel = true
+            elseif Config.Drying.RACK_SPRITES[name] then
+                rack = true
             end
-            break
         end
     end
 
-    -- RDWC control bucket: the shared reservoir for the site buckets around it.
-    if not anyPlot then
-        for i = 0, square:getObjects():size() - 1 do
-            local sprite = square:getObjects():get(i):getSprite()
-            if sprite and sprite:getName() == Config.Hydro.CONTROL_SPRITE then
-                addHydroOptions(player, context, nil, "rdwc", bagAction, square)
-                break
+    -- Placed grow lamp: install, set or remove a light timer.
+    if lampObj then
+        local schedule = lampObj:getModData().DDTimer
+        if not schedule then
+            local opt = context:addOption("Install Light Timer", player, function() bagAction("installTimer") end)
+            if not player:getInventory():containsTypeRecurse(Config.Timer.ITEM) then
+                opt.notAvailable = true
+                local tip = ISInventoryPaneContextMenu.addToolTip()
+                tip.description = "Needs a light timer. Without one this lamp runs 24/0, so plants under it stay in veg."
+                opt.toolTip = tip
+            end
+        else
+            local parent = context:addOption("Light Timer: " .. schedule, player, nil)
+            local sub = ISContextMenu:getNew(context)
+            context:addSubMenu(parent, sub)
+            local labels = { ["18/6"] = "Set to 18/6 (veg)", ["12/12"] = "Set to 12/12 (flower)" }
+            for _, s in ipairs(Config.Timer.ORDER) do
+                if s ~= schedule then
+                    sub:addOption(labels[s], player, function() bagAction("setTimer", { schedule = s }) end)
+                end
+            end
+            sub:addOption("Remove Light Timer", player, function() bagAction("removeTimer") end)
+        end
+    end
+
+    -- RDWC control bucket or flood reservoir: the shared reservoir for the sites around it.
+    if not anyPlot and reservoirObj then
+        addHydroOptions(player, context, nil, reservoirKind, bagAction, square)
+        if reservoirKind == "ebb" then
+            -- The server copies the timer onto the reservoir's ModData so this menu can see it.
+            if reservoirObj:getModData().DDFloodTimer then
+                context:addOption("Remove Flood Timer", player, function() bagAction("removeFloodTimer") end)
+            else
+                local opt = context:addOption("Install Flood Timer", player, function() bagAction("installFloodTimer") end)
+                needs(opt, player:getInventory():containsTypeRecurse(Config.Hydro.FLOOD_TIMER_ITEM), "Needs a flood timer")
             end
         end
     end
 
     -- Placed curing barrel.
-    for i = 0, square:getObjects():size() - 1 do
-        local sprite = square:getObjects():get(i):getSprite()
-        if sprite and sprite:getName() == Config.Drying.BARREL_SPRITE then
-            context:addOption("Check Curing Barrel", player, function(p) send(p, "checkBarrel", squareArgs(square)) end)
-            context:addOption("Burp Barrel", player, function(p) send(p, "burpBarrel", squareArgs(square)) end)
-            break
-        end
+    if barrel then
+        context:addOption("Check Curing Barrel", player, function(p) send(p, "checkBarrel", squareArgs(square)) end)
+        context:addOption("Burp Barrel", player, function(p) send(p, "burpBarrel", squareArgs(square)) end)
     end
 
     -- Placed drying rack (either of its two tiles).
-    for i = 0, square:getObjects():size() - 1 do
-        local sprite = square:getObjects():get(i):getSprite()
-        if sprite and Config.Drying.RACK_SPRITES[sprite:getName()] then
-            context:addOption("Check Drying Rack", player, function(p) send(p, "checkRack", squareArgs(square)) end)
-            break
-        end
+    if rack then
+        context:addOption("Check Drying Rack", player, function(p) send(p, "checkRack", squareArgs(square)) end)
     end
 
-    local plot = getCannabisPlot(square)
+    local plot = asCannabisPlot(anyPlot)
     if plot then
         context:addOption("Inspect Cannabis Plant", player, function(p)
             send(p, "requestPlantInfo", squareArgs(square))
@@ -383,9 +405,7 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         -- plant; greyed out without the bottle.
         for _, nutrient in ipairs({ "Veg", "Bloom" }) do
             local itemType = Config.NUTRIENT_ITEMS[nutrient]
-            local has = Seeds.findItem(player:getInventory(), function(i)
-                return i:getFullType() == itemType
-            end)
+            local has = player:getInventory():containsTypeRecurse(itemType)
             local option = context:addOption("Feed " .. nutrient .. " Nutrients", player, function(p)
                 local a = squareArgs(square)
                 a.nutrient = nutrient
@@ -429,12 +449,10 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
 
     -- A cloning dome sitting in the world (on a table or the floor).
     for _, obj in ipairs(worldObjects) do
-        local ok, item = pcall(function()
-            return instanceof(obj, "IsoWorldInventoryObject") and obj:getItem() or nil
-        end)
-        if ok and item and item:getFullType() == Config.DOME_ITEM then
+        local item = instanceof(obj, "IsoWorldInventoryObject") and obj:getItem() or nil
+        if item and item:getFullType() == Config.DOME_ITEM then
             addDomeOptions(player, context, item)
-        elseif ok and item then
+        elseif item then
             addStationOptions(player, context, item)
         end
     end
@@ -472,6 +490,16 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         if plot then
             context:addOption("[Debug] Cannabis: next stage", player, function(p)
                 send(p, "debugNextStage", squareArgs(square))
+            end)
+            context:addOption("[Debug] Cannabis: quality +20", player, function(p)
+                local a = squareArgs(square)
+                a.amount = 20
+                send(p, "debugBoostQuality", a)
+            end)
+            context:addOption("[Debug] Cannabis: max quality", player, function(p)
+                local a = squareArgs(square)
+                a.amount = "max"
+                send(p, "debugBoostQuality", a)
             end)
             context:addOption("[Debug] Cannabis: finish rooting", player, function(p)
                 send(p, "debugFinishRooting")
@@ -555,7 +583,7 @@ end
 
 --- Is there anything to light a smoke with: an open flame nearby or a lighter.
 local function canLight(player)
-    local ok, flame = pcall(function() return ISInventoryPaneContextMenu.hasOpenFlame(player) end)
+    local ok, flame = pcall(ISInventoryPaneContextMenu.hasOpenFlame, player)
     return (ok and flame) and true or findLighter(player) ~= nil
 end
 
@@ -576,13 +604,13 @@ local function addSmokingOptions(player, context, item)
         ISTimedActionQueue.add(ISCannabisSmokeAction:new(player, item, method, flame))
     end
     if fullType == Config.Drying.BUD_ITEM then
-        local paper = Seeds.findItem(player:getInventory(), function(i) return i:getFullType() == S.PAPER_ITEM end)
+        local paper = player:getInventory():containsTypeRecurse(S.PAPER_ITEM)
         local roll = context:addOption("Roll Joint", player, function(p)
             ISTimedActionQueue.add(ISCannabisItemAction:new(p, item, "rollJoint", 120))
         end)
         if not paper then needs(roll, "Needs rolling papers") end
 
-        local pipe = Seeds.findItem(player:getInventory(), function(i) return i:getFullType() == S.PIPE_ITEM end)
+        local pipe = player:getInventory():containsTypeRecurse(S.PIPE_ITEM)
         local opt = context:addOption("Smoke in Pipe", player, function() smoke("pipe") end)
         if not pipe then needs(opt, "Needs a smoking pipe")
         elseif not canLight(player) then needs(opt, "Needs a lighter or an open flame") end
@@ -612,9 +640,7 @@ local function onFillInventoryObjectContextMenu(playerNum, context, items)
 
             -- Fresh cutting: dip in rooting gel
             if kind == "cutting" and not Seeds.getCuttingData(item).gel then
-                local hasGel = Seeds.findItem(inv, function(i)
-                    return i:getFullType() == Config.GEL_ITEM
-                end)
+                local hasGel = inv:containsTypeRecurse(Config.GEL_ITEM)
                 local option = context:addOption("Dip in Rooting Gel", player, function(p)
                     send(p, "dipInGel", { id = item:getID() })
                 end)
@@ -638,7 +664,10 @@ local function onFillInventoryObjectContextMenu(playerNum, context, items)
 
             -- Bud: what is it worth?
             if fullType == Config.Drying.BUD_ITEM then
-                context:addOption("Inspect Bud", player, function(p) send(p, "inspectBud", { id = item:getID() }) end)
+                -- The bud's own data goes along, so a bud in a nearby container can be inspected too.
+                context:addOption("Inspect Bud", player, function(p)
+                    send(p, "inspectBud", { id = item:getID(), data = item:getModData()[Config.Drying.BUD_DATA] })
+                end)
             end
 
             -- Rack / jar
@@ -662,13 +691,21 @@ Events.OnFillInventoryObjectContextMenu.Add(onFillInventoryObjectContextMenu)
 -- this just stops the action from starting). The plot's sprite tells us.
 if ISSeedActionNew and ISSeedActionNew.isValid then
     local originalIsValid = ISSeedActionNew.isValid
+
+    --- True if the target plot is a bag or bucket that still needs soil or a medium.
+    local function targetUnfilled(target)
+        local sq = getCell():getGridSquare(target.x, target.y, target.z)
+        local plot = sq and plotOnSquare(sq)
+        return plot ~= nil and Config.bagIsUnfilled(plot.spriteName) == true
+    end
+
+    -- isValid runs every tick of the action, so the plot is checked once per action.
     function ISSeedActionNew:isValid()
-        local ok, unfilled = pcall(function()
-            local sq = getCell():getGridSquare(self.plant.x, self.plant.y, self.plant.z)
-            local plot = sq and getAnyPlot(sq)
-            return plot and Config.bagIsUnfilled(plot.spriteName)
-        end)
-        if ok and unfilled then return false end
+        if self.ddUnfilled == nil then
+            local ok, unfilled = pcall(targetUnfilled, self.plant)
+            self.ddUnfilled = ok and unfilled
+        end
+        if self.ddUnfilled then return false end
         return originalIsValid(self)
     end
 end

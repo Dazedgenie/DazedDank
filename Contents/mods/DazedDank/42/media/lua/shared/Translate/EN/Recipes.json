@@ -18,5 +18,8 @@
     "DDFireClayPebbles": "Fire Clay Pebbles",
     "DDMakeCuringBarrel": "Make Curing Barrel",
     "DDMakeCuringJar": "Make Curing Jar",
-    "DDSwapPapers": "Repack Rolling Papers"
+    "DDSwapPapers": "Repack Rolling Papers",
+    "DDMakeFloodTable": "Make Flood Table",
+    "DDMakeFloodReservoir": "Make Flood Reservoir",
+    "DDMakeFloodTimer": "Make Flood Timer"
 }

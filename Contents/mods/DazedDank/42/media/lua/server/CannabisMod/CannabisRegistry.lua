@@ -142,6 +142,8 @@ end
 function Registry.clearBag(x, y, z)
     if bags then bags[Config.tileKey(x, y, z)] = nil end
     if soiled then soiled[Config.tileKey(x, y, z)] = nil end
+    -- Its hydro record (medium, link, reservoir) goes too, so a new bucket here starts clean.
+    if CannabisMod.Hydro then CannabisMod.Hydro.clear(x, y, z) end
 end
 
 --- Has this bag been filled with soil yet? Old bags from before soil existed
@@ -205,15 +207,16 @@ Registry.settleRooting = settleRooting
 -- What's inside each Cloning Dome item, keyed by the item's ID (IDs are the
 -- same on server and clients and survive save/load).
 
+--- The cuttings in a dome, or an empty list; reading never adds a record.
 function Registry.getDome(domeId)
-    if not domes then return nil end
-    local key = tostring(domeId)
-    domes[key] = domes[key] or {}
-    return domes[key]
+    return domes and domes[tostring(domeId)] or {}
 end
 
+--- Replace a dome's cuttings; an empty dome drops its record from the save.
 function Registry.setDome(domeId, list)
-    if domes then domes[tostring(domeId)] = list end
+    if not domes then return end
+    if list and #list == 0 then list = nil end
+    domes[tostring(domeId)] = list
 end
 
 -- --------------------------------------------------------------------------
@@ -291,20 +294,38 @@ end
 -- Pollination
 -- --------------------------------------------------------------------------
 
+-- During the plant tick the flowering, unseeded females are listed once and shared by every pollen source.
+-- nil outside a tick; false inside one until the first source asks.
+local tickFemales = nil
+
+--- Every living female that is flowering and not yet seeded.
+local function openFemales()
+    local list = {}
+    local FEMALE, FLOWERING = Config.SEX.FEMALE, Config.STAGE.Flowering
+    for _, other in Registry.each() do
+        if not other.dead and not other.seeded and other.sex == FEMALE and other.stage == FLOWERING then
+            list[#list + 1] = other
+        end
+    end
+    return list
+end
+
 --- Pollinate every flowering female within range of a pollen source. Called
 --- when a male or a hermie is flowering.
 --- @param source the male or hermie plant record
 function Registry.pollinateAround(source)
-    local r = Config.POLLINATION_RADIUS
-    for _, other in Registry.each() do
-        local isTarget = other ~= source
-            and not other.dead
-            and other.sex == Config.SEX.FEMALE
-            and other.stage == Config.STAGE.Flowering
-            and other.z == source.z
-            and math.abs(other.x - source.x) <= r
-            and math.abs(other.y - source.y) <= r
-        if isTarget and not other.seeded then
+    local targets = tickFemales
+    if targets == false then
+        targets = openFemales()
+        tickFemales = targets
+    elseif targets == nil then
+        targets = openFemales()
+    end
+    local r, abs = Config.POLLINATION_RADIUS, math.abs
+    -- Re-check each one, since earlier sources this tick may have seeded it.
+    for _, other in ipairs(targets) do
+        if other ~= source and not other.seeded and not other.dead and other.stage == Config.STAGE.Flowering and other.z == source.z
+            and abs(other.x - source.x) <= r and abs(other.y - source.y) <= r then
             other.seeded = true
             other.fatherType = source.type
             other.fatherHermieLineage = source.hermieLineage == true
@@ -361,6 +382,11 @@ function Registry.advanceStage(plant)
     if plant.stage == Config.STAGE.Ripe then
         plant.ripeAt = nowHours()
     end
+    -- A female that starts flowering mid-tick joins this tick's pollination list.
+    if tickFemales and plant.stage == Config.STAGE.Flowering and plant.sex == Config.SEX.FEMALE
+            and not plant.seeded and not plant.dead then
+        tickFemales[#tickFemales + 1] = plant
+    end
 
     -- Tell the vanilla farming link so the sprite (and, at Ripe, the Harvest
     -- option) matches our stage. CannabisFarming.lua sets this up; it's
@@ -402,17 +428,8 @@ local function flowerChecks(plant)
     end
 end
 
---- Runs every 10 in-game minutes on the server.
-local function onEveryTenMinutes()
-    if not plants then return end
-    local now = nowHours()
-
-    -- First match our records against vanilla farm plots: add records for new
-    -- cannabis plots, mark dead ones, drop replowed ones, copy water.
-    if CannabisMod.Farming then
-        CannabisMod.Farming.syncWithVanilla()
-    end
-
+--- One 10-minute step for every plant: rooting, light, stage, flowering, hydro and water.
+local function tickPlants(now)
     for _, plant in Registry.each() do
         -- Dead and harvested plants keep their record (for their sprite) but
         -- no longer grow, drink, flower or pollinate.
@@ -442,5 +459,28 @@ local function onEveryTenMinutes()
             Registry.waterCheck(plant)
         end
     end
+end
+
+--- Runs every 10 in-game minutes on the server.
+local function onEveryTenMinutes()
+    if not plants then return end
+    local now = nowHours()
+
+    -- First match our records against vanilla farm plots: add records for new
+    -- cannabis plots, mark dead ones, drop replowed ones, copy water.
+    if CannabisMod.Farming then
+        CannabisMod.Farming.syncWithVanilla()
+    end
+
+    -- Plants share this tick's lamp square reads, reservoir checks and pollination list.
+    if CannabisMod.Light then CannabisMod.Light.beginTick() end
+    if CannabisMod.Hydro then CannabisMod.Hydro.beginTick() end
+    tickFemales = false
+    -- The shared reads are always cleared afterwards, even if one plant's update fails.
+    local ok, err = pcall(tickPlants, now)
+    if CannabisMod.Light then CannabisMod.Light.endTick() end
+    if CannabisMod.Hydro then CannabisMod.Hydro.endTick() end
+    tickFemales = nil
+    if not ok then print("[DazedDank] plant tick failed: " .. tostring(err)) end
 end
 Events.EveryTenMinutes.Add(onEveryTenMinutes)

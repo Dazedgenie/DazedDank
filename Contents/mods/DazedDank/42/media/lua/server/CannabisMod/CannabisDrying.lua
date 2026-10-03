@@ -1,5 +1,6 @@
 -- Server side of drying, trimming and curing: racks dry wet plants, trimming makes buds, jars cure them.
--- Records are kept by item ID in ModData because item data changes don't reliably sync in multiplayer.
+-- What never changes rides on the item (set when it is made); what changes over time is kept by item ID in ModData,
+-- because later item data changes don't reliably sync in multiplayer.
 
 if isClient() then return end
 
@@ -25,9 +26,10 @@ local Cure     = Config.Curing
 local Drying = {}
 CannabisMod.Drying = Drying
 
--- db.plants[itemId] = { harvest, hours, moldy, sunLoss, at, seen }   wet plants
--- db.buds[itemId]   = { type, quality, cureHours, moldy, moldBaked, moist, at, seen }
--- db.jars[itemId]   = { lastBurp }      db.stations["x_y_z"] = { lastTick }
+-- db.plants[itemId] = { harvest, hours, moldy, sunLoss, at, seen, touched }   plants that have been on a rack
+-- db.buds[itemId]   = { type, quality, cureHours, moldy, moldBaked, moist, at, seen, touched, fromItem }   buds part-way through a cure
+-- db.jars[jarId or "barrel_x_y_z"] = { lastBurp, touched }      db.stations["x_y_z"] = { lastTick }
+-- A bud item carries { type, quality, cureHours, moldy, moldBaked, moist, seeded, genetics } under Config.Drying.BUD_DATA.
 local db = nil
 
 local function onInitGlobalModData()
@@ -41,6 +43,39 @@ Events.OnInitGlobalModData.Add(onInitGlobalModData)
 
 --- Test hook: the registry tables.
 function Drying.data() return db end
+
+local BUD_FIELDS = { "type", "quality", "cureHours", "moldy", "moldBaked", "moist", "seeded", "genetics" }
+
+--- A copy of a bud's own fields, without the station bookkeeping.
+local function copyBud(from)
+    local out = {}
+    for _, k in ipairs(BUD_FIELDS) do out[k] = from[k] end
+    return out
+end
+
+--- The data a bud item was made with, or nil for a plain bud (or one from before buds carried their data).
+function Drying.budData(item)
+    local data = item:getModData()[D.BUD_DATA]
+    return type(data) == "table" and data or nil
+end
+
+--- What a bud is now: its curing record if it has one, else the data on the item, else nil.
+function Drying.budRecord(item)
+    return db.buds[item:getID()] or Drying.budData(item)
+end
+
+--- True once a bud has cured for the full time; after that nothing about it changes.
+local function cureDone(rec)
+    return (rec.cureHours or 0) >= Config.cureDays() * 24
+end
+
+--- A plant's drying record, or what an untracked plant counts as: a wet one fresh, a dried one just dry.
+local function plantRecord(item)
+    local rec = db.plants[item:getID()]
+    if rec then return rec end
+    local dried = Config.isDriedPlant(item:getFullType())
+    return { hours = dried and Config.dryHours() or 0, moldy = false, sunLoss = 0 }
+end
 
 -- --------------------------------------------------------------------------
 -- Environment at a station
@@ -119,21 +154,30 @@ local function isPowered(square)
     return ok and powered == true
 end
 
---- Is a powered fan standing within FAN_RADIUS of this square?
+--- True if a fan stands on this square (one pass over its objects, no lists built).
+local function fanOn(square)
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local sprite = objects:get(i):getSprite()
+        if sprite and sprite:getName() == D.FAN_SPRITE then return true end
+    end
+    return false
+end
+
+--- Is a powered fan standing within FAN_RADIUS of this square? Stops at the first one found.
 local function hasFan(square)
-    local found = false
-    pcall(function()
+    local ok, found = pcall(function()
         local cell, r = getCell(), D.FAN_RADIUS
+        local x, y, z = square:getX(), square:getY(), square:getZ()
         for dx = -r, r do
             for dy = -r, r do
-                local sq = cell:getGridSquare(square:getX() + dx, square:getY() + dy, square:getZ())
-                if sq and #objectsWhere(sq, function(n) return n == D.FAN_SPRITE end) > 0 and isPowered(sq) then
-                    found = true
-                end
+                local sq = cell:getGridSquare(x + dx, y + dy, z)
+                if sq and fanOn(sq) and isPowered(sq) then return true end
             end
         end
+        return false
     end)
-    return found
+    return ok and found == true
 end
 
 --- Temperature, outdoors, daylight, rain and fan at a square.
@@ -195,8 +239,20 @@ function Drying.advancePlant(rec, env, elapsed)
     end
 end
 
+--- Items lying directly in a container (not inside bags in it) that pass `test(fullType)`.
+--- Only direct contents dry or cure, so an item swapped for its next stage is always in this container.
+local function directItems(container, test)
+    local out = {}
+    local items = container:getItems()
+    for i = 0, items:size() - 1 do
+        local item = items:get(i)
+        if test(item:getFullType()) then out[#out + 1] = item end
+    end
+    return out
+end
+
 local function wetPlantsIn(container)
-    return Seeds.findAll(container, function(item) return Config.isHangingPlant(item:getFullType()) end)
+    return directItems(container, Config.isHangingPlant)
 end
 
 --- Swap a plant that has finished drying for its dried item, carrying its record across.
@@ -214,8 +270,10 @@ local function convertToDried(container, item, rec)
     db.plants[dried:getID()] = rec
 end
 
+local function isBud(fullType) return fullType == D.BUD_ITEM end
+
 local function budsIn(container)
-    return Seeds.findAll(container, function(item) return item:getFullType() == D.BUD_ITEM end)
+    return directItems(container, isBud)
 end
 
 --- Settle a rack: progress every plant that was in it at the last settle.
@@ -223,7 +281,8 @@ local function settleRack(container, key, square, now)
     local station = db.stations[key]
     local prev = station.lastTick or now
     local elapsed = Config.clamp(now - prev, 0, D.MAX_CATCHUP_HOURS)
-    local env = Drying.environment(square)
+    -- The environment (a fan search among other things) is only worked out if a plant actually moves on.
+    local env = nil
     for _, item in ipairs(wetPlantsIn(container)) do
         local id = item:getID()
         local rec = db.plants[id]
@@ -232,9 +291,10 @@ local function settleRack(container, key, square, now)
             db.plants[id] = rec
         end
         if rec.at == key and rec.seen == prev and elapsed > 0 then
+            env = env or Drying.environment(square)
             Drying.advancePlant(rec, env, elapsed)
         end
-        rec.at, rec.seen = key, now
+        rec.at, rec.seen, rec.touched = key, now, now
         if Config.isWetPlant(item:getFullType()) and rec.hours >= Config.dryHours() then
             convertToDried(container, item, rec)
         end
@@ -246,7 +306,7 @@ end
 -- --------------------------------------------------------------------------
 
 --- Jar progress over `elapsed` hours: buds cure, and a jar left unburped
---- (or holding moist buds) can grow mold, which spreads to every bud in it.
+--- (or holding moist buds) can grow mold, which spreads to every bud in it. Returns true if mold struck.
 function Drying.advanceJar(jar, buds, elapsed, now)
     local curing, moist = false, false
     for _, rec in ipairs(buds) do
@@ -254,14 +314,53 @@ function Drying.advanceJar(jar, buds, elapsed, now)
         if rec.cureHours < Config.cureDays() * 24 then curing = true end
         if rec.moist then moist = true end
     end
-    if not curing then return end
+    if not curing then return false end
     local overdueFrom = jar.lastBurp + Cure.BURP_EVERY_HOURS
     local overdue = math.max(0, now - math.max(now - elapsed, overdueFrom))
-    if overdue <= 0 then return end
+    if overdue <= 0 then return false end
     local p = Cure.MOLD_PER_HOUR * (moist and Cure.MOIST_MULT or 1) * (Config.sandbox("MoldChance") or 1)
     if Config.rollPercent(chanceOver(p, overdue) * 100) then
         for _, rec in ipairs(buds) do rec.moldy = true end
+        return true
     end
+    return false
+end
+
+--- The curing record for a bud in a cure container, made from the item's data the first time it goes in.
+--- Returns nil for a plain bud or one that has already finished curing.
+local function cureRecord(item)
+    local id = item:getID()
+    local rec = db.buds[id]
+    if rec then return rec end
+    local data = Drying.budData(item)
+    if not data or cureDone(data) then return nil end
+    rec = copyBud(data)
+    rec.cureHours = rec.cureHours or 0
+    rec.fromItem = true
+    db.buds[id] = rec
+    return rec
+end
+
+--- The name a bud goes by for its quality now, like the names trimming gives.
+local function budName(data)
+    if data.moldy then return "Moldy " .. tostring(data.type) .. " Bud" end
+    local q = Genetics.curedQuality(data.quality, data.cureHours, data.moldy, data.moldBaked)
+    return Config.qualityTier(q) .. " " .. tostring(data.type) .. " Bud"
+end
+
+--- Swap a bud for a fresh one that carries `rec` on the item, and drop its record. Used once nothing more can change.
+local function finishBud(container, item, rec)
+    local added = container:AddItems(D.BUD_ITEM, 1)
+    local fresh = added and added:size() > 0 and added:get(0)
+    if not fresh then return end
+    local data = copyBud(rec)
+    data.moist = false
+    fresh:getModData()[D.BUD_DATA] = data
+    fresh:setName(budName(data))
+    container:Remove(item)
+    sendRemoveItemFromContainer(container, item)
+    sendAddItemsToContainer(container, added)
+    db.buds[item:getID()] = nil
 end
 
 --- Settle any curing container (a jar's inventory or a barrel's) whose burp record lives under `cureKey`.
@@ -274,23 +373,46 @@ local function settleCure(container, cureKey, key, now)
         jar = { lastBurp = now }
         db.jars[cureKey] = jar
     end
-    local present = {}
+    jar.touched = now
+    local present, presentItems, finished = {}, {}, {}
     for _, item in ipairs(budsIn(container)) do
-        local rec = db.buds[item:getID()]
+        local rec = cureRecord(item)
         if rec then
-            if rec.at == key and rec.seen == prev then present[#present + 1] = rec end
-            rec.at, rec.seen = key, now
+            if rec.at == key and rec.seen == prev then
+                present[#present + 1] = rec
+                presentItems[#present] = item
+            end
+            rec.at, rec.seen, rec.touched = key, now, now
+        elseif Drying.budData(item) then
+            finished[#finished + 1] = item
         end
     end
-    if elapsed > 0 then Drying.advanceJar(jar, present, elapsed, now) end
+    if elapsed <= 0 then return end
+    -- These records now hold cure progress the items don't have, so pruning must leave them.
+    for _, rec in ipairs(present) do rec.changed = true end
+    -- Mold in the jar also spoils buds that had already finished curing.
+    if Drying.advanceJar(jar, present, elapsed, now) then
+        for _, item in ipairs(finished) do
+            local data = Drying.budData(item)
+            if not data.moldy then
+                local spoiled = copyBud(data)
+                spoiled.moldy = true
+                finishBud(container, item, spoiled)
+            end
+        end
+    end
+    -- A bud whose cure is over now carries its final state itself, so the save can forget it.
+    for i, rec in ipairs(present) do
+        if cureDone(rec) then finishBud(container, presentItems[i], rec) end
+    end
 end
 
 local function settleJar(jarItem, key, now)
     settleCure(jarItem:getInventory(), jarItem:getID(), key, now)
 end
 
-local function settleBarrels(square, key, now)
-    for _, barrel in ipairs(barrelsAt(square)) do settleCure(barrel, barrelKey(square), key, now) end
+local function settleBarrels(square, key, now, barrels)
+    for _, barrel in ipairs(barrels or barrelsAt(square)) do settleCure(barrel, barrelKey(square), key, now) end
 end
 
 -- --------------------------------------------------------------------------
@@ -302,6 +424,23 @@ local function stationKey(x, y, z) return Config.tileKey(x, y, z) end
 local function register(square)
     local key = stationKey(square:getX(), square:getY(), square:getZ())
     if not db.stations[key] then db.stations[key] = {} end
+end
+
+--- True if a rack, curing barrel or jar is on this square: one pass over its objects, then its loose items.
+local function hasStation(square)
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        local name = sprite and sprite:getName()
+        if name and (D.RACK_SPRITES[name] or name == D.BARREL_SPRITE) and obj:getContainer() then return true end
+    end
+    local items = square:getWorldObjects()
+    for i = 0, items:size() - 1 do
+        local item = items:get(i):getItem()
+        if item and item:getFullType() == D.JAR_ITEM then return true end
+    end
+    return false
 end
 
 --- Find racks and jars placed near each player.
@@ -319,15 +458,24 @@ function Drying.discover()
         end
     end
     local r = D.SCAN_RADIUS
+    -- Players standing together share squares: each square is looked at once per pass.
+    local seen = #players > 1 and {} or nil
     for _, player in ipairs(players) do
         pcall(function()
             local px, py, pz = math.floor(player:getX()), math.floor(player:getY()), math.floor(player:getZ())
             local cell = getCell()
+            local floor = seen and (seen[pz] or {})
+            if seen then seen[pz] = floor end
             for dx = -r, r do
+                local x = px + dx
+                local column = floor and (floor[x] or {})
+                if floor then floor[x] = column end
                 for dy = -r, r do
-                    local sq = cell:getGridSquare(px + dx, py + dy, pz)
-                    if sq and (#racksAt(sq) > 0 or #worldItemsAt(sq, D.JAR_ITEM) > 0 or #barrelsAt(sq) > 0) then
-                        register(sq)
+                    local y = py + dy
+                    if not (column and column[y]) then
+                        if column then column[y] = true end
+                        local sq = cell:getGridSquare(x, y, pz)
+                        if sq and hasStation(sq) then register(sq) end
                     end
                 end
             end
@@ -346,10 +494,11 @@ function Drying.tick()
             local racks, jars, barrels = racksAt(square), worldItemsAt(square, D.JAR_ITEM), barrelsAt(square)
             if #racks == 0 and #jars == 0 and #barrels == 0 then
                 db.stations[key] = nil
+                db.jars["barrel_" .. key] = nil
             else
                 for _, rack in ipairs(racks) do settleRack(rack, key, square, now) end
                 for _, jar in ipairs(jars) do settleJar(jar, key, now) end
-                settleBarrels(square, key, now)
+                settleBarrels(square, key, now, barrels)
                 station.lastTick = now
             end
         end
@@ -358,6 +507,37 @@ end
 
 Events.EveryOneMinute.Add(Drying.discover)
 Events.EveryTenMinutes.Add(Drying.tick)
+
+--- Records that hold nothing the item doesn't, untouched for RECORD_KEEP_DAYS, can go.
+--- Kept: old-style bud records, cure progress, drying progress and anything at a station still in use. Returns how many went.
+function Drying.prune(now)
+    if not db then return 0 end
+    now = now or Registry.nowHours()
+    local keep = D.RECORD_KEEP_DAYS * 24
+    local dropped = 0
+    local function sweep(list, canDrop)
+        local gone = {}
+        for id, rec in pairs(list) do
+            -- Records from before this sweep existed start their clock now.
+            if not rec.touched then
+                rec.touched = now
+            elseif now - rec.touched > keep and canDrop(rec, id) then
+                gone[#gone + 1] = id
+            end
+        end
+        for _, id in ipairs(gone) do list[id] = nil end
+        dropped = dropped + #gone
+    end
+    -- A record whose rack or jar is still known is kept, since that station may just be out of loaded range.
+    local function away(rec) return not (rec.at and db.stations[rec.at]) end
+    sweep(db.buds, function(rec) return rec.fromItem == true and not rec.changed and away(rec) end)
+    sweep(db.jars, function(_, id)
+        local isBarrel = type(id) == "string" and id:sub(1, 7) == "barrel_"
+        return not (isBarrel and db.stations[id:sub(8)])
+    end)
+    return dropped
+end
+Events.EveryDays.Add(function() Drying.prune() end)
 
 -- --------------------------------------------------------------------------
 -- Commands
@@ -408,11 +588,11 @@ commands.checkRack = function(player, args)
     end
     local lines = {}
     for _, item in ipairs(items) do
-        local rec = db.plants[item:getID()]
-        local pct = rec and math.floor(Config.clamp(rec.hours / Config.dryHours(), 0, 1) * 100) or 0
+        local rec = plantRecord(item)
+        local pct = math.floor(Config.clamp(rec.hours / Config.dryHours(), 0, 1) * 100)
         local note = pct >= 100 and "dry" or (pct .. "% dry")
-        if rec and rec.moldy then note = note .. ", MOLD" end
-        if rec and rec.hours > D.OVERDRY_AFTER then note = note .. ", over-dried" end
+        if rec.moldy then note = note .. ", MOLD" end
+        if rec.hours > D.OVERDRY_AFTER then note = note .. ", over-dried" end
         lines[#lines + 1] = note
     end
     Net.notify(player, "Rack: " .. table.concat(lines, "; "))
@@ -427,7 +607,7 @@ local function reportCure(player, container, cureKey, label)
     end
     local days, moldy = 0, false
     for _, item in ipairs(items) do
-        local rec = db.buds[item:getID()]
+        local rec = Drying.budRecord(item)
         if rec then
             days = math.max(days, (rec.cureHours or 0) / 24)
             if rec.moldy then moldy = true end
@@ -448,9 +628,13 @@ local function burpCure(player, container, cureKey, label)
         db.jars[cureKey] = info
     end
     info.lastBurp = Registry.nowHours()
+    info.touched = info.lastBurp
     for _, item in ipairs(budsIn(container)) do
         local rec = db.buds[item:getID()]
-        if rec and rec.moist and (rec.cureHours or 0) >= 24 then rec.moist = false end
+        if rec and rec.moist and (rec.cureHours or 0) >= 24 then
+            rec.moist = false
+            rec.changed = true
+        end
     end
     Net.notify(player, "Burped the " .. label:lower())
 end
@@ -508,7 +692,7 @@ commands.trimPlant = function(player, args)
         Net.notify(player, "This plant can't be trimmed")
         return
     end
-    local rec = db.plants[id] or { hours = 0, moldy = false, sunLoss = 0 }
+    local rec = plantRecord(plant)
     local quality = Genetics.driedQuality(harvest.quality, rec)
     local count = math.max(1, harvest.budYield or 1)
     local moist = rec.hours < Config.dryHours() * Cure.MOIST_BELOW
@@ -521,9 +705,10 @@ commands.trimPlant = function(player, args)
     db.plants[id] = nil
 
     local name = (rec.moldy and "Moldy " or (Config.qualityTier(quality) .. " ")) .. harvest.type .. " Bud"
+    -- Each bud carries its own data; it is set before the item is sent, so clients get it too.
     Farming.giveItems(player, D.BUD_ITEM, count, function(item)
         item:setName(name)
-        db.buds[item:getID()] = {
+        item:getModData()[D.BUD_DATA] = {
             type = harvest.type, quality = quality, cureHours = 0,
             moldy = rec.moldy == true, moldBaked = rec.moldy == true, moist = moist,
             seeded = harvest.seeded == true, genetics = harvest.genetics,
@@ -568,10 +753,25 @@ commands.debugAdvanceStations = function(player, args)
     Net.notify(player, "Advanced racks and jars by " .. h .. " hours")
 end
 
+local KNOWN_TYPES = {}
+for _, t in pairs(Config.TYPES) do KNOWN_TYPES[t] = true end
+
+--- A bud's data as the client read it off the item (for a bud in a nearby container), checked field by field.
+local function clientBud(data)
+    if type(data) ~= "table" or not KNOWN_TYPES[data.type] or type(data.quality) ~= "number" then return nil end
+    return { type = data.type, quality = Config.clamp(data.quality, 0, 200), cureHours = tonumber(data.cureHours) or 0,
+             moldy = data.moldy == true, moldBaked = data.moldBaked == true }
+end
+
 --- What a bud is worth, by Agriculture level.
 commands.inspectBud = function(player, args)
     local id = tonumber(args.id)
     local rec = id and db.buds[id]
+    if not rec and id then
+        local item = Seeds.findItem(player:getInventory(), function(i) return i:getID() == id end)
+        rec = item and Drying.budData(item)
+    end
+    rec = rec or clientBud(args.data)
     if not rec then
         Net.notify(player, "Just a bud")
         return
