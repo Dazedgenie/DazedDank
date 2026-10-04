@@ -2,17 +2,16 @@
 -- cutting items.
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisStrains"
 
 local Config = CannabisMod.Config
+local Strains = CannabisMod.Strains
 
 local Seeds = {}
 CannabisMod.Seeds = Seeds
 
 -- Key inside item:getModData() where our seed data lives.
 local MODDATA_KEY = "CannabisSeed"
-
--- The three types in a fixed order, so a number 0-2 maps to a type.
-local TYPE_ORDER = { Config.TYPES.INDICA, Config.TYPES.SATIVA, Config.TYPES.HYBRID }
 
 --- Turn an item ID into a stable pseudo-random number from 0 to 99999. Same
 --- input always gives the same output, on every machine.
@@ -25,8 +24,11 @@ end
 local function deriveFromId(id)
     local typeRoll = stableRoll(id, 1)
     local sexRoll = stableRoll(id, 2) % 100  -- 0-99
+    -- Looted seeds are always one of the six starters, picked by the item ID.
+    local strain = Strains.starterFor(typeRoll)
     return {
-        type          = TYPE_ORDER[(typeRoll % 3) + 1],
+        type          = Strains.typeOf(strain),
+        strain        = strain,
         sex           = (sexRoll < Config.sandbox("MaleSeedChance")) and Config.SEX.MALE or Config.SEX.FEMALE,
         genetics      = Config.Genetics.START,
         generation    = 0,
@@ -34,11 +36,19 @@ local function deriveFromId(id)
     }
 end
 
---- Get a seed item's data (type, sex, genetics, generation, hermieLineage).
+--- Seeds written before strains existed get a starter of their type, chosen by the item ID.
+local function withStrain(stored, id)
+    if stored and not stored.strain then
+        stored.strain = Strains.fromType(stored.type, stableRoll(id, 1))
+    end
+    return stored
+end
+
+--- Get a seed item's data (type, strain, sex, genetics, generation, hermieLineage).
 --- @param item an InventoryItem of type CannabisMod.CannabisSeed
 function Seeds.getData(item)
     local stored = item:getModData()[MODDATA_KEY]
-    if stored then return stored end
+    if stored then return withStrain(stored, item:getID()) end
     return deriveFromId(item:getID())
 end
 
@@ -47,6 +57,7 @@ end
 function Seeds.setData(item, data)
     item:getModData()[MODDATA_KEY] = {
         type          = data.type,
+        strain        = Strains.copy(data.strain),
         sex           = data.sex,
         genetics      = data.genetics,
         generation    = data.generation or 0,
@@ -75,7 +86,7 @@ end
 
 function Seeds.getCuttingData(item)
     local stored = item:getModData()[CUTTING_KEY]
-    if stored then return stored end
+    if stored then return withStrain(stored, item:getID()) end
     return deriveCuttingFromId(item:getID())
 end
 
@@ -83,6 +94,7 @@ end
 function Seeds.setCuttingData(item, data)
     item:getModData()[CUTTING_KEY] = {
         type          = data.type,
+        strain        = Strains.copy(data.strain),
         sex           = data.sex,
         genetics      = data.genetics,
         generation    = data.generation or 1,

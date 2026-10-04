@@ -1,5 +1,15 @@
 # Dazed Dank patch notes
 
+## dd51
+- Added: strains. Every seed, cutting, plant, bud and joint now carries a named strain with four hidden traits: indica share, potency, yield and flowering speed. Looted seeds are one of six starters: Knox Kush, Muldraugh Purple and Rosewood Stone (indica), Riverside Haze, West Point Lightning and March Ridge Gold (sativa).
+- Added: breeding makes new strains. A pollinated female's seeds average both parents' traits with a little noise (and a rare bigger throw), and the cross gets a generated name like "Riverside Mist". The same strain crossed with itself breeds true. Every seed from one pollination is the same strain.
+- Added: traits matter. Fast strains finish pre-flower and flowering up to 20% sooner, slow ones take up to 25% longer. Yield runs from x0.75 to x1.25 buds, potency from x0.8 to x1.2 on the high. The high itself mixes the indica and sativa effects by the strain's indica share, so a 70/30 cross is mostly calm with a little lift. Only strains under 65% indica can get anxious on a strong hit.
+- Added: Indica / Sativa / Hybrid is now read from the strain (65%+ indica, 35% or less, between). Sprites and the Wet / Dried Whole Plant items still follow that type.
+- Added: strain names on items. Buds and joints read "Good Knox Kush Bud", "Premium Riverside Mist Joint". Seeds, cuttings and the status window show the strain at Agriculture 3, and its traits in words at 9 (buds at 6 on Inspect Bud).
+- Added: plants take a light tint from their strain (indica leans violet, sativa gold). Sandbox option Strain Tint turns it off. An emptied bag loses the colour.
+- Kept: old saves. A plant, seed or bud from before this update gets a starter strain of its own type the first time it is read, picked by its item ID or tile so it never changes. Nothing on an old item is rewritten in place.
+- Tests: the offline suite is back in step with the mod (container dome, whole-plant harvest, sex readable at Agriculture 3) and gains 18 strain checks. Run with `texlua tests/run_tests.lua .` or any Lua 5.1+ (`lua tests/run_tests.lua .`).
+
 ## dd50
 - Changed: buds and joints now carry their own type, quality and mold on the item. The save only keeps records for buds part-way through a cure and plants that have been on a rack, so it no longer grows with every bud you trim.
 - Changed: when a bud finishes curing in a jar or barrel, it is swapped for a bud that carries its full cure, and its record is dropped. Its name updates to its cured quality (e.g. Good becomes Premium), or "Moldy" if the jar went bad. Mold in a neglected jar still spoils finished buds in it.

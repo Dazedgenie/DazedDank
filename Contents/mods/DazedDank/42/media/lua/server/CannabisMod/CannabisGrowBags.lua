@@ -31,6 +31,7 @@ function GrowBags.reset(luaObject)
     pcall(function() luaObject.exterior = luaObject:getSquare():isOutside() end)
     luaObject:setSpriteName(farming_vegetableconf.getSpriteName(luaObject))
     luaObject:setObjectName(farming_vegetableconf.getObjectName(luaObject))
+    Farming.applyTint(nil, luaObject)  -- the empty bag loses the old plant's strain colour
     luaObject:saveData()
 end
 

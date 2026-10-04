@@ -531,10 +531,11 @@ local function describePlantable(item, level)
     local name = (kind == "rooted") and "Rooted cutting" or "Cutting"
     local parts = {}
     if level >= Config.SEED_INSPECT_LEVEL then
-        parts[#parts + 1] = data.type
+        parts[#parts + 1] = data.strain and (data.strain.name .. " (" .. data.type .. ")") or data.type
     end
     if level >= 9 then
         parts[#parts + 1] = "generation " .. tostring(data.generation)
+        if data.strain then parts[#parts + 1] = CannabisMod.Strains.describe(data.strain) end
     end
     if kind == "cutting" then
         parts[#parts + 1] = data.gel and "dipped in gel" or "no gel"

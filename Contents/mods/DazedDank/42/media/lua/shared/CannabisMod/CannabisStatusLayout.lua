@@ -97,7 +97,7 @@ function Layout.build(data, fontH, measure)
     rect(0, 0, 4, PAD + medium + small + 10, accent, 1)
     text(data.name or "Cannabis Plant", PAD, y, COLORS.text, "Medium")
     if data.type then
-        local label = data.type .. (data.sex and (" " .. data.sex) or "")
+        local label = (data.strain or data.type) .. (data.sex and (" " .. data.sex) or "")
         local cw = measure("Small", label) + 14
         rect(W - PAD - cw, y + 2, cw, small + 4, accent, 0.9)
         text(label, W - PAD - cw / 2, y + 4, { 0.08, 0.08, 0.08 }, "Small", "center")
@@ -232,6 +232,10 @@ function Layout.build(data, fontH, measure)
     if data.pollinated ~= nil then row("Pollinated", data.pollinated and "Yes" or "No", data.pollinated and COLORS.warn or COLORS.text) end
     if data.hermieSigns then row("Hermie signs", "Yes", COLORS.bad) end
     if data.generation then row("Generation", data.generation) end
+    if data.traits then
+        text(data.traits, PAD, y, COLORS.muted)
+        y = y + small + 4
+    end
 
     -- Warnings as chips.
     if data.warnings and #data.warnings > 0 then

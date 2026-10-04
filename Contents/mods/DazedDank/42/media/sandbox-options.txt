@@ -171,3 +171,11 @@ option CannabisMod.PumpsNeedPower
     page = CannabisMod,
     translation = CannabisMod_PumpsNeedPower,
 }
+
+option CannabisMod.StrainTint
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_StrainTint,
+}

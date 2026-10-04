@@ -1,6 +1,6 @@
 # Dazed Dank (Project Zomboid B42)
 
-Build steps 1, 2, 5 and 7 of 9: foundation, real planting with placeholder art, nutrients, grow lights and grow bags, and cloning. Cannabis is a
+Realistic cannabis growing: strains and breeding, five growth stages, sexed seeds, cloning, grow lights and bags, three hydro systems, drying, trimming, curing and smoking. Cannabis is a
 vanilla farm crop: plow a plot, sow a seed, water it, and harvest it when
 ripe. Our server clock drives the 5 stages; vanilla handles watering,
 pests and health. Each plant type has its own sprites.
@@ -33,6 +33,17 @@ Mods menu.
    buds, and a message says so.
 7. Breeding: plant a male next to a female, skip both to Flowering, and
    wait 10 in-game minutes. Harvest the female for seeds.
+
+### Strains
+
+Every seed carries a strain: a name and four hidden traits (indica share,
+potency, yield, flowering speed). Looted seeds are one of six starters, three
+indica and three sativa. Cross two plants and the seeds are a new strain with
+the parents' traits averaged (plus a little noise) and a generated name. The
+same strain crossed with itself breeds true. Indica / Sativa / Hybrid is read
+from the indica share (65%+, 35% or less, between), and sets the sprites and
+which Wet Whole Plant item you get. Strains tint their plants a little
+(sandbox: Strain Tint). All the numbers live in `CannabisStrains.lua`.
 
 ### Nutrients and grow lights
 
@@ -114,6 +125,7 @@ type changes on a fresh save.
 | --- | --- | --- |
 | shared/CannabisMod/CannabisConfig.lua | both | Every tunable number |
 | shared/CannabisMod/CannabisGenetics.lua | both | Sex, breeding, cloning, rooting, hermies, quality math |
+| shared/CannabisMod/CannabisStrains.lua | both | Starter strains, trait blending, cross names, what each trait does |
 | shared/CannabisMod/CannabisInfo.lua | both | What each Agriculture level can see |
 | shared/CannabisMod/CannabisSeeds.lua | both | Hidden seed data (from item ID, or written by the server) |
 | shared/CannabisMod/CannabisNet.lua | both | Server-to-player replies that work in SP and MP |

@@ -6,6 +6,7 @@ if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisGenetics"
+require "CannabisMod/CannabisStrains"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisRegistry"
@@ -14,6 +15,7 @@ require "CannabisMod/CannabisServerCommands"
 
 local Config   = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
+local Strains  = CannabisMod.Strains
 local Seeds    = CannabisMod.Seeds
 local Net      = CannabisMod.Net
 local Registry = CannabisMod.Registry
@@ -50,7 +52,13 @@ local BUD_FIELDS = { "type", "quality", "cureHours", "moldy", "moldBaked", "mois
 local function copyBud(from)
     local out = {}
     for _, k in ipairs(BUD_FIELDS) do out[k] = from[k] end
+    out.strain = Strains.copy(from.strain)
     return out
+end
+
+--- What a bud is called: its strain when it has one, else its type.
+local function strainWord(data)
+    return (data.strain and data.strain.name) or tostring(data.type)
 end
 
 --- The data a bud item was made with, or nil for a plain bud (or one from before buds carried their data).
@@ -343,10 +351,11 @@ end
 
 --- The name a bud goes by for its quality now, like the names trimming gives.
 local function budName(data)
-    if data.moldy then return "Moldy " .. tostring(data.type) .. " Bud" end
+    if data.moldy then return "Moldy " .. strainWord(data) .. " Bud" end
     local q = Genetics.curedQuality(data.quality, data.cureHours, data.moldy, data.moldBaked)
-    return Config.qualityTier(q) .. " " .. tostring(data.type) .. " Bud"
+    return Config.qualityTier(q) .. " " .. strainWord(data) .. " Bud"
 end
+Drying.budName = budName
 
 --- Swap a bud for a fresh one that carries `rec` on the item, and drop its record. Used once nothing more can change.
 local function finishBud(container, item, rec)
@@ -704,12 +713,12 @@ commands.trimPlant = function(player, args)
     end
     db.plants[id] = nil
 
-    local name = (rec.moldy and "Moldy " or (Config.qualityTier(quality) .. " ")) .. harvest.type .. " Bud"
+    local name = (rec.moldy and "Moldy " or (Config.qualityTier(quality) .. " ")) .. strainWord(harvest) .. " Bud"
     -- Each bud carries its own data; it is set before the item is sent, so clients get it too.
     Farming.giveItems(player, D.BUD_ITEM, count, function(item)
         item:setName(name)
         item:getModData()[D.BUD_DATA] = {
-            type = harvest.type, quality = quality, cureHours = 0,
+            type = harvest.type, strain = Strains.copy(harvest.strain), quality = quality, cureHours = 0,
             moldy = rec.moldy == true, moldBaked = rec.moldy == true, moist = moist,
             seeded = harvest.seeded == true, genetics = harvest.genetics,
         }
@@ -759,8 +768,8 @@ for _, t in pairs(Config.TYPES) do KNOWN_TYPES[t] = true end
 --- A bud's data as the client read it off the item (for a bud in a nearby container), checked field by field.
 local function clientBud(data)
     if type(data) ~= "table" or not KNOWN_TYPES[data.type] or type(data.quality) ~= "number" then return nil end
-    return { type = data.type, quality = Config.clamp(data.quality, 0, 200), cureHours = tonumber(data.cureHours) or 0,
-             moldy = data.moldy == true, moldBaked = data.moldBaked == true }
+    return { type = data.type, strain = Strains.sanitize(data.strain), quality = Config.clamp(data.quality, 0, 200),
+             cureHours = tonumber(data.cureHours) or 0, moldy = data.moldy == true, moldBaked = data.moldBaked == true }
 end
 
 --- What a bud is worth, by Agriculture level.
@@ -778,8 +787,9 @@ commands.inspectBud = function(player, args)
     end
     local level = SC.agricultureLevel(player)
     local q = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked)
-    local parts = { rec.type }
+    local parts = { rec.strain and (rec.strain.name .. " (" .. rec.type .. ")") or rec.type }
     if rec.moldy then parts[#parts + 1] = "moldy" end
+    if level >= 6 and rec.strain then parts[#parts + 1] = Strains.describe(rec.strain) end
     if level >= 4 then parts[#parts + 1] = Config.qualityTier(q) .. " quality" end
     if level >= 8 then parts[#parts + 1] = "quality " .. q end
     if level >= 3 then parts[#parts + 1] = string.format("cured %.0f days", (rec.cureHours or 0) / 24) end

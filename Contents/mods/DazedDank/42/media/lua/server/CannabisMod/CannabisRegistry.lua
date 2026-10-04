@@ -6,9 +6,14 @@ if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisGenetics"
+require "CannabisMod/CannabisStrains"
 
 local Config = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
+local Strains = CannabisMod.Strains
+
+-- Stages whose length a strain's flowering speed changes.
+local FLOWER_STAGES = { PreFlower = true, Flowering = true }
 
 local Registry = {}
 CannabisMod.Registry = Registry
@@ -30,10 +35,14 @@ local function nowHours()
 end
 Registry.nowHours = nowHours
 
---- Random length for a stage, scaled by the GrowthSpeed sandbox option.
-local function rollStageHours(stageIndex)
-    local range = Config.STAGE_HOURS[Config.STAGES[stageIndex]]
+--- Random length for a stage, scaled by the GrowthSpeed sandbox option and, in flower, by the strain.
+local function rollStageHours(stageIndex, plant)
+    local stageName = Config.STAGES[stageIndex]
+    local range = Config.STAGE_HOURS[stageName]
     local hours = Config.randInt(range.min, range.max)
+    if plant and FLOWER_STAGES[stageName] then
+        hours = hours * Strains.flowerMult(Strains.of(plant))
+    end
     local speed = Config.sandbox("GrowthSpeed")
     if speed and speed > 0 then
         -- The option allows 0.1 to 10. Clamp so a bad value can never make a
@@ -79,6 +88,7 @@ function Registry.addPlant(x, y, z, seed, opts)
 
         -- Genetics, copied from the seed or cutting.
         type          = seed.type,
+        strain        = Strains.copy(Strains.of(seed)),
         sex           = seed.sex,
         genetics      = seed.genetics,
         generation    = seed.generation or 0,
@@ -109,6 +119,7 @@ function Registry.addPlant(x, y, z, seed, opts)
         -- Pollination / hermie.
         seeded     = false,  -- true once pollinated (by a male or hermie)
         fatherType = nil,  -- type of whatever pollinated it, for seeds
+        fatherStrain = nil,  -- and its strain, which the seeds cross with the mother's
         fatherHermieLineage = false,
         isHermie   = false,
 
@@ -185,7 +196,7 @@ function Registry.startRooting(plant, hours, success)
     local now = nowHours()
     plant.rooting = { readyAt = now + hours, success = success == true }
     -- The vegetative timer only starts once the roots are in.
-    plant.nextStageAt = plant.rooting.readyAt + rollStageHours(plant.stage)
+    plant.nextStageAt = plant.rooting.readyAt + rollStageHours(plant.stage, plant)
 end
 
 --- Settle a soil cutting whose rooting time is up.
@@ -328,6 +339,7 @@ function Registry.pollinateAround(source)
             and abs(other.x - source.x) <= r and abs(other.y - source.y) <= r then
             other.seeded = true
             other.fatherType = source.type
+            other.fatherStrain = Strains.copy(Strains.of(source))
             other.fatherHermieLineage = source.hermieLineage == true
         end
     end
@@ -372,7 +384,7 @@ function Registry.advanceStage(plant)
         plant.warnings.hungry = nil
     end
     plant.stage = plant.stage + 1
-    plant.nextStageAt = nowHours() + rollStageHours(plant.stage)
+    plant.nextStageAt = nowHours() + rollStageHours(plant.stage, plant)
     plant.fedThisStage = 0
     plant.warnings.nutrientBurn = nil
     plant.warnings.wrongNutrient = nil
@@ -423,6 +435,7 @@ local function flowerChecks(plant)
     if plant.isHermie then
         plant.seeded = true
         plant.fatherType = plant.fatherType or plant.type
+        plant.fatherStrain = plant.fatherStrain or Strains.copy(Strains.of(plant))
         plant.fatherHermieLineage = true
         Registry.pollinateAround(plant)
     end

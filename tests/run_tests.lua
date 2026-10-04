@@ -60,6 +60,7 @@ function SFarmingSystem.instance:getLuaObjectAt(x, y, z)
 end
 function SFarmingSystem.instance:getLuaObjectCount() return #plots end
 function SFarmingSystem.instance:getLuaObjectByIndex(i) return plots[i] end
+function SFarmingSystem.instance:removePlant(lo) lo.state = "destroyed" end
 local vanillaHarvested = nil
 function SFarmingSystem:harvest(lo, player) vanillaHarvested = lo end
 ISSeedActionNew = {}
@@ -126,6 +127,7 @@ function sendAddItemsToContainer() end
 -- ---- Load the mod ------------------------------------------------------
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisGenetics"
+require "CannabisMod/CannabisUse"
 require "CannabisMod/CannabisInfo"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisServerCommands"
@@ -173,7 +175,34 @@ local hs = G.newSeed(T.SATIVA, { hermieLineage = true })
 check("hermie seed penalty", hs.genetics == 75 and hs.hermieLineage)
 local seeds = G.seedsFromPollination({ type = T.INDICA }, { type = T.SATIVA, hermieLineage = true })
 check("pollination seed count 3-8", #seeds >= 3 and #seeds <= 8)
-check("pollination seeds hybrid + hermie line", seeds[1].type == T.HYBRID and seeds[1].hermieLineage)
+local st1 = seeds[1].strain
+check("pollination seeds carry a mid cross + hermie line", st1 and st1.ind >= 27 and st1.ind <= 73 and seeds[1].hermieLineage)
+check("one pollination, one strain name", seeds[#seeds].strain.name == st1.name and st1.name ~= "Hybrid")
+check("seed type follows its strain", seeds[1].type == CannabisMod.Strains.typeOf(st1))
+
+-- ---- Strains ------------------------------------------------------------
+local ST = CannabisMod.Strains
+local kush, haze = ST.STARTERS[1], ST.STARTERS[4]
+check("6 starters, 3 indica 3 sativa", #ST.STARTERS == 6 and ST.typeOf(kush) == T.INDICA and ST.typeOf(haze) == T.SATIVA)
+local same = ST.cross(kush, kush)
+check("same strain breeds true", same.name == kush.name and math.abs(same.ind - kush.ind) <= 23)
+local x1, x2 = ST.cross(kush, haze), ST.cross(haze, kush)
+check("cross gets a new name", x1.name ~= kush.name and x1.name ~= haze.name and #x1.name > 3)
+check("cross name is a place and a word", x1.name:find(" ") ~= nil)
+check("traits stay 0-100", x1.ind >= 0 and x1.ind <= 100 and x1.pot >= 0 and x1.pot <= 100)
+check("fast strain flowers sooner", ST.flowerMult({ flw = 100 }) < ST.flowerMult({ flw = 0 }) and ST.flowerMult({ flw = 50 }) > 0.99 and ST.flowerMult({ flw = 50 }) < 1.04)
+check("yield span", ST.yieldMult({ yld = 0 }) == 0.75 and ST.yieldMult({ yld = 100 }) == 1.25)
+check("potency span", ST.potencyMult({ pot = 0 }) == 0.8 and ST.potencyMult({ pot = 100 }) == 1.2)
+local eff = ST.effects({ ind = 100 })
+check("pure indica effects = indica table", eff.STRESS == C.Use.EFFECTS.Indica.STRESS and eff.BOREDOM == C.Use.EFFECTS.Indica.BOREDOM)
+local mix = ST.effects({ ind = 50 })
+check("50/50 effects are the average", math.abs(mix.BOREDOM - (C.Use.EFFECTS.Indica.BOREDOM + C.Use.EFFECTS.Sativa.BOREDOM) / 2) < 0.001)
+check("old record gets a starter of its type", ST.typeOf(ST.of({ type = T.SATIVA })) == T.SATIVA and ST.of({ type = T.HYBRID }).name == "Hybrid")
+check("sanitize rejects junk", ST.sanitize({ name = "x" }) == nil and ST.sanitize("no") == nil and ST.sanitize({ name = "ok", ind = 50, pot = 500, yld = 1, flw = 1 }).pot == 100)
+local tr, tg, tb = ST.tint(kush)
+check("tint stays light", tr >= 0.7 and tg >= 0.7 and tb >= 0.7 and tr <= 1 and tg <= 1 and tb <= 1)
+check("strain potency scales a dose", CannabisMod.Use.potency(100, false, { pot = 100 }) > CannabisMod.Use.potency(100, false, { pot = 0 }))
+check("describe reads", ST.describe(kush):find("85%% indica") ~= nil)
 
 -- ---- Cloning drift -----------------------------------------------------
 local mom = { type = T.INDICA, sex = C.SEX.FEMALE, genetics = 100, generation = 0, stress = 40 }
@@ -224,7 +253,8 @@ local plant = { stage = 2, water = 50, type = T.SATIVA, sex = C.SEX.MALE, care =
 local l0 = I.buildVisible(plant, 0, 10)
 check("lvl0 rough only", l0.stageRough == "Growing" and l0.waterRough == "OK" and l0.type == nil and l0.stage == nil)
 local l3 = I.buildVisible(plant, 3, 10)
-check("lvl3 type, sex hidden before preflower", l3.type == T.SATIVA and l3.sex == "Not yet visible" and l3.hoursLeft == 20)
+check("lvl3 type and sex (sex reads like a seed at 3)", l3.type == T.SATIVA and l3.sex == C.SEX.MALE and l3.hoursLeft == 20)
+check("lvl3 strain name shows", l3.strain ~= nil and l3.traits == nil)
 check("lvl3 no stress", l3.stressBand == nil)
 plant.stage = 3
 check("sex shows at preflower", I.buildVisible(plant, 3, 10).sex == C.SEX.MALE)
@@ -325,11 +355,13 @@ for id = 1, 30000 do
     tcount[d.type] = tcount[d.type] + 1
     if d.sex == C.SEX.MALE then mcount = mcount + 1 end
 end
-check("ID seeds spread over 3 types", tcount.Indica > 9000 and tcount.Sativa > 9000 and tcount.Hybrid > 9000)
+check("ID seeds are starters, half indica half sativa", tcount.Indica > 13500 and tcount.Sativa > 13500 and tcount.Hybrid == 0)
+check("ID seeds carry a strain", S.getData(newItem(C.SEED_ITEM, 77)).strain ~= nil)
 check("ID seeds ~10% male (" .. mcount .. ")", mcount > 2400 and mcount < 3600)
 local written = newItem(C.SEED_ITEM)
 S.setData(written, { type = T.SATIVA, sex = C.SEX.MALE, genetics = 80, generation = 0 })
 check("written seed data wins over ID", S.getData(written).type == T.SATIVA and S.getData(written).genetics == 80)
+check("pre-strain seed data gets a matching starter", CannabisMod.Strains.typeOf(S.getData(written).strain) == T.SATIVA)
 
 -- ---- Vanilla farming link ------------------------------------------------
 -- Fresh start: drop all earlier test plants, which have no vanilla plots.
@@ -385,11 +417,11 @@ recA.lightCap = 100
 SFarmingSystem.harvest(SFarmingSystem.instance, plotA, farmer)
 local wet = farmer.inv.items[1]
 local hd = wet and wet:getModData().CannabisHarvest
-check("harvest gives wet plant", wet and wet.fullType == "CannabisMod.WetCannabisPlant")
+check("harvest gives wet plant of its type", wet and wet.fullType == C.WET_PLANT_ITEMS[T.SATIVA])
 check("wet plant carries quality (" .. tostring(hd and hd.quality) .. ")", hd and hd.quality == 90 and hd.type == T.SATIVA)
-check("bud yield 4-8 scaled by genetics", hd and hd.budYield >= 4 and hd.budYield <= 7)
-check("plot harvested, record kept as dead", plotA.state == "harvested" and R.getPlant(400, 400, 0).dead)
-check("harvested plot shows trampled sativa", farming_vegetableconf.getSpriteName(plotA) == "dazeddank_plants_01_60")
+check("bud yield 4-8 scaled by genetics and strain (" .. tostring(hd and hd.budYield) .. ")", hd and hd.budYield >= 3 and hd.budYield <= 10)
+check("wet plant carries its strain", hd and hd.strain and hd.strain.name ~= nil)
+check("harvested plant is removed from the map", plotA.state == "destroyed" and R.getPlant(400, 400, 0) == nil)
 check("unpollinated: no seeds", #farmer.inv.items == 1)
 
 -- Harvest a pollinated plant: seeds carry bred types.
@@ -405,7 +437,8 @@ local seedsOut = 0
 for _, it in ipairs(breeder.inv.items) do
     if it.fullType == C.SEED_ITEM then
         seedsOut = seedsOut + 1
-        check("Indica x Sativa seed is Hybrid", S.getData(it).type == T.HYBRID)
+        local sd = S.getData(it)
+        check("Indica x Sativa seed is a mid cross", sd.strain and sd.strain.ind >= 27 and sd.strain.ind <= 73 and sd.type == CannabisMod.Strains.typeOf(sd.strain))
     end
 end
 check("pollinated harvest drops 3-8 seeds (" .. seedsOut .. ")", seedsOut >= 3 and seedsOut <= 8)
@@ -502,33 +535,40 @@ check("dipped: gel flag, same age, old item gone", S.getCuttingData(dipped).gel 
 check("gel used once", gel.uses == 9)
 check("dipped keeps genetics", S.getCuttingData(dipped).genetics == cd.genetics)
 
--- cloning dome
+-- cloning dome: a container item. Cuttings are moved in like a bag, then the client sends domeSync.
 local dome = gardener.inv:addExisting(newItem(C.DOME_ITEM))
-for i = 1, 14 do gardener.inv:addExisting(newItem(C.CUTTING_ITEM)) end      -- 15 fresh now
-local rotten = gardener.inv:addExisting(newItem(C.CUTTING_ITEM)); rotten.rotten = true
-fire("OnClientCommand", "CannabisMod", "domeAdd", gardener, { domeId = dome:getID() })
+local domeInv = newContainer()
+dome.getInventory = function() return domeInv end
+dome.getWorldItem = function() return nil end
+for i = 1, 12 do domeInv:addExisting(newItem(C.CUTTING_ITEM)) end
+domeInv:addExisting(dipped)
+local rotten = domeInv:addExisting(newItem(C.CUTTING_ITEM)); rotten.rotten = true
+fire("OnClientCommand", "CannabisMod", "domeSync", gardener, { domeId = dome:getID() })
 local list = R.getDome(dome:getID())
-check("dome holds 12", #list == 12)
-check("3 fresh + 1 rotten left over", gardener.inv:count(C.CUTTING_ITEM) == 4)
-check("rotten cutting not added", rotten.container == gardener.inv)
+check("dome records every cutting inside (14)", #list == 14)
+check("rotten cutting can never root", (function()
+    for _, e in ipairs(list) do if e.id == rotten:getID() then return e.success == false end end
+end)())
 local gelEntry = 0
 for _, e in ipairs(list) do if e.data.gel then gelEntry = gelEntry + 1 end end
-check("dipped cutting went in first, keeps gel", gelEntry == 1)
-fire("OnClientCommand", "CannabisMod", "domeAdd", gardener, { domeId = dome:getID() })
-check("full dome refuses more", #R.getDome(dome:getID()) == 12 and sent[#sent].data.text:find("full"))
+check("dipped cutting keeps gel in its record", gelEntry == 1)
+domeInv:Remove(rotten)
+fire("OnClientCommand", "CannabisMod", "domeSync", gardener, { domeId = dome:getID() })
+list = R.getDome(dome:getID())
+check("removed cutting drops from the dome record", #list == 13)
 
 fire("OnClientCommand", "CannabisMod", "domeTake", gardener, { domeId = dome:getID() })
-check("nothing ready yet", gardener.inv:count(C.ROOTED_ITEM) == 0 and #R.getDome(dome:getID()) == 12)
+check("nothing ready yet", gardener.inv:count(C.ROOTED_ITEM) == 0 and #R.getDome(dome:getID()) == 13)
 local p0, r0, f0 = CL.domeStatus(list, worldHours)
-check("all 12 pending", p0 == 12 and r0 == 0 and f0 == 0)
-for i, e in ipairs(list) do e.success = i <= 9 end     -- 9 root, 3 fail
+check("all 13 pending", p0 == 13 and r0 == 0 and f0 == 0)
+for i, e in ipairs(list) do e.success = i <= 9 end     -- 9 root, 4 fail
 worldHours = worldHours + 48
 fire("OnClientCommand", "CannabisMod", "domeCheck", gardener, { domeId = dome:getID() })
-check("check reports rooted/failed", sent[#sent].data.text:find("9 rooted") and sent[#sent].data.text:find("3 didn't root"))
+check("check reports rooted/failed", sent[#sent].data.text:find("9 rooted") and sent[#sent].data.text:find("4 didn't root"))
 fire("OnClientCommand", "CannabisMod", "domeTake", gardener, { domeId = dome:getID() })
-check("took 9 rooted, dome emptied", gardener.inv:count(C.ROOTED_ITEM) == 9 and #R.getDome(dome:getID()) == 0)
+check("took 9 rooted, dome emptied", gardener.inv:count(C.ROOTED_ITEM) == 9 and #R.getDome(dome:getID()) == 0 and #domeInv.items == 0)
 local rootedItem = S.findItem(gardener.inv, function(i) return S.kind(i) == "rooted" end)
-check("rooted cutting keeps lineage", S.getCuttingData(rootedItem).type ~= nil)
+check("rooted cutting keeps lineage", S.getCuttingData(rootedItem).type ~= nil and S.getCuttingData(rootedItem).strain ~= nil)
 
 -- planting a rooted cutting: starts in veg, no rooting wait
 local rcPlot = newPlot(610, 600, 0)

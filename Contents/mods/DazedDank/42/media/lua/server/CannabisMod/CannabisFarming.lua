@@ -12,9 +12,11 @@ require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisCrop"
+require "CannabisMod/CannabisStrains"
 
 local Config   = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
+local Strains  = CannabisMod.Strains
 local Seeds    = CannabisMod.Seeds
 local Net      = CannabisMod.Net
 local Registry = CannabisMod.Registry
@@ -60,6 +62,21 @@ local function holdVanillaClock(luaObject)
     end
 end
 
+--- Colour the plot's object by its strain (no plant: back to plain). Every game call is guarded, so a build without custom colours just shows plain sprites.
+local function applyTint(plant, luaObject)
+    if not luaObject.getIsoObject then return end
+    if plant and not Config.sandbox("StrainTint") then plant = nil end
+    local ok, obj = pcall(luaObject.getIsoObject, luaObject)
+    if not ok or not obj or not obj.setCustomColor then return end
+    local r, g, b = 1, 1, 1
+    if plant then r, g, b = Strains.tint(Strains.of(plant)) end
+    pcall(function()
+        obj:setCustomColor(r, g, b, 1)
+        if isServer() and obj.sendObjectChange then obj:sendObjectChange("customColor") end
+    end)
+end
+Farming.applyTint = applyTint
+
 --- Make the vanilla plot show the right sprite and name for our stage.
 local function applyStage(plant, luaObject)
     local stageName = Config.STAGES[plant.stage]
@@ -73,6 +90,7 @@ local function applyStage(plant, luaObject)
     luaObject:setObjectName(farming_vegetableconf.getObjectName(luaObject))
     local sprite = farming_vegetableconf.getSpriteName(luaObject)
     if sprite then luaObject:setSpriteName(sprite) end
+    applyTint(plant, luaObject)
     luaObject:saveData()
 end
 
@@ -317,7 +335,8 @@ local function harvestCannabis(luaObject, player)
             local quality = Genetics.calcQuality(plant, hoursOutsideWindow(plant), Config.dryHours())
             local range = Config.BUD_YIELD
             local buds = Config.randInt(range.min, range.max)
-            buds = buds * Config.sandbox("HarvestQuantity") * (plant.genetics / 100)
+            local strain = Strains.of(plant)
+            buds = buds * Config.sandbox("HarvestQuantity") * (plant.genetics / 100) * Strains.yieldMult(strain)
             -- Roots spread in a big bag.
             if plant.bag and Config.GrowBag[plant.bag] then
                 buds = buds * Config.GrowBag[plant.bag].yield
@@ -333,6 +352,7 @@ local function harvestCannabis(luaObject, player)
             Farming.giveItems(player, wetItem, 1, function(item)
                 item:getModData().CannabisHarvest = {
                     type          = plant.type,
+                    strain        = Strains.copy(strain),
                     quality       = quality,
                     budYield      = buds,
                     seeded        = plant.seeded == true,
@@ -347,6 +367,7 @@ local function harvestCannabis(luaObject, player)
             if plant.seeded then
                 local father = {
                     type          = plant.fatherType or plant.type,
+                    strain        = plant.fatherStrain or Strains.fromType(plant.fatherType or plant.type, plant.x),
                     hermieLineage = plant.fatherHermieLineage == true,
                 }
                 local seedList = Genetics.seedsFromPollination(plant, father)

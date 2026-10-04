@@ -638,10 +638,10 @@ end
 Config.InfoTiers = {
     { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container" } },
     { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir" } },
-    { level = 3,  fields = { "type", "sex", "light", "lightCycle", "roots", "rootRot" } },
+    { level = 3,  fields = { "type", "strain", "sex", "light", "lightCycle", "roots", "rootRot" } },
     { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg", "rootRotTrend" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },
-    { level = 9,  fields = { "generation", "geneticsBand" } },
+    { level = 9,  fields = { "generation", "geneticsBand", "traits" } },
     { level = 10, fields = { "qualityEstimate" } },
 }
 
@@ -672,6 +672,7 @@ Config.SandboxDefaults = {
     ReservoirUseRate  = 1.0,  -- multiplier on how fast reservoirs drain and go stale
     HydroQualityBonus = 0.15, -- extra quality ceiling RDWC can reach (0.15 = up to 115)
     PumpsNeedPower    = true, -- hydro pumps only run with power
+    StrainTint        = true, -- plants take a light tint from their strain
 }
 
 --- Hours a wet plant takes to dry fully (sandbox DryingHours).

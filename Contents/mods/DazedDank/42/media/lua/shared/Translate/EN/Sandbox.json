@@ -35,5 +35,7 @@
     "Sandbox_CannabisMod_HydroQualityBonus": "Hydro Quality Bonus",
     "Sandbox_CannabisMod_HydroQualityBonus_tooltip": "How far above 100 an RDWC grow's quality can reach (0.15 = up to 115). 0 removes the Top Shelf tier.",
     "Sandbox_CannabisMod_PumpsNeedPower": "Pumps Need Power",
-    "Sandbox_CannabisMod_PumpsNeedPower_tooltip": "If enabled, hydro air and water pumps only run with power. Without air, roots start to rot."
+    "Sandbox_CannabisMod_PumpsNeedPower_tooltip": "If enabled, hydro air and water pumps only run with power. Without air, roots start to rot.",
+    "Sandbox_CannabisMod_StrainTint": "Strain Tint",
+    "Sandbox_CannabisMod_StrainTint_tooltip": "If enabled, each strain tints its plants a little: indica leans violet, sativa leans gold."
 }
