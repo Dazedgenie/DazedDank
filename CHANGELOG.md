@@ -8,7 +8,7 @@
 - Art: the XL sprites are scaled from the large bag and DWC renders (hydro sheet tiles 235-460). After re-rendering those, `python tools/make_xl_sprites.py` rebuilds them. `tools/pzpack.py` and `tools/tdef.py` read and write the .pack and .tiles files.
 - Changed: Plumbing and the reservoir menu treat the XL DWC as a DWC bucket.
 - Fixed: two different crosses could get the same strain name. The server now keeps a list of every name it gives out, and a new strain that lands on a taken name is numbered ("Dixie Mist #2"). Starter names are reserved. All seeds from one pollination share one name, and breeding a strain with itself keeps its name.
-- Changed: indica starters now flower faster than normal (Knox Kush 9%, Muldraugh Purple 12%, Rosewood Stone 6%) and sativas slower (up to 11%), so crossing and keeping the fastest seeds can breed a strain that flowers up to 20% faster. A flowering speed of 50 now means exactly normal time.
+- Changed: indica starters now flower faster than normal (Knox Kush 9%, Muldraugh Purple 12%, Rosewood Stone 6%) and sativas slower (Riverside Haze 10%, March Ridge Gold 4%, West Point Lightning 14%), so crossing and keeping the fastest seeds can breed a strain that flowers up to 20% faster. A flowering speed of 50 now means exactly normal time.
 - Changed: strain traits read as exact numbers ("potency +8%, yield +17%, flowers 2% faster") instead of Low/Mid/High, so growers can tell which seed to keep.
 - Kept: seeds and plants already in a save keep their old trait numbers; only new starter seeds use the new speeds. Names given out before this update aren't on the list, so one of them could match a new cross once.
 - Tests: 33 new checks (203 total).
