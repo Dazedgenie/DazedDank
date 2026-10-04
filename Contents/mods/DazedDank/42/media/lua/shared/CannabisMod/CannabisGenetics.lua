@@ -102,8 +102,10 @@ function Genetics.seedsFromPollination(mother, father)
     local ma, fa = Strains.of(mother), Strains.of(father)
     local seeds = {}
     for i = 1, count do
-        seeds[i] = Genetics.newSeed(Strains.cross(ma, fa), { hermieLineage = hermie })
-        if i > 1 then seeds[i].strain.name = seeds[1].strain.name end
+        -- Only the first seed claims a name; its siblings share it, so a batch never uses up numbers.
+        local strain = (i == 1) and Strains.cross(ma, fa) or Strains.crossTraits(ma, fa)
+        if i > 1 then strain.name = seeds[1].strain.name end
+        seeds[i] = Genetics.newSeed(strain, { hermieLineage = hermie })
     end
     return seeds
 end

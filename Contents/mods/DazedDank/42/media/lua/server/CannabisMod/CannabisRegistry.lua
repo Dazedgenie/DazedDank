@@ -64,6 +64,8 @@ local function onInitGlobalModData(isNewGame)
     domes = ModData.getOrCreate(Config.MODDATA_KEY .. "_Domes")
     bags = ModData.getOrCreate(Config.MODDATA_KEY .. "_Bags")
     soiled = ModData.getOrCreate(Config.MODDATA_KEY .. "_BagSoil")
+    -- Every strain name given out, so two different crosses never share one.
+    Strains.useRegistry(ModData.getOrCreate(Config.MODDATA_KEY .. "_StrainNames"))
 end
 Events.OnInitGlobalModData.Add(onInitGlobalModData)
 

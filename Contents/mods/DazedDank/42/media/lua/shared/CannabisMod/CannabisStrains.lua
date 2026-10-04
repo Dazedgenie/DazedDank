@@ -10,18 +10,43 @@ local Strains = {}
 CannabisMod.Strains = Strains
 
 -- Traits are 0-100. ind: indica share (100 = pure indica, 0 = pure sativa).
--- pot: potency. yld: bud count. flw: flowering speed (100 = fastest).
+-- pot: potency. yld: bud count. flw: flowering speed (50 = normal time, 100 = fastest).
 Strains.TRAITS = { "ind", "pot", "yld", "flw" }
 
 -- The six starters: three indica-leaning, three sativa-leaning. Every seed in the world is one of these until players breed.
+-- Indicas finish fast and sativas slow, so crossing and selecting can push flowering time either way.
 Strains.STARTERS = {
-    { name = "Knox Kush",           ind = 85, pot = 60, yld = 65, flw = 70 },
-    { name = "Muldraugh Purple",    ind = 90, pot = 70, yld = 45, flw = 60 },
-    { name = "Rosewood Stone",      ind = 75, pot = 50, yld = 80, flw = 65 },
+    { name = "Knox Kush",           ind = 85, pot = 60, yld = 65, flw = 72 },
+    { name = "Muldraugh Purple",    ind = 90, pot = 70, yld = 45, flw = 80 },
+    { name = "Rosewood Stone",      ind = 75, pot = 50, yld = 80, flw = 64 },
     { name = "Riverside Haze",      ind = 15, pot = 70, yld = 50, flw = 30 },
-    { name = "West Point Lightning", ind = 10, pot = 80, yld = 35, flw = 25 },
-    { name = "March Ridge Gold",    ind = 25, pot = 55, yld = 70, flw = 40 },
+    { name = "West Point Lightning", ind = 10, pot = 80, yld = 35, flw = 22 },
+    { name = "March Ridge Gold",    ind = 25, pot = 55, yld = 70, flw = 42 },
 }
+
+-- The server's list of strain names already given out (global ModData). Nil offline, where names are never numbered.
+Strains.registry = nil
+
+--- Point naming at the saved list of strain names, and make sure the starters hold their own names.
+function Strains.useRegistry(tbl)
+    Strains.registry = tbl
+    if not tbl then return end
+    for _, s in ipairs(Strains.STARTERS) do tbl[s.name] = true end
+    tbl.Hybrid = true
+end
+
+--- Claim a name for a brand new strain: the name itself if free, else the first free "Name #2", "Name #3"...
+function Strains.claimName(name)
+    local reg = Strains.registry
+    if not reg then return name end
+    local out, n = name, 1
+    while reg[out] do
+        n = n + 1
+        out = name .. " #" .. n
+    end
+    reg[out] = true
+    return out
+end
 
 -- Above this indica share a strain counts as Indica, below SATIVA_MAX as Sativa, between as Hybrid.
 Strains.INDICA_MIN = 65
@@ -145,16 +170,24 @@ function Strains.nameFor(strain, parentA, parentB)
     return place .. " " .. pick(words, strain, 2)
 end
 
---- Breed two strains. The same strain crossed with itself breeds true; anything else is a new named cross.
+--- True when two parents are the same strain, which breeds true and keeps its name.
+local function sameStrain(a, b)
+    return a.name == b.name and a.name ~= "Hybrid"
+end
+
+--- Breed two strains' traits without naming the result (the other seeds of a batch share the first one's name).
+function Strains.crossTraits(a, b)
+    a, b = a or Strains.STARTERS[1], b or Strains.STARTERS[1]
+    local s = Strains.blend(a, b, true)
+    if sameStrain(a, b) then s.name = a.name end
+    return s
+end
+
+--- Breed two strains. The same strain crossed with itself breeds true; anything else is a new strain with a name of its own.
 function Strains.cross(a, b)
     a, b = a or Strains.STARTERS[1], b or Strains.STARTERS[1]
-    if a.name == b.name and a.name ~= "Hybrid" then
-        local s = Strains.blend(a, b, true)
-        s.name = a.name
-        return s
-    end
-    local s = Strains.blend(a, b, true)
-    s.name = Strains.nameFor(s, a, b)
+    local s = Strains.crossTraits(a, b)
+    if not s.name then s.name = Strains.claimName(Strains.nameFor(s, a, b)) end
     return s
 end
 
@@ -164,10 +197,12 @@ end
 
 local function span(v, lo, hi) return lo + (hi - lo) * Config.clamp((v or 50) / 100, 0, 1) end
 
---- Multiplier on the pre-flower and flowering stage lengths.
+--- Multiplier on the pre-flower and flowering stage lengths: 50 is normal time, 0 the slowest, 100 the fastest.
 function Strains.flowerMult(strain)
     local e = Strains.Effect
-    return span(strain and strain.flw, e.FLOWER_SLOWEST, e.FLOWER_FASTEST)
+    local v = Config.clamp((strain and strain.flw or 50), 0, 100)
+    if v >= 50 then return 1 + (e.FLOWER_FASTEST - 1) * (v - 50) / 50 end
+    return 1 + (e.FLOWER_SLOWEST - 1) * (50 - v) / 50
 end
 
 --- Multiplier on buds per plant.
@@ -203,15 +238,19 @@ function Strains.tint(strain)
     return Config.clamp(r - shift, 0.7, 1), Config.clamp(g + shift / 2, 0.7, 1), Config.clamp(b, 0.7, 1)
 end
 
---- Trait words for the status window and inspect text, by level.
-local BANDS = { "Low", "Mid", "High" }
-local function band(v) return BANDS[Config.clamp(math.floor((v or 50) / 34) + 1, 1, 3)] end
+--- A percent change as players read it: "+12%", "-5%", "0%".
+local function pct(mult)
+    local v = math.floor((mult - 1) * 100 + (mult >= 1 and 0.5 or -0.5))
+    return (v > 0 and "+" or "") .. v .. "%"
+end
 
---- Short readable summary: "85% indica, potency High, yield Mid, flowering fast".
+--- Exact summary so growers can select for a trait: "85% indica, potency +4%, yield +6%, flowers 9% faster".
 function Strains.describe(strain)
     if not strain then return "" end
-    local flw = (strain.flw or 50) >= 67 and "fast" or (strain.flw or 50) <= 33 and "slow" or "normal"
-    return string.format("%d%% indica, potency %s, yield %s, flowers %s", strain.ind or 50, band(strain.pot), band(strain.yld), flw)
+    local f = math.floor((1 - Strains.flowerMult(strain)) * 100 + 0.5)
+    local flw = f > 0 and (f .. "% faster") or f < 0 and (-f .. "% slower") or "in normal time"
+    return string.format("%d%% indica, potency %s, yield %s, flowers %s", strain.ind or 50,
+        pct(Strains.potencyMult(strain)), pct(Strains.yieldMult(strain)), flw)
 end
 
 --- A strain record as it came off an item or over the network, checked field by field, or nil.

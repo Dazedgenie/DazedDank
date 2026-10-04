@@ -698,5 +698,40 @@ np.stage = C.STAGE.Vegetative; np.stress = 30; np.cutStress = 12
 for i = 1, 60 do R.extendVeg(np, worldHours + i / 6) end
 check("normal pot keeps its cut stress", np.stress == 30 and math.abs(np.vegFeedDueAt - (worldHours + 1 / 6 + 48)) < 0.01)
 
+
+-- ---- Strain names are unique; breeding can push flowering speed -----------
+local STN = CannabisMod.Strains
+check("name registry is live", STN.registry ~= nil and STN.registry["Knox Kush"] == true)
+check("first claim keeps the name", STN.claimName("Test Mist") == "Test Mist")
+check("second different strain is numbered", STN.claimName("Test Mist") == "Test Mist #2" and STN.claimName("Test Mist") == "Test Mist #3")
+check("starter names are reserved", STN.claimName("Knox Kush") == "Knox Kush #2")
+check("same strain still breeds true, unnumbered", STN.cross(STN.STARTERS[2], STN.STARTERS[2]).name == "Muldraugh Purple")
+local before = 0
+for _ in pairs(STN.registry) do before = before + 1 end
+local batch = G.seedsFromPollination({ type = T.INDICA, strain = STN.STARTERS[1] }, { type = T.SATIVA, strain = STN.STARTERS[5] })
+local after = 0
+for _ in pairs(STN.registry) do after = after + 1 end
+check("a seed batch claims one name (" .. (after - before) .. ")", after - before == 1 and batch[#batch].strain.name == batch[1].strain.name)
+local names = {}
+for i = 1, 40 do names[STN.cross(STN.STARTERS[1], STN.STARTERS[4]).name] = true end
+local n = 0
+for _ in pairs(names) do n = n + 1 end
+check("40 crosses, 40 different names (" .. n .. ")", n == 40)
+check("flowering speed 50 = normal time", STN.flowerMult({ flw = 50 }) == 1)
+check("indica starters flower faster, sativas slower", STN.flowerMult(STN.STARTERS[2]) < 1 and STN.flowerMult(STN.STARTERS[5]) > 1)
+check("readout is exact", STN.describe({ ind = 85, pot = 50, yld = 100, flw = 100 }) == "85% indica, potency 0%, yield +25%, flowers 20% faster")
+-- A grower keeping the fastest seed of each batch, crossed with itself, for 10 generations.
+local line = STN.cross(STN.STARTERS[1], STN.STARTERS[2])
+for gen = 1, 10 do
+    local best = line
+    for k = 1, 6 do
+        local kid = STN.crossTraits(line, line)
+        if kid.flw > best.flw then best = kid end
+    end
+    best.name = line.name
+    line = best
+end
+check("selecting for speed reaches the top (" .. line.flw .. ")", line.flw >= 95 and STN.flowerMult(line) <= 0.81)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
