@@ -37,7 +37,7 @@ local BAND_LABELS = { healthBand = "Health", stressBand = "Stress", geneticsBand
 local WARNINGS = {
     nutrientBurn = { "Nutrient burn", "bad" }, wrongNutrient = { "Wrong nutrient", "bad" }, overwatered = { "Overwatered", "bad" },
     underwatered = { "Underwatered", "warn" }, noLight = { "No light", "bad" }, lightInterrupted = { "Light interrupted", "warn" },
-    lightLeak = { "Light leak", "bad" }, hungry = { "Hungry", "warn" },
+    lightLeak = { "Light leak", "bad" }, hungry = { "Hungry", "warn" }, overcut = { "Cut too hard", "bad" },
     reservoirDry = { "Reservoir dry", "bad" }, staleReservoir = { "Stale reservoir", "warn" },
     pumpOff = { "Pumps off", "bad" }, rootRot = { "Root rot", "bad" }, noControl = { "No control bucket", "bad" },
     noFlood = { "No flood reservoir", "bad" }, mediumDry = { "Rockwool dry", "bad" },
@@ -223,6 +223,11 @@ function Layout.build(data, fontH, measure)
     if data.lightCycle then row("Light cycle", data.lightCycle, (data.lightCycle == "Light leak") and COLORS.bad or COLORS.text) end
     if data.extraVeg then
         row("Extra veg", Layout.formatHours(data.extraVeg.hours) .. "  (+" .. data.extraVeg.bonus .. "% yield)", COLORS.good)
+    end
+    if data.topped then row("Topped", "Yes  (+" .. math.floor(Config.Topping.YIELD_BONUS * 100 + 0.5) .. "% yield)", COLORS.good) end
+    if data.cuttings then
+        local c = data.cuttings
+        row("Cuttings ready", c.left .. " of " .. c.max, c.left > 0 and COLORS.text or COLORS.warn)
     end
     if data.lastNutrient then row("Last nutrient", data.lastNutrient) end
     if data.harvestWindow then

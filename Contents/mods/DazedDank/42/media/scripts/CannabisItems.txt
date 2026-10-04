@@ -324,6 +324,17 @@ module CannabisMod
         WorldObjectSprite = dazeddank_plants_01_204,
     }
 
+    /* XL bag: a mother pot. More cuttings before she's set back, and her clones drift less. */
+    item GrowBagXLPlaceable
+    {
+        DisplayName     = XL Grow Bag,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 2.5,
+        Icon            = GrowBagXL,
+        WorldObjectSprite = dazeddank_hydro_01_235,
+    }
+
     /* Recipe magazine: reading it teaches every crafting recipe in the mod.
        The recipe names must match CannabisRecipes.txt (tests check this). */
     item GrowersHandbook
@@ -335,7 +346,7 @@ module CannabisMod
         Icon            = GrowersHandbook,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDMakeCuringBarrel;DDSwapPapers,
+        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeGrowBagXL;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDMakeCuringBarrel;DDSwapPapers,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,
@@ -352,6 +363,17 @@ module CannabisMod
         Weight          = 4.0,
         Icon            = DWCBucket,
         WorldObjectSprite = dazeddank_plants_01_372,
+    }
+
+    /* XL DWC bucket: a hydro mother pot with a 30 L reservoir. */
+    item DWCBucketXL
+    {
+        DisplayName     = XL DWC Bucket,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 7.0,
+        Icon            = DWCBucketXL,
+        WorldObjectSprite = dazeddank_hydro_01_348,
     }
 
     /* RDWC: site buckets share the reservoir of a control bucket within 3
@@ -447,7 +469,7 @@ module CannabisMod
         Icon            = HydroMagazine,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeDWCBucket;DDMakeClayPebbles;DDMakeRDWCSite;DDMakeRDWCControl;DDMakeFloodTable;DDMakeFloodReservoir;DDMakeFloodTimer,
+        LearnedRecipes  = DDMakeDWCBucket;DDMakeDWCBucketXL;DDMakeClayPebbles;DDMakeRDWCSite;DDMakeRDWCControl;DDMakeFloodTable;DDMakeFloodReservoir;DDMakeFloodTimer,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,

@@ -118,10 +118,38 @@ function Genetics.canClone(plant)
     return Config.CLONEABLE_STAGES[stageName] == true
 end
 
---- Build the genetics for a new cutting: it copies the mother, then drifts.
+--- The most cuttings a plant's pot holds at once.
+function Genetics.cutBudgetMax(plant)
+    local b = Config.Cuttings.BUDGET
+    return b[plant.bag or "ground"] or b.ground
+end
+
+--- Cuttings a plant can give right now: its stored budget, refilled for the time since it was last spent.
+function Genetics.cutsAvailable(plant, now)
+    local max = Genetics.cutBudgetMax(plant)
+    if plant.cutBudget == nil then return max end
+    local speed = math.max(0.1, math.min(10, Config.sandbox("GrowthSpeed") or 1))
+    local perHour = max / (Config.Cuttings.REFILL_DAYS * 24) * speed
+    return math.min(max, plant.cutBudget + math.max(0, now - (plant.cutBudgetAt or now)) * perHour)
+end
+
+--- Spend one cutting. True if it was within budget, false if it overcut the plant.
+function Genetics.spendCut(plant, now)
+    local avail = Genetics.cutsAvailable(plant, now)
+    plant.cutBudgetAt = now
+    if avail >= 1 then
+        plant.cutBudget = avail - 1
+        return true
+    end
+    plant.cutBudget = avail  -- an overcut doesn't drain it further; it keeps refilling from here
+    return false
+end
+
+--- Build the genetics for a new cutting: it copies the mother, then drifts (less from a mother in an XL pot).
 function Genetics.cloneFrom(mother)
     local g = Config.Genetics
-    local drift = Config.randInt(g.DRIFT_MIN, g.DRIFT_MAX)
+    local m = Config.isMotherPot(mother.bag) and Config.Mother or g
+    local drift = Config.randInt(m.DRIFT_MIN, m.DRIFT_MAX)
     return {
         type          = mother.type,
         strain        = Strains.copy(Strains.of(mother)),

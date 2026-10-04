@@ -83,7 +83,9 @@ function Hydro.capacity(r)
         return H.RDWC_CONTROL_L + H.RDWC_SITE_L * Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z))
     end
     if r and r.kind == "ebb" then return H.EBB_RESERVOIR_L end
-    return H.RESERVOIR_L.dwc
+    -- A DWC bucket holds its own size: the XL bucket more than the standard one.
+    local def = r and r.x and Config.GrowBag[Registry.getBag(r.x, r.y, r.z)]
+    return (def and def.reservoirL) or H.RESERVOIR_L.dwc
 end
 
 -- During the plant tick every site of a shared reservoir asks the same questions; their answers are kept until it ends.
@@ -294,14 +296,14 @@ function Hydro.reservoirAt(x, y, z, kind)
         r.isFlood = true
         return r
     end
-    if kind == "dwc" and Registry.getBag(x, y, z) == "dwc" then return Hydro.get(x, y, z, "dwc") end
+    if kind == "dwc" and Config.hydroOf(Registry.getBag(x, y, z)) == "dwc" then return Hydro.get(x, y, z, "dwc") end
     return nil
 end
 
 --- The reservoir record behind an object already known to be one (Dazed Plumbing hands it over), without re-scanning its square.
 function Hydro.reservoirOfObject(x, y, z, kind)
     if kind == "dwc" then
-        return Registry.getBag(x, y, z) == "dwc" and Hydro.get(x, y, z, "dwc") or nil
+        return Config.hydroOf(Registry.getBag(x, y, z)) == "dwc" and Hydro.get(x, y, z, "dwc") or nil
     end
     local r = Hydro.get(x, y, z, kind)
     if r then
@@ -781,7 +783,7 @@ function Hydro.onReset(x, y, z)
         Registry.setBagSoiled(x, y, z, false)
     end
     -- A DWC bucket's own reservoir starts clean for the next plant; an RDWC site shares its control's water.
-    if r and kind == "dwc" then r.rot = 0 end
+    if r and Config.hydroOf(kind) == "dwc" then r.rot = 0 end
     -- With no roots left in the water, its clock stops until the next plant goes in.
     local shared = Hydro.reservoirOf(x, y, z)
     if shared and not Hydro.hasLivingPlants(shared) then shared.lastTick = nil end
@@ -913,9 +915,10 @@ Events.EveryTenMinutes.Add(Hydro.cleanup)
 commands.debugHydroKit = function(player, args)
     if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then return end
     Farming.giveItems(player, "CannabisMod.DWCBucket", 2)
+    Farming.giveItems(player, Config.GrowBag.xldwc.furnItem, 1)
     Farming.giveItems(player, H.CONTROL_ITEM, 1)
     Farming.giveItems(player, "CannabisMod.RDWCSite", 2)
-    Farming.giveItems(player, H.MEDIUM_ITEMS.rockwool, 4)
+    Farming.giveItems(player, H.MEDIUM_ITEMS.rockwool, 5)
     Farming.giveItems(player, H.MEDIUM_ITEMS.pebbles, 1)
     Farming.giveItems(player, Config.NUTRIENT_ITEMS.Veg, 2)
     Farming.giveItems(player, Config.NUTRIENT_ITEMS.Bloom, 2)
@@ -923,6 +926,6 @@ commands.debugHydroKit = function(player, args)
     Farming.giveItems(player, "CannabisMod.FloodTable", 2)
     Farming.giveItems(player, H.FLOOD_ITEM, 1)
     Farming.giveItems(player, H.FLOOD_TIMER_ITEM, 1)
-    Net.notify(player, "Gave 2 DWC buckets, an RDWC control and 2 sites, 2 flood tables, a flood reservoir and timer, "
-        .. "4 rockwool cubes, clay pebbles, nutrients and bleach. Bring your own water.")
+    Net.notify(player, "Gave 2 DWC buckets, an XL DWC bucket, an RDWC control and 2 sites, 2 flood tables, a flood reservoir and timer, "
+        .. "5 rockwool cubes, clay pebbles, nutrients and bleach. Bring your own water.")
 end

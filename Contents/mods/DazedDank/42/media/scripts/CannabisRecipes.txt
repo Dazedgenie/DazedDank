@@ -52,6 +52,27 @@ module CannabisMod
         }
     }
 
+    craftRecipe DDMakeGrowBagXL
+    {
+        timedAction = Making,
+        time = 180,
+        NeedToBeLearn = true,
+        Tags = AnySurfaceCraft;Farming,
+        category = Farming,
+        xpAward = Farming:12,
+        SkillRequired = Farming:3,
+        inputs
+        {
+            item 1 tags[base:sewingneedle] mode:keep flags[MayDegradeLight],
+            item 5 tags[base:thread],
+            item 10 [Base.RippedSheets],
+        }
+        outputs
+        {
+            item 1 CannabisMod.GrowBagXLPlaceable,
+        }
+    }
+
     craftRecipe DDMakeSoilSack
     {
         timedAction = Making,
@@ -343,6 +364,29 @@ module CannabisMod
         outputs
         {
             item 1 CannabisMod.DWCBucket,
+        }
+    }
+
+    craftRecipe DDMakeDWCBucketXL
+    {
+        timedAction = MakingElectrical,
+        time = 200,
+        NeedToBeLearn = true,
+        Tags = AnySurfaceCraft;Electrical,
+        category = Farming,
+        xpAward = Electricity:12,
+        SkillRequired = Electricity:3,
+        inputs
+        {
+            item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems],
+            item 2 [Base.BucketEmpty],
+            item 2 [Base.RubberHose],
+            item 3 [Base.ElectronicsScrap],
+            item 1 [Base.ElectricWire],
+        }
+        outputs
+        {
+            item 1 CannabisMod.DWCBucketXL,
         }
     }
 

@@ -1,5 +1,14 @@
 # Dazed Dank patch notes
 
+## dd52
+- Added: Top Plant. In veg, snip the main tip (scissors or a sharp knife) for +20% buds at harvest. Costs 10 stress and pauses growth for 12 hours. Once per plant. The status window shows "Topped" to anyone.
+- Added: cutting budget. Each pot holds a number of cuttings that regrows (full again after about 4 days): ground 3, small bag 2, large bag 4, DWC 4, RDWC 4, flood table 2, XL pots 8. Cutting past it costs 8 extra stress and sets her back: pre-flower drops to veg and the veg timer starts over. The status window shows "Cuttings ready: 3 of 8" from Agriculture 2, and a "Cut too hard" warning after an overcut.
+- Added: XL Grow Bag (3 soil sacks) and XL DWC Bucket (30 L reservoir), made for mother plants. Both have the same yield as the large bag and the DWC. Mothers in them get an 8-cutting budget and lose only 0-2 genetics per clone generation (normal pots: 1-5). While held in veg they need feeding every 96 hours instead of 48, and the stress from cuttings fades at 1 per hour (other stress stays).
+- Added: recipes Make XL Grow Bag (Farming 3, Grower's Handbook) and Make XL DWC Bucket (Electricity 3, Hydroponics Monthly). The debug grow and hydro kits include one of each.
+- Art: the XL sprites are scaled from the large bag and DWC renders (hydro sheet tiles 235-460). After re-rendering those, `python tools/make_xl_sprites.py` rebuilds them. `tools/pzpack.py` and `tools/tdef.py` read and write the .pack and .tiles files.
+- Changed: Plumbing and the reservoir menu treat the XL DWC as a DWC bucket.
+- Tests: 22 new checks (192 total).
+
 ## dd51
 - Added: strains. Every seed, cutting, plant, bud and joint now carries a named strain with four hidden traits: indica share, potency, yield and flowering speed. Looted seeds are one of six starters: Knox Kush, Muldraugh Purple and Rosewood Stone (indica), Riverside Haze, West Point Lightning and March Ridge Gold (sativa).
 - Added: breeding makes new strains. A pollinated female's seeds average both parents' traits with a little noise (and a rare bigger throw), and the cross gets a generated name like "Riverside Mist". The same strain crossed with itself breeds true. Every seed from one pollination is the same strain.

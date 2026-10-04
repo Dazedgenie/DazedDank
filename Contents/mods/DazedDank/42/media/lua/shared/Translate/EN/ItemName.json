@@ -40,5 +40,7 @@
     "CannabisMod.SmokingPipe": "Smoking Pipe",
     "CannabisMod.FloodTable": "Flood Table",
     "CannabisMod.FloodReservoir": "Flood Reservoir",
-    "CannabisMod.FloodTimer": "Flood Timer"
+    "CannabisMod.FloodTimer": "Flood Timer",
+    "CannabisMod.GrowBagXLPlaceable": "XL Grow Bag",
+    "CannabisMod.DWCBucketXL": "XL DWC Bucket"
 }

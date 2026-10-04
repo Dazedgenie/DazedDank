@@ -17,14 +17,14 @@ function Plumb.available()
     return DazedPlumb ~= nil and DazedPlumb.Links ~= nil and DazedPlumb.Links.register ~= nil
 end
 
---- Which reservoir an object is: "dwc" for a DWC bucket plot, "rdwc" for an RDWC control bucket, "ebb" for a flood reservoir, or nil.
+--- Which reservoir an object is: "dwc" for a DWC bucket plot (standard or XL), "rdwc" for an RDWC control bucket, "ebb" for a flood reservoir, or nil.
 function Plumb.kindOf(obj)
     local sprite = obj and obj.getSprite and obj:getSprite()
     local name = sprite and sprite:getName()
     if type(name) ~= "string" then return nil end
     if name == Config.Hydro.CONTROL_SPRITE then return "rdwc" end
     if name == Config.Hydro.FLOOD_SPRITE then return "ebb" end
-    if Config.bagFromSprite(name) == "dwc" then return "dwc" end
+    if Config.hydroOf(Config.bagFromSprite(name)) == "dwc" then return "dwc" end
     return nil
 end
 

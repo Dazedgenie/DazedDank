@@ -86,9 +86,40 @@ commands.takeCutting = function(player, args)
     data.gel = false
     giveCutting(player, Config.CUTTING_ITEM, data, 0)
 
-    -- Cutting stresses the mother a little.
-    plant.stress = Config.clamp(plant.stress + Config.Stress.CUTTING_COST, 0, Config.Stress.MAX)
-    Net.notify(player, "Took a cutting")
+    -- Cutting stresses the mother a little; past her pot's budget it stresses her more and sets her back.
+    local now = Registry.nowHours()
+    local within = Genetics.spendCut(plant, now)
+    local cost = Config.Stress.CUTTING_COST + (within and 0 or Config.Cuttings.OVERCUT_STRESS)
+    plant.stress = Config.clamp(plant.stress + cost, 0, Config.Stress.MAX)
+    plant.cutStress = (plant.cutStress or 0) + cost
+    if within then
+        plant.warnings.overcut = nil
+        local left = math.floor(Genetics.cutsAvailable(plant, now))
+        Net.notify(player, "Took a cutting (" .. left .. " more before she needs a rest)")
+    else
+        Registry.setBack(plant, now)
+        Net.notify(player, "Took a cutting, but she's been cut too hard and has to recover")
+    end
+end
+
+-- --------------------------------------------------------------------------
+-- Topping
+-- --------------------------------------------------------------------------
+
+commands.topPlant = function(player, args)
+    local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
+    if not (x and y and z) or not SC.isNear(player, x, y, z) then return end
+    local plant = Registry.getPlant(x, y, z)
+    if not plant or plant.dead or plant.rooting then
+        Net.notify(player, "There's nothing here to top")
+        return
+    end
+    if not Seeds.findCuttingTool(player) then
+        Net.notify(player, "You need scissors or a sharp knife")
+        return
+    end
+    local why = Registry.top(plant, Registry.nowHours())
+    Net.notify(player, why or "Topped the plant. It will branch out into more colas")
 end
 
 -- --------------------------------------------------------------------------

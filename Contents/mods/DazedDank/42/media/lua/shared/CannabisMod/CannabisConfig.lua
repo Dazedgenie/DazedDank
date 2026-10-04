@@ -190,6 +190,48 @@ Config.GrowBag = {
               drain = 1, yield = 1.2, careMult = 0.85, emptySprite = 123, drySprite = 122, soil = 0,
               plantBase = 124, maleBase = 189, lastSprite = 233,
               furnItem = "CannabisMod.FloodTable", furnSprite = 114, furnSprites = { 114, 115, 116, 117, 118, 119, 120, 121 } },
+    -- Mother pots: room for a big root ball, so they give more cuttings and keep a line healthy. Same yield as large.
+    xlbag = { name = "XL Grow Bag", mother = true, sheet = "dazeddank_hydro_01",
+              drain = 0.45, yield = 1.25, spriteBlock = 3, emptySprite = 236, drySprite = 237, soil = 3,
+              plantBase = 238, maleBase = 303, lastSprite = 347,
+              furnItem = "CannabisMod.GrowBagXLPlaceable", furnSprite = 235 },
+    xldwc = { name = "XL DWC Bucket", hydro = "dwc", mother = true, sheet = "dazeddank_hydro_01", reservoirL = 30,
+              drain = 1, yield = 1.3, careMult = 0.75, emptySprite = 350, drySprite = 349, soil = 0,
+              plantBase = 351, maleBase = 416, lastSprite = 460,
+              furnItem = "CannabisMod.DWCBucketXL", furnSprite = 348 },
+}
+
+--- The hydro system a container kind runs ("dwc", "rdwc", "ebb"), or nil for soil and ground.
+function Config.hydroOf(bag)
+    local def = bag and Config.GrowBag[bag]
+    return def and def.hydro or nil
+end
+
+--- True for the XL pots that suit a mother plant.
+function Config.isMotherPot(bag)
+    local def = bag and Config.GrowBag[bag]
+    return def ~= nil and def.mother == true
+end
+
+-- Topping: snip the main tip in veg so the plant grows more colas. Once per plant.
+Config.Topping = {
+    YIELD_BONUS = 0.20,  -- +20% buds at harvest
+    STRESS      = 10,
+    PAUSE_HOURS = 12,    -- growth stops this long while it recovers (before GrowthSpeed)
+}
+
+-- Cuttings: each pot holds a budget of cuttings that regrows; cutting past it sets the plant back.
+Config.Cuttings = {
+    BUDGET = { ground = 3, small = 2, large = 4, xlbag = 8, dwc = 4, xldwc = 8, rdwc = 4, ebb = 2 },
+    REFILL_DAYS = 4,     -- an empty budget is full again after this many days
+    OVERCUT_STRESS = 8,  -- extra stress for a cutting past the budget
+}
+
+-- XL pots treat the plant as a mother.
+Config.Mother = {
+    DRIFT_MIN = 0, DRIFT_MAX = 2,     -- genetics lost per clone generation (normal pots: 1-5)
+    FEED_EVERY_HOURS = 96,            -- held-veg feeding interval (normal pots: 48)
+    CUT_STRESS_RECOVERY_PER_HOUR = 1, -- stress from cuttings fades this fast while held in veg
 }
 -- Ground plants: the first 65 sprites, and males from MALE_SPRITE_BASE.
 Config.GROUND_SPRITES = { plantBase = 0, maleBase = 237 }
@@ -636,8 +678,8 @@ end
 -- above the player's level are never sent, so they can't be read by
 -- inspecting network traffic or client memory.
 Config.InfoTiers = {
-    { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container" } },
-    { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir" } },
+    { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container", "topped" } },
+    { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir", "cuttings" } },
     { level = 3,  fields = { "type", "strain", "sex", "light", "lightCycle", "roots", "rootRot" } },
     { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg", "rootRotTrend" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },

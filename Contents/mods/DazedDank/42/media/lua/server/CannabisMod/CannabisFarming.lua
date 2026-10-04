@@ -343,6 +343,8 @@ local function harvestCannabis(luaObject, player)
             end
             -- Extra veg time grew a bigger plant.
             buds = buds * (1 + (plant.vegBonus or Config.Timer.vegBonus(plant.extraVegHours)))
+            -- Topping in veg split the main cola into several.
+            if plant.topped then buds = buds * (1 + Config.Topping.YIELD_BONUS) end
             buds = math.max(1, math.floor(buds + 0.5))
 
             -- Everything later steps need, stored on the harvested plant.

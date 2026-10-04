@@ -268,7 +268,7 @@ function addHydroOptions(player, context, plot, kind, action, square)
         local tip = ISInventoryPaneContextMenu.addToolTip()
         tip.description = "Dumps the old water; the water line refills it."
         change.toolTip = tip
-    elseif kind == "dwc" or not plot then
+    elseif Config.hydroOf(kind) == "dwc" or not plot then
         -- RDWC sites and flood tables share a reservoir elsewhere (maybe plumbed), so the server decides for them.
         needs(change, water, "Drains the old water and refills it. Needs water.")
     end
@@ -444,6 +444,25 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
                 tip.description = "Needs scissors, a sharp knife or another plant-cutting tool"
                 option.toolTip = tip
             end
+        end
+
+        -- Top Plant: veg only, once (the server knows if it's been done and says so).
+        if plot.nbOfGrow == Config.STAGE_TO_NBOFGROW.Vegetative then
+            local option = context:addOption("Top Plant", player, function(p)
+                if ISFarmingMenu.walkToPlant(p, square) then
+                    ISTimedActionQueue.add(ISTakeCannabisCuttingAction:new(p, plot, square, "topPlant"))
+                end
+            end)
+            local tip = ISToolTip:new()
+            tip:initialise()
+            tip:setVisible(false)
+            tip.description = "Snip the main tip so the plant grows more colas: +"
+                .. math.floor(Config.Topping.YIELD_BONUS * 100 + 0.5) .. "% buds, some stress and a short pause in growth. Once per plant."
+            if not Seeds.findCuttingTool(player) then
+                option.notAvailable = true
+                tip.description = "Needs scissors, a sharp knife or another plant-cutting tool"
+            end
+            option.toolTip = tip
         end
     end
 

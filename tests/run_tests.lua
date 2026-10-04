@@ -622,5 +622,81 @@ ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = tester.inv.items[1], 
 fire("OnClientCommand", "CannabisMod", "debugNextStage", tester, { x = 430, y = 430, z = 0 })
 check("debug next stage", R.getPlant(430, 430, 0).stage == 2 and plotD.nbOfGrow == 3)
 
+
+-- ---- XL pots, cutting budget, topping, mothers ----------------------------
+local GB = C.GrowBag
+check("XL kinds exist", GB.xlbag and GB.xldwc and GB.xlbag.mother and GB.xldwc.mother and not GB.large.mother)
+check("hydroOf", C.hydroOf("xldwc") == "dwc" and C.hydroOf("dwc") == "dwc" and C.hydroOf("xlbag") == nil and C.hydroOf(nil) == nil)
+-- No two container kinds on one sheet claim the same sprite number.
+local claimed, clash = {}, nil
+for kind, def in pairs(GB) do
+    local sheet = C.sheetOf(kind)
+    local nums = { def.emptySprite, def.drySprite, def.furnSprite }
+    for i = 0, 64 do nums[#nums + 1] = def.plantBase + i end
+    for i = 0, 44 do nums[#nums + 1] = def.maleBase + i end
+    for _, n in ipairs(def.furnSprites or {}) do nums[#nums + 1] = n end
+    for _, n in ipairs(nums) do
+        local key = sheet .. "_" .. n
+        if claimed[key] and claimed[key] ~= kind then clash = key .. " " .. claimed[key] .. "/" .. kind end
+        claimed[key] = kind
+    end
+end
+check("no sprite clashes between containers (" .. tostring(clash) .. ")", clash == nil)
+check("XL sprites stay inside one sheet", GB.xldwc.maleBase + 44 < C.MAX_SHEET_TILES)
+check("XL bag sprites recognised", C.bagFromSprite("dazeddank_hydro_01_238") == "xlbag" and C.bagFromSprite("dazeddank_hydro_01_236") == "xlbag"
+    and C.bagFromFurnSprite("dazeddank_hydro_01_235") == "xlbag")
+check("XL DWC sprites recognised", C.bagFromSprite("dazeddank_hydro_01_351") == "xldwc" and C.bagFromFurnSprite("dazeddank_hydro_01_348") == "xldwc"
+    and C.isMaleSprite("dazeddank_hydro_01_416"))
+check("XL plant sprite name", C.spriteName(T.INDICA, 3, "sprite", "xlbag") == "dazeddank_hydro_01_" .. (238 + 1 + 1))
+
+-- cutting budget
+local bp = { stage = 2, bag = nil }
+check("ground budget 3, XL 8", G.cutBudgetMax(bp) == 3 and G.cutBudgetMax({ bag = "xlbag" }) == 8 and G.cutBudgetMax({ bag = "xldwc" }) == 8)
+local spent = { G.spendCut(bp, 100), G.spendCut(bp, 100), G.spendCut(bp, 100), G.spendCut(bp, 100) }
+check("3 cuts within budget, the 4th overcuts", spent[1] and spent[2] and spent[3] and not spent[4])
+check("budget refills: 3 over 4 days", math.abs(G.cutsAvailable(bp, 100 + 32) - 1) < 0.01 and G.cutsAvailable(bp, 100 + 500) == 3)
+
+-- clone drift: an XL mother loses 0-2 per generation
+local xlMom = { type = T.INDICA, sex = C.SEX.FEMALE, genetics = 100, generation = 0, bag = "xlbag" }
+local lo, hi = 100, 0
+for i = 1, 300 do local g2 = G.cloneFrom(xlMom).genetics; lo = math.min(lo, g2); hi = math.max(hi, g2) end
+check("XL mother drift 0-2 (" .. lo .. "-" .. hi .. ")", lo == 98 and hi == 100)
+
+-- topping
+worldHours = 5000
+local tp = R.addPlant(900, 900, 0, G.newSeed(T.SATIVA))
+check("can't top a seedling", R.top(tp, worldHours) ~= nil and not tp.topped)
+tp.stage = C.STAGE.Vegetative; tp.nextStageAt = worldHours + 10; tp.stress = 0
+check("top in veg", R.top(tp, worldHours) == nil and tp.topped and tp.stress == C.Topping.STRESS
+    and math.abs(tp.nextStageAt - (worldHours + 10 + C.Topping.PAUSE_HOURS)) < 0.001)
+check("only once", R.top(tp, worldHours) ~= nil and tp.stress == C.Topping.STRESS)
+check("info shows topped to anyone", I.buildVisible(tp, 0, worldHours).topped == true)
+
+-- taking cuttings past the budget sets the plant back (via the real command)
+local cutter = newPlayer(910, 910, 5)
+local snips = cutter.inv:addExisting(newItem("Base.Scissors")); snips.tags["base:scissors"] = true
+local cp = R.addPlant(910, 910, 0, G.newSeed(T.INDICA))
+cp.stage = C.STAGE.PreFlower; cp.stress = 0; cp.nextStageAt = worldHours + 5
+for i = 1, 3 do fire("OnClientCommand", "CannabisMod", "takeCutting", cutter, { x = 910, y = 910, z = 0 }) end
+check("3 cuts in budget, still pre-flower", cp.stage == C.STAGE.PreFlower and not cp.warnings.overcut
+    and cp.stress == 3 * C.Stress.CUTTING_COST and cutter.inv:count(C.CUTTING_ITEM) == 3)
+fire("OnClientCommand", "CannabisMod", "takeCutting", cutter, { x = 910, y = 910, z = 0 })
+check("4th cut sets her back to veg", cp.stage == C.STAGE.Vegetative and cp.warnings.overcut
+    and cp.nextStageAt > worldHours + 20 and cp.stress == 4 * C.Stress.CUTTING_COST + C.Cuttings.OVERCUT_STRESS)
+check("status shows cuttings ready", I.buildVisible(cp, 2, worldHours).cuttings.left == 0 and I.buildVisible(cp, 2, worldHours).cuttings.max == 3)
+
+-- mother perks while held in veg
+local mp = R.addPlant(920, 920, 0, G.newSeed(T.INDICA))
+mp.bag = "xlbag"; mp.stage = C.STAGE.Vegetative; mp.stress = 30; mp.cutStress = 12
+for i = 1, 60 do R.extendVeg(mp, worldHours + i / 6) end        -- 10 hours held
+check("XL mother sheds cut stress only (" .. mp.stress .. ")", math.abs(mp.stress - 20) < 0.01 and math.abs(mp.cutStress - 2) < 0.01)
+for i = 61, 120 do R.extendVeg(mp, worldHours + i / 6) end      -- 20 hours
+check("cut stress fully gone, other stress stays", mp.cutStress < 0.001 and math.abs(mp.stress - 18) < 0.01)
+check("XL mother feeds every 96h", math.abs(mp.vegFeedDueAt - (worldHours + 1 / 6 + 96)) < 0.01)
+local np = R.addPlant(921, 920, 0, G.newSeed(T.INDICA))
+np.stage = C.STAGE.Vegetative; np.stress = 30; np.cutStress = 12
+for i = 1, 60 do R.extendVeg(np, worldHours + i / 6) end
+check("normal pot keeps its cut stress", np.stress == 30 and math.abs(np.vegFeedDueAt - (worldHours + 1 / 6 + 48)) < 0.01)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

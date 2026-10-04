@@ -21,5 +21,7 @@
     "DDSwapPapers": "Repack Rolling Papers",
     "DDMakeFloodTable": "Make Flood Table",
     "DDMakeFloodReservoir": "Make Flood Reservoir",
-    "DDMakeFloodTimer": "Make Flood Timer"
+    "DDMakeFloodTimer": "Make Flood Timer",
+    "DDMakeGrowBagXL": "Make XL Grow Bag",
+    "DDMakeDWCBucketXL": "Make XL DWC Bucket"
 }

@@ -45,6 +45,16 @@ from the indica share (65%+, 35% or less, between), and sets the sprites and
 which Wet Whole Plant item you get. Strains tint their plants a little
 (sandbox: Strain Tint). All the numbers live in `CannabisStrains.lua`.
 
+### Topping, cuttings and mother plants
+
+Right-click a plant in veg: **Top Plant** (needs a cutting tool) gives +20%
+buds, 10 stress and a 12-hour pause, once per plant. Every pot has a cutting
+budget that refills over about 4 days (ground 3, small 2, large 4, DWC 4,
+XL 8). Cutting past it sets the plant back to the start of veg. The **XL Grow
+Bag** and **XL DWC Bucket** are mother pots: 8 cuttings, clone drift of 0-2
+instead of 1-5, feeding every 96 hours in held veg, and cut stress that fades.
+Numbers live in `Config.Topping`, `Config.Cuttings` and `Config.Mother`.
+
 ### Nutrients and grow lights
 
 15. Right-click the ground: **[Debug] Give grow kit** (2 Veg, 2 Bloom, a

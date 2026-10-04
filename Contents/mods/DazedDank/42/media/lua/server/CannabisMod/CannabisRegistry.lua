@@ -359,9 +359,18 @@ end
 function Registry.extendVeg(plant, now)
     plant.extraVegHours = (plant.extraVegHours or 0) + 1 / 6
     plant.vegHeld = true
+    if plant.warnings.overcut and Genetics.cutsAvailable(plant, now) >= 1 then plant.warnings.overcut = nil end
+    local mother = Config.isMotherPot(plant.bag)
+    -- A mother in an XL pot shakes off the stress of being cut while she's held in veg.
+    if mother and (plant.cutStress or 0) > 0 then
+        local r = math.min(plant.cutStress, Config.Mother.CUT_STRESS_RECOVERY_PER_HOUR / 6)
+        plant.cutStress = plant.cutStress - r
+        plant.stress = math.max(0, (plant.stress or 0) - r)
+    end
     -- Hydro plants eat from their reservoir instead of a feeding schedule.
     if Config.isHydro(plant.bag) then return end
-    plant.vegFeedDueAt = plant.vegFeedDueAt or (now + Config.Timer.FEED_EVERY_HOURS)
+    local every = mother and Config.Mother.FEED_EVERY_HOURS or Config.Timer.FEED_EVERY_HOURS
+    plant.vegFeedDueAt = plant.vegFeedDueAt or (now + every)
     if now >= plant.vegFeedDueAt then
         if (plant.fedThisStage or 0) == 0 then
             Registry.applyPenalty(plant, Config.Timer.HUNGRY_PENALTY, "hungry")
@@ -369,8 +378,32 @@ function Registry.extendVeg(plant, now)
             plant.warnings.hungry = nil
         end
         plant.fedThisStage = 0
-        plant.vegFeedDueAt = now + Config.Timer.FEED_EVERY_HOURS
+        plant.vegFeedDueAt = now + every
     end
+end
+
+--- Top a plant in veg: more colas at harvest, some stress and a short pause. Returns nil, or why it can't be done.
+function Registry.top(plant, now)
+    if plant.stage ~= Config.STAGE.Vegetative then return "Plants can only be topped in veg" end
+    if plant.topped then return "This plant has already been topped" end
+    local t = Config.Topping
+    plant.topped = true
+    plant.stress = Config.clamp((plant.stress or 0) + t.STRESS, 0, Config.Stress.MAX)
+    local speed = math.max(0.1, math.min(10, Config.sandbox("GrowthSpeed") or 1))
+    -- A plant already held in veg pauses from now; one still in its veg timer has that timer pushed back.
+    plant.nextStageAt = math.max(plant.nextStageAt or now, now) + t.PAUSE_HOURS / speed
+    return nil
+end
+
+--- Cutting past the pot's budget sets the plant back: pre-flower drops to veg, and the veg timer starts over.
+function Registry.setBack(plant, now)
+    if plant.stage == Config.STAGE.PreFlower then
+        plant.stage = Config.STAGE.Vegetative
+        plant.fedThisStage = 0
+        if CannabisMod.Farming then CannabisMod.Farming.onStageChanged(plant) end
+    end
+    plant.nextStageAt = now + rollStageHours(Config.STAGE.Vegetative, plant)
+    plant.warnings.overcut = true
 end
 
 --- Move a plant to its next stage and start the new stage timer.
@@ -387,6 +420,7 @@ function Registry.advanceStage(plant)
     plant.nextStageAt = nowHours() + rollStageHours(plant.stage, plant)
     plant.fedThisStage = 0
     plant.warnings.nutrientBurn = nil
+    plant.warnings.overcut = nil
     plant.warnings.wrongNutrient = nil
 
     -- Ripe: remember when the harvest window opened. The window closes at
