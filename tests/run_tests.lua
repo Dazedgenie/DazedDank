@@ -1559,9 +1559,9 @@ do
     for _ = 1, 28 do LL.step() end
     check("lamp glow: rows above the lamp don't light it yet", litCount == 0)
     LL.step()
-    check("lamp glow: the lamp's row lights it (two layers)", litCount == 2)
+    check("lamp glow: the lamp's row lights it (one source per layer)", litCount == LL.LAYERS.basic)
     for _ = 1, 32 do LL.step() end
-    check("lamp glow: a finished pass keeps a lamp it saw", litCount == 2)
+    check("lamp glow: a finished pass keeps a lamp it saw", litCount == LL.LAYERS.basic)
     hourOfDay = 20
     LL.update()
     check("lamp glow: off in the timer's dark hours", litCount == 0)

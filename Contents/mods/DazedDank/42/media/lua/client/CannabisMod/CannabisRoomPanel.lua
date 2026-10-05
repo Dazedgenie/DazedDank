@@ -216,8 +216,15 @@ local function addCurtainOption(player, context, obj)
     if not square or north == nil then return end
     local dir = north and "N" or "W"
     local function act(command)
-        if luautils.walkAdj(player, square) then
+        print(string.format("[DazedDank] %s: frame %s at %d,%d,%d dir %s", command, tostring(obj), square:getX(), square:getY(), square:getZ(), dir))
+        -- Walk up to the frame from whichever side the player is on, the way vanilla does for sheets.
+        local walked = false
+        if luautils.walkAdjWindowOrDoor then walked = luautils.walkAdjWindowOrDoor(player, square, obj) end
+        if not walked then walked = luautils.walkAdj(player, square) end
+        if walked then
             ISTimedActionQueue.add(ISGrowBagAction:new(player, square, command, { dir = dir }))
+        else
+            print("[DazedDank] " .. command .. ": could not walk next to the frame")
         end
     end
     if hasCurtain(square, dir) then

@@ -1042,18 +1042,36 @@ end
 
 commands.hangCurtain = function(player, args)
     local x, y, z, dir = tonumber(args.x), tonumber(args.y), tonumber(args.z), args.dir
-    if not (x and y and z) or (dir ~= "N" and dir ~= "W") or not curtains or not isNear(player, x, y, z) then return end
+    -- Each refusal is logged to console.txt so a curtain that "does nothing" can be traced.
+    print(string.format("[DazedDank] hangCurtain at %s,%s,%s dir %s", tostring(x), tostring(y), tostring(z), tostring(dir)))
+    if not (x and y and z) or (dir ~= "N" and dir ~= "W") then print("[DazedDank] hangCurtain: bad args") return end
+    if not curtains then print("[DazedDank] hangCurtain: curtain table not loaded") return end
+    if not isNear(player, x, y, z) then
+        print("[DazedDank] hangCurtain: player too far")
+        Net.notify(player, "Stand closer to the frame")
+        return
+    end
     local square, other = edgeSquares(x, y, z, dir)
     local kind = square and other and Rooms.edgeKind(square, other)
-    if not kind then Net.notify(player, "A curtain only hangs on a door or window frame") return end
+    if not kind then
+        print("[DazedDank] hangCurtain: no door or window on that edge (square " .. tostring(square) .. ", other " .. tostring(other) .. ")")
+        Net.notify(player, "A curtain only hangs on a door or window frame")
+        return
+    end
     local edge = Rooms.edgeKey(x, y, z, dir)
     if curtains[edge] then Net.notify(player, "That frame already has a curtain") return end
-    local item = player:getInventory():getFirstTypeRecurse(Config.Rooms.CURTAIN_ITEM)
-    if not item then Net.notify(player, "You need a blackout curtain") return end
+    local inv = player:getInventory()
+    local item = inv:getFirstTypeRecurse(Config.Rooms.CURTAIN_ITEM)
+    if not item then
+        local short = Config.Rooms.CURTAIN_ITEM:match("%.(.+)$")
+        item = short and inv:getFirstTypeRecurse(short)
+    end
+    if not item then print("[DazedDank] hangCurtain: no curtain item found") Net.notify(player, "You need a blackout curtain") return end
     local container = item:getContainer()
     container:Remove(item)
     sendRemoveItemFromContainer(container, item)
     curtains[edge] = true
+    print("[DazedDank] hangCurtain: hung a " .. kind .. " curtain on " .. edge)
     Rooms.addCurtainObject(square, kind, dir)
     Rooms.rebuild()
     Net.notify(player, "Blackout curtain hung")
