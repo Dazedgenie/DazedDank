@@ -5,6 +5,7 @@
 - Added: an **Equipment** tab on the Grow Room Panel listing every fan, heater, dehumidifier and humidifier in the room, with where it is, which wall it hangs on, whether it's running, and a Show button.
 - The panel also refreshes when equipment is placed or picked up near it.
 - Changed: basic (purple) grow lamps glow twice as strongly.
+- Added: more strain name variety. New crosses can be named after about 80 more Kentucky towns (Bardstown to Monkeys Eyebrow, Rabbit Hash and Possum Trot), and about 4 in 10 get a zombie-style name, like "Shambler Rush", "Patient Zero Kush" or "Frankfort Fever".
 - Art: the wall-mounted Heater, Dehumidifier and Humidifier are now Blender renders in the same style as the panel and fans, with new inventory icons.
 
 ## dd53.1

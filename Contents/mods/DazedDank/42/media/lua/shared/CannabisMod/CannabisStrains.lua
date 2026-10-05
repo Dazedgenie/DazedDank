@@ -67,13 +67,35 @@ Strains.Effect = {
 }
 
 -- Name parts for new crosses: a place, then a word that fits the indica share.
+-- The game's own towns come first, then real Kentucky towns and the state's odder little communities.
 local PLACES = { "Knox", "Muldraugh", "Rosewood", "West Point", "Riverside", "March Ridge", "Louisville",
-                 "Valley Station", "Ekron", "Brandenburg", "Dixie", "Kentucky", "Fallas Lake", "Irvington" }
+                 "Valley Station", "Ekron", "Brandenburg", "Dixie", "Kentucky", "Fallas Lake", "Irvington",
+                 "Bardstown", "Shepherdsville", "Elizabethtown", "Radcliff", "Vine Grove", "Fort Knox", "Frankfort",
+                 "Lexington", "Bowling Green", "Paducah", "Owensboro", "Hazard", "Harlan", "Pikeville", "Paintsville",
+                 "Corbin", "Somerset", "Berea", "Winchester", "Georgetown", "Versailles", "Lawrenceburg", "Shelbyville",
+                 "La Grange", "Taylorsville", "Hodgenville", "Leitchfield", "Hardinsburg", "Cloverport", "Hawesville",
+                 "Morehead", "Ashland", "Maysville", "Murray", "Hopkinsville", "Glasgow", "Cave City", "Horse Cave",
+                 "Russellville", "Henderson", "Middlesboro", "Prestonsburg", "Whitesburg", "Harrodsburg", "Midway",
+                 "Beattyville", "Salyersville", "Vanceburg", "West Liberty", "Irvine", "Hyden", "Cumberland",
+                 "Lynch", "Rineyville", "Sonora", "Cecilia", "Bloomfield", "Campbellsville", "Stanford",
+                 "Rabbit Hash", "Monkeys Eyebrow", "Possum Trot", "Bugtussle", "Paint Lick", "Big Bone Lick",
+                 "Black Gnat", "Kingdom Come", "Quicksand", "Viper", "Hippo", "Dwarf", "Ordinary", "Mousie", "Wild Cat" }
 local WORDS = {
     indica = { "Kush", "Purple", "Stone", "Couch", "Dream", "Nightfall", "Blanket", "Lullaby" },
     sativa = { "Haze", "Lightning", "Gold", "Sunrise", "Rush", "Spark", "Jolt", "Daybreak" },
     hybrid = { "Mist", "Fog", "Cross", "Blend", "Twist", "Drift", "Smoke", "Shuffle" },
 }
+-- Zombie-style names: some crosses lead with the apocalypse instead of a town, or end on a zombie word.
+local ZOMBIE_LEADS = { "Undead", "Shambler", "Walker", "Rotter", "Bloodmoon", "Outbreak", "Quarantine", "Patient Zero",
+                       "Day One", "Exclusion Zone", "Knox Event", "Infected", "Horde", "Sprinter", "Crawler",
+                       "Deadhead", "Bitten", "Last Stand", "Helicopter", "Safehouse", "Barricade", "Ground Zero" }
+local ZOMBIE_TAILS = {
+    indica = { "Coma", "Graveyard", "Tombstone", "Dead Sleep", "Corpse Kush", "Rigor" },
+    sativa = { "Sprinter", "Fever", "Adrenaline", "Panic", "Siren", "Outbreak Haze" },
+    hybrid = { "Plague", "Groan", "Brains", "Bite", "Rot", "Horde Mix" },
+}
+-- Out of every 10 crosses by trait roll: 6 town + word, 2 zombie lead + word, 2 town + zombie tail.
+local ZOMBIE_LEAD_ROLLS, ZOMBIE_TAIL_ROLLS = 2, 2
 
 local function clamp100(v) return Config.clamp(math.floor(v + 0.5), 0, 100) end
 
@@ -159,15 +181,21 @@ end
 --- A name for a new cross: a place and a word for its lean. Parents' names steer the place when they share one.
 function Strains.nameFor(strain, parentA, parentB)
     local kind = Strains.typeOf(strain)
-    local words = kind == T.INDICA and WORDS.indica or kind == T.SATIVA and WORDS.sativa or WORDS.hybrid
-    local place = pick(PLACES, strain, 1)
-    -- Two parents from the same place keep it: "Knox Kush" x "Knox Haze" gives "Knox <word>".
+    local key = kind == T.INDICA and "indica" or kind == T.SATIVA and "sativa" or "hybrid"
+    local roll = (strain.ind * 3 + strain.pot * 5 + strain.yld * 11 + strain.flw * 29) % 10
+    local lead = pick(PLACES, strain, 1)
+    if roll < ZOMBIE_LEAD_ROLLS then lead = pick(ZOMBIE_LEADS, strain, 3) end
+    -- Two parents that open the same way keep it: "Knox Kush" x "Knox Haze" gives "Knox <word>".
     if parentA and parentB and parentA.name and parentB.name then
-        for _, p in ipairs(PLACES) do
-            if parentA.name:sub(1, #p) == p and parentB.name:sub(1, #p) == p then place = p; break end
+        for _, list in ipairs({ PLACES, ZOMBIE_LEADS }) do
+            for _, p in ipairs(list) do
+                if parentA.name:sub(1, #p + 1) == p .. " " and parentB.name:sub(1, #p + 1) == p .. " " then lead = p; break end
+            end
         end
     end
-    return place .. " " .. pick(words, strain, 2)
+    local tail = pick(WORDS[key], strain, 2)
+    if roll >= 10 - ZOMBIE_TAIL_ROLLS then tail = pick(ZOMBIE_TAILS[key], strain, 4) end
+    return lead .. " " .. tail
 end
 
 --- True when two parents are the same strain, which breeds true and keeps its name.
