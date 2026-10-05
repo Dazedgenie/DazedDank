@@ -20,7 +20,7 @@ CannabisMod.RoomPanel = { choiceButton = function(_, x, y, w, label, active)
     buttons[#buttons + 1] = { x = x, y = y, w = w, label = label, active = active }
     return {}
 end }
-for _, f in ipairs({ "CannabisRowsTab", "CannabisLightsTab", "CannabisHydroTab", "CannabisPlantsTab", "CannabisClimateTab", "CannabisLogTab" }) do
+for _, f in ipairs({ "CannabisRowsTab", "CannabisLightsTab", "CannabisHydroTab", "CannabisPlantsTab", "CannabisClimateTab", "CannabisEquipmentTab", "CannabisLogTab" }) do
     dofile(MOD .. "client/CannabisMod/" .. f .. ".lua")
 end
 
@@ -42,6 +42,13 @@ local info = {
         { x = 12, y = 12, z = 0, name = "Cannabis Plant", type = "Indica", stage = "Flowering", water = "60%", health = "Good", warnings = 0 },
         { x = 13, y = 12, z = 0, name = "Cannabis Plant", type = "Hybrid", stage = "Flowering", water = "40%", health = "Fair", warnings = 2 },
         { x = 14, y = 12, z = 0, name = "Cannabis Plant", type = "Sativa", stage = "Pre-flower", water = "75%", health = "Good", warnings = 1 },
+    },
+    equipment = {
+        { x = 11, y = 9, z = 0, kind = "exhaust", name = "Exhaust fan", mount = "north wall", powered = true, running = true, mode = "auto" },
+        { x = 9, y = 12, z = 0, kind = "intake", name = "Intake fan", mount = "west wall", powered = true, running = true, mode = "auto" },
+        { x = 13, y = 9, z = 0, kind = "heater", name = "Heater", mount = "north wall", powered = true, running = false, mode = "off" },
+        { x = 9, y = 14, z = 0, kind = "dehumidifier", name = "Dehumidifier", mount = "west wall", powered = true, running = true, mode = "auto" },
+        { x = 15, y = 14, z = 0, kind = "humidifier", name = "Humidifier", mount = "floor", powered = false, running = false, mode = "auto" },
     },
     climate = {
         enabled = true, temp = 24.6, hum = 52.3, outT = 11, outH = 58,
@@ -72,7 +79,7 @@ local function dump(name, class)
     f:close()
 end
 for _, def in ipairs({ { "lights", CannabisMod.LightsTab }, { "hydro", CannabisMod.HydroTab }, { "plants", CannabisMod.PlantsTab },
-    { "climate", CannabisMod.ClimateTab }, { "log", CannabisMod.LogTab } }) do
+    { "climate", CannabisMod.ClimateTab }, { "equipment", CannabisMod.EquipmentTab }, { "log", CannabisMod.LogTab } }) do
     dump(def[1], def[2])
 end
 print("wrote tab previews to " .. out)

@@ -1,5 +1,10 @@
 # Dazed Dank patch notes
 
+## dd53.2
+- Changed: the **Heater**, **Dehumidifier** and **Humidifier** now hang on a wall up high, like an overhead cupboard or a poster, in all four facings. The art is a placeholder until the Blender pass. Units already standing on the floor keep working.
+- Added: an **Equipment** tab on the Grow Room Panel listing every fan, heater, dehumidifier and humidifier in the room, with where it is, which wall it hangs on, whether it's running, and a Show button.
+- The panel also refreshes when equipment is placed or picked up near it.
+
 ## dd53.1
 - Fixed: the Exhaust Fan, Intake Fan, Dehumidifier and Humidifier recipes used items that don't exist in 42.21 (Motor, Empty Water Bottle), so the game threw those recipes out. They now take a Blower Fan and a Water Bottle.
 - Fixed: the Grow Room Panel updates by itself when a lamp is hung or taken down while the window is open.

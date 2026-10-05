@@ -2779,7 +2779,13 @@ end
         check("every climate item has its script, recipe, names, tooltip, icon and magazine entry", all)
         local sprites = 0
         for _ in pairs(C.Rooms.EQUIPMENT) do sprites = sprites + 1 end
-        check("equipment sprites cover 8 fan facings and 3 floor units", sprites == 11)
+        check("equipment sprites cover 8 fan facings, 3 old floor units and 12 wall-unit facings", sprites == 23)
+        local wallOk = true
+        for n = 20, 31 do
+            local g = C.Rooms.EQUIPMENT["dazeddank_rooms_01_" .. n]
+            if not (g and g.wall and not g.facing) then wallOk = false end
+        end
+        check("wall units hang in four facings and never count as fan air", wallOk)
     end
 
     -- A huge indoor space hits the cap and falls back to a radius around the panel.

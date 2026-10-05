@@ -604,6 +604,12 @@ Config.Rooms = {
         dazeddank_rooms_01_0 = "S", dazeddank_rooms_01_1 = "E", dazeddank_rooms_01_2 = "N", dazeddank_rooms_01_3 = "W",
     },
 }
+-- Wall-mounted heater, dehumidifier and humidifier hang up high in four facings (20-23, 24-27, 28-31); the floor units stay for old saves.
+for i, unit in ipairs({ { "heater", "Heater" }, { "dehumidifier", "Dehumidifier" }, { "humidifier", "Humidifier" } }) do
+    for j, facing in ipairs({ "S", "E", "N", "W" }) do
+        Config.Rooms.EQUIPMENT["dazeddank_rooms_01_" .. (16 + i * 4 + j - 1)] = { kind = unit[1], name = unit[2], wall = facing }
+    end
+end
 
 --- True if a lamp on this schedule is lit at this hour of the day (0-23); nil means no timer (24/0).
 function Config.Timer.isOn(schedule, hour)

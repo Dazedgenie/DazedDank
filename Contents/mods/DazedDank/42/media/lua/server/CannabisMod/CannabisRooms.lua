@@ -527,7 +527,7 @@ function Rooms.info(panelKey, player)
     return {
         x = room.x, y = room.y, z = room.z, name = room.name, schedule = room.schedule, mode = room.mode,
         tiles = count, lamps = lamps, hour = hour, openings = Rooms.openingsOf(panelKey),
-        reservoirs = Rooms.reservoirRows(panelKey), floodTimer = room.floodTimer == true,
+        reservoirs = Rooms.reservoirRows(panelKey), equipment = Rooms.equipmentRows(panelKey), floodTimer = room.floodTimer == true,
         plants = Rooms.plantRows(panelKey, player and CannabisMod.ServerCommands.agricultureLevel(player) or 0),
         log = room.log or {}, now = getGameTime():getWorldAgeHours(),
         powered = panelSquare ~= nil and CannabisMod.Light.isPowered(panelSquare),
@@ -624,6 +624,46 @@ function Rooms.reservoirRows(panelKey)
             age = now - (r.changedAt or now), plants = #Hydro.servedPlants(r),
         }
     end
+    return rows
+end
+
+--- The rows of the Equipment tab: every fan, heater, dehumidifier and humidifier in the room, nearest the panel first.
+function Rooms.equipmentRows(panelKey)
+    local room, set = panels[panelKey], tiles[panelKey]
+    local rows = {}
+    if not (room and set) then return rows end
+    local cell, Light = getCell(), CannabisMod.Light
+    local running, override = room.running or {}, room.override or {}
+    local panelPowered = room.powered ~= false
+    local WALLS = { S = "north wall", E = "west wall", N = "south wall", W = "east wall" }
+    for key in pairs(set) do
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local square = cell:getGridSquare(x, y, z)
+        if square then
+            local objects = square:getObjects()
+            for i = 0, objects:size() - 1 do
+                local sprite = objects:get(i):getSprite()
+                local gear = sprite and Config.Rooms.EQUIPMENT[sprite:getName()]
+                if gear then
+                    local side = gear.facing or gear.wall
+                    local powered = panelPowered and Light.isPowered(square)
+                    rows[#rows + 1] = {
+                        x = x, y = y, z = z, kind = gear.kind, name = gear.name,
+                        mount = side and WALLS[side] or "floor", powered = powered,
+                        running = powered and running[gear.kind] == true, mode = override[gear.kind] or "auto",
+                    }
+                end
+            end
+        end
+    end
+    table.sort(rows, function(a, b)
+        local da = math.abs(a.x - room.x) + math.abs(a.y - room.y)
+        local db = math.abs(b.x - room.x) + math.abs(b.y - room.y)
+        if da ~= db then return da < db end
+        if a.x ~= b.x then return a.x < b.x end
+        return a.y < b.y
+    end)
     return rows
 end
 

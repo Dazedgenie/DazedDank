@@ -1,4 +1,4 @@
--- The Grow Room Panel: a right-click option on the wall panel opens one window with a tab per system: Lights, Hydro and Plants so far.
+-- The Grow Room Panel: a right-click option on the wall panel opens one window with a tab per system.
 
 require "ISUI/ISCollapsableWindow"
 require "ISUI/ISPanel"
@@ -11,6 +11,7 @@ require "CannabisMod/CannabisLightsTab"
 require "CannabisMod/CannabisHydroTab"
 require "CannabisMod/CannabisPlantsTab"
 require "CannabisMod/CannabisClimateTab"
+require "CannabisMod/CannabisEquipmentTab"
 require "CannabisMod/CannabisLogTab"
 
 local Config = CannabisMod.Config
@@ -122,7 +123,7 @@ function RoomPanel.show(info)
     }
     local tabHeight = HEIGHT - 28
     for _, def in ipairs({ { "Lights", CannabisMod.LightsTab }, { "Hydro", CannabisMod.HydroTab }, { "Plants", CannabisMod.PlantsTab },
-        { "Climate", CannabisMod.ClimateTab }, { "Log", CannabisMod.LogTab } }) do
+        { "Climate", CannabisMod.ClimateTab }, { "Equipment", CannabisMod.EquipmentTab }, { "Log", CannabisMod.LogTab } }) do
         local view = def[2]:new(0, 0, WIDTH, tabHeight, info, actions)
         view:initialise()
         view:createChildren()
@@ -139,7 +140,7 @@ end
 
 Net.clientHandlers.roomInfo = RoomPanel.show
 
--- Keep an open panel current: a lamp hung or taken down near it asks the server for fresh room info.
+-- Keep an open panel current: a lamp or piece of equipment placed or taken down near it asks for fresh room info.
 local REFRESH_RANGE = 40
 local refreshAt = nil
 
@@ -147,7 +148,8 @@ local function onLampChanged(obj)
     if not (window and window.at and window:isVisible()) then return end
     local ok, near = pcall(function()
         local sprite = obj:getSprite()
-        if not (sprite and Config.Light.SPRITES[sprite:getName()]) then return false end
+        local name = sprite and sprite:getName()
+        if not (name and (Config.Light.SPRITES[name] or Config.Rooms.EQUIPMENT[name])) then return false end
         local sq = obj:getSquare()
         return sq ~= nil and sq:getZ() == window.at.z and math.abs(sq:getX() - window.at.x) <= REFRESH_RANGE
             and math.abs(sq:getY() - window.at.y) <= REFRESH_RANGE

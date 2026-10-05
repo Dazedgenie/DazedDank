@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 W, H, TITLE = 560, 392, 28
-TABS = ["Lights", "Hydro", "Plants", "Climate", "Log"]
+TABS = ["Lights", "Hydro", "Plants", "Climate", "Equipment", "Log"]
 
 
 def font(size):

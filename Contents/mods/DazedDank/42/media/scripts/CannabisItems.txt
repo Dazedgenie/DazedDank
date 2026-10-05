@@ -548,7 +548,7 @@ module CannabisMod
         Weight          = 6.0,
         Icon            = Heater,
         Tooltip         = Tooltip_DD_Heater,
-        WorldObjectSprite = dazeddank_rooms_01_16,
+        WorldObjectSprite = dazeddank_rooms_01_20,
     }
 
     item Dehumidifier
@@ -559,7 +559,7 @@ module CannabisMod
         Weight          = 8.0,
         Icon            = Dehumidifier,
         Tooltip         = Tooltip_DD_Dehumidifier,
-        WorldObjectSprite = dazeddank_rooms_01_17,
+        WorldObjectSprite = dazeddank_rooms_01_24,
     }
 
     item Humidifier
@@ -570,7 +570,7 @@ module CannabisMod
         Weight          = 5.0,
         Icon            = Humidifier,
         Tooltip         = Tooltip_DD_Humidifier,
-        WorldObjectSprite = dazeddank_rooms_01_18,
+        WorldObjectSprite = dazeddank_rooms_01_28,
     }
 
     /* Smoking. A joint is rolled from a bud and rolling papers; a pipe is
