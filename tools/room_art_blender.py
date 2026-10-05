@@ -1,4 +1,4 @@
-"""Dazed Dank grow room art: the panel, blackout curtains, fans and floor climate units, rendered with the PZ Sprite Forge rig.
+"""Dazed Dank grow room art: the panel, blackout curtains, fans, floor and wall-mounted climate units, rendered with the PZ Sprite Forge rig.
 Run: blender.exe -b -P room_art.py [-- sets...] (renders land in ./renders/<set>/); add "icons" to render inventory icons instead."""
 from __future__ import annotations
 
@@ -184,6 +184,70 @@ def build_humidifier():
     return parts
 
 
+# Wall-mounted climate units hang up high on the north wall like an overhead cupboard; the rig turns them for each facing.
+WALL_Z = 1.78                 # centre height of a high wall unit
+
+
+def build_wall_heater():
+    parts = []
+    body = mat("wheater_body", "metal", (0.55, 0.16, 0.12))
+    dark = mat("wheater_dark", "metal", (0.10, 0.08, 0.08))
+    glow = mat("wheater_glow", "metal", (1.00, 0.55, 0.12))
+    knob = mat("wheater_knob", "metal", (0.80, 0.80, 0.82))
+    w, h, d = 0.52, 0.30, 0.14
+    y = WALL_Y - d / 2
+    box(parts, "wheater_body", (0, y, WALL_Z), (w, d, h), body)
+    box(parts, "wheater_bracket", (0, WALL_Y - 0.01, WALL_Z), (w - 0.10, 0.02, h + 0.06), dark)
+    fy = y - d / 2
+    box(parts, "wheater_grille", (-0.06, fy - 0.004, WALL_Z - 0.01), (0.34, 0.008, 0.20), dark)
+    for k in range(4):
+        box(parts, f"wheater_coil_{k}", (-0.06, fy - 0.010, WALL_Z - 0.075 + k * 0.045), (0.31, 0.010, 0.018), glow)
+    disc(parts, "wheater_knob", (0.19, fy - 0.012, WALL_Z + 0.05), 0.03, 0.022, knob)
+    disc(parts, "wheater_switch", (0.19, fy - 0.010, WALL_Z - 0.06), 0.018, 0.02, dark)
+    # A tilt-down louvre along the bottom so it reads as blowing warm air into the room.
+    box(parts, "wheater_louvre", (0, fy - 0.02, WALL_Z - h / 2 + 0.01), (w - 0.06, 0.05, 0.02), dark, rot=(math.radians(-25), 0, 0))
+    return parts
+
+
+def build_wall_dehumidifier():
+    parts = []
+    body = mat("wdehum_body", "metal", (0.82, 0.83, 0.86))
+    vent = mat("wdehum_vent", "metal", (0.40, 0.42, 0.47))
+    tank = mat("wdehum_tank", "metal", (0.28, 0.58, 0.86))
+    led = mat("wdehum_led", "metal", (0.25, 0.85, 0.45))
+    dark = mat("wdehum_dark", "metal", (0.12, 0.12, 0.14))
+    w, h, d = 0.50, 0.36, 0.18
+    y = WALL_Y - d / 2
+    box(parts, "wdehum_body", (0, y, WALL_Z), (w, d, h), body)
+    fy = y - d / 2
+    for k in range(5):
+        box(parts, f"wdehum_vent_{k}", (0, fy - 0.004, WALL_Z + 0.04 + k * 0.026), (0.40, 0.008, 0.012), vent)
+    box(parts, "wdehum_tank", (-0.08, fy - 0.006, WALL_Z - 0.09), (0.24, 0.012, 0.11), tank)
+    disc(parts, "wdehum_led", (0.17, fy - 0.006, WALL_Z - 0.09), 0.014, 0.012, led, verts=12)
+    # The drain hose drops from the underside toward the floor.
+    disc(parts, "wdehum_hose", (0.20, y, WALL_Z - h / 2 - 0.22), 0.012, 0.44, dark, axis="Z", verts=10)
+    return parts
+
+
+def build_wall_humidifier():
+    parts = []
+    base = mat("whum_base", "metal", (0.24, 0.36, 0.46))
+    tank = mat("whum_tank", "metal", (0.55, 0.78, 0.92))
+    dark = mat("whum_dark", "metal", (0.14, 0.16, 0.20))
+    mist = mat("whum_mist", "fabric", (0.90, 0.95, 1.00))
+    w, h, d = 0.42, 0.30, 0.16
+    y = WALL_Y - d / 2
+    box(parts, "whum_body", (0, y, WALL_Z), (w, d, h), base)
+    fy = y - d / 2
+    box(parts, "whum_tank", (0, fy - 0.008, WALL_Z + 0.02), (0.30, 0.016, 0.16), tank)
+    box(parts, "whum_panel", (0, fy - 0.004, WALL_Z - 0.10), (0.24, 0.008, 0.05), dark)
+    # Two mist nozzles on top, angled out into the room.
+    for sx in (-1, 1):
+        disc(parts, f"whum_nozzle_{sx}", (sx * 0.10, y - 0.03, WALL_Z + h / 2 + 0.03), 0.03, 0.06, dark, axis="Z", verts=14)
+        disc(parts, f"whum_mist_{sx}", (sx * 0.10, y - 0.05, WALL_Z + h / 2 + 0.075), 0.022, 0.02, mist, axis="Z", verts=14)
+    return parts
+
+
 SETS = [
     # name, facings, builder
     ("panel", "4", build_panel),
@@ -194,6 +258,9 @@ SETS = [
     ("heater", "1", build_heater),
     ("dehumidifier", "1", build_dehumidifier),
     ("humidifier", "1", build_humidifier),
+    ("wall_heater", "4", build_wall_heater),
+    ("wall_dehumidifier", "4", build_wall_dehumidifier),
+    ("wall_humidifier", "4", build_wall_humidifier),
 ]
 
 
@@ -206,6 +273,9 @@ ICONS = [
     ("Heater", build_heater),
     ("Dehumidifier", build_dehumidifier),
     ("Humidifier", build_humidifier),
+    ("WallHeater", build_wall_heater),
+    ("WallDehumidifier", build_wall_dehumidifier),
+    ("WallHumidifier", build_wall_humidifier),
 ]
 
 

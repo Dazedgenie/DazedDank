@@ -5,6 +5,7 @@
 - Added: an **Equipment** tab on the Grow Room Panel listing every fan, heater, dehumidifier and humidifier in the room, with where it is, which wall it hangs on, whether it's running, and a Show button.
 - The panel also refreshes when equipment is placed or picked up near it.
 - Changed: basic (purple) grow lamps glow twice as strongly.
+- Art: the wall-mounted Heater, Dehumidifier and Humidifier are now Blender renders in the same style as the panel and fans, with new inventory icons.
 
 ## dd53.1
 - Fixed: the Exhaust Fan, Intake Fan, Dehumidifier and Humidifier recipes used items that don't exist in 42.21 (Motor, Empty Water Bottle), so the game threw those recipes out. They now take a Blower Fan and a Water Bottle.

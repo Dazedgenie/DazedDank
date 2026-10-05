@@ -1,4 +1,4 @@
-"""Adds wall-mounted heater, dehumidifier and humidifier tiles (placeholders) to the rooms sheet: sprites 20-31.
+"""Placeholder art for the wall-mounted climate units (sprites 20-31); superseded by the Blender renders from tools/room_art_blender.py.
 Run: python tools/add_wall_climate.py (rewrites dazeddank_rooms_01.tiles and its pack; safe to re-run).
 """
 
