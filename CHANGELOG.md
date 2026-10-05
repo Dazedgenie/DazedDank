@@ -1,5 +1,10 @@
 # Dazed Dank patch notes
 
+## dd53.1
+- Fixed: the Exhaust Fan, Intake Fan, Dehumidifier and Humidifier recipes used items that don't exist in 42.21 (Motor, Empty Water Bottle), so the game threw those recipes out. They now take a Blower Fan and a Water Bottle.
+- Fixed: the Grow Room Panel updates by itself when a lamp is hung or taken down while the window is open.
+- Fixed: a bar lamp (large basic or large pro) shows as one lamp in the panel, not one row per tile.
+
 ## dd53 (Grow Rooms, in testing)
 - Added: **Grow Rooms.** Seal a room with walls, doors and windows, place a **Grow Room Panel** on a wall, and right-click it to open the room window (Lights, Hydro, Plants, Climate, Log tabs).
 - Added: one shared lamp schedule per room, bulk hydro actions (Top Up, Change, Dose, Bleach) and a plant overview from the panel.

@@ -133,10 +133,39 @@ function RoomPanel.show(info)
 
     win:addToUIManager()
     win:setVisible(true)
+    win.at = at
     window = win
 end
 
 Net.clientHandlers.roomInfo = RoomPanel.show
+
+-- Keep an open panel current: a lamp hung or taken down near it asks the server for fresh room info.
+local REFRESH_RANGE = 40
+local refreshAt = nil
+
+local function onLampChanged(obj)
+    if not (window and window.at and window:isVisible()) then return end
+    local ok, near = pcall(function()
+        local sprite = obj:getSprite()
+        if not (sprite and Config.Light.SPRITES[sprite:getName()]) then return false end
+        local sq = obj:getSquare()
+        return sq ~= nil and sq:getZ() == window.at.z and math.abs(sq:getX() - window.at.x) <= REFRESH_RANGE
+            and math.abs(sq:getY() - window.at.y) <= REFRESH_RANGE
+    end)
+    -- The removal event fires before the object leaves the square, so wait a moment before asking.
+    if ok and near then refreshAt = getTimestampMs() + 300 end
+end
+if Events.OnObjectAboutToBeRemoved then Events.OnObjectAboutToBeRemoved.Add(onLampChanged) end
+Events.OnObjectAdded.Add(onLampChanged)
+
+Events.OnTick.Add(function()
+    if not refreshAt or getTimestampMs() < refreshAt then return end
+    refreshAt = nil
+    local player = getPlayer()
+    if player and window and window.at and window:isVisible() then
+        send(player, "requestRoom", { x = window.at.x, y = window.at.y, z = window.at.z })
+    end
+end)
 
 --- True when the object is a door or a window frame.
 local function isFrame(obj)

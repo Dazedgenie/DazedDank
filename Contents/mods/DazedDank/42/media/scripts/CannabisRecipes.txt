@@ -613,7 +613,7 @@ module CannabisMod
         inputs
         {
             item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems],
-            item 1 [Base.Motor],
+            item 1 [Base.BlowerFan],
             item 1 [Base.ElectricWire],
             item 1 [Base.SheetMetal],
             item 2 [Base.ElectronicsScrap],
@@ -636,7 +636,7 @@ module CannabisMod
         inputs
         {
             item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems],
-            item 1 [Base.Motor],
+            item 1 [Base.BlowerFan],
             item 1 [Base.ElectricWire],
             item 1 [Base.SheetMetal],
             item 2 [Base.ElectronicsScrap],
@@ -682,11 +682,11 @@ module CannabisMod
         inputs
         {
             item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems],
-            item 1 [Base.Motor],
+            item 1 [Base.BlowerFan],
             item 2 [Base.ElectricWire],
             item 2 [Base.SheetMetal],
             item 3 [Base.ElectronicsScrap],
-            item 1 [Base.WaterBottleEmpty],
+            item 1 [Base.WaterBottle],
         }
         outputs
         {
@@ -709,7 +709,7 @@ module CannabisMod
             item 1 [Base.ElectricWire],
             item 1 [Base.SheetMetal],
             item 2 [Base.ElectronicsScrap],
-            item 1 [Base.WaterBottleEmpty],
+            item 1 [Base.WaterBottle],
         }
         outputs
         {

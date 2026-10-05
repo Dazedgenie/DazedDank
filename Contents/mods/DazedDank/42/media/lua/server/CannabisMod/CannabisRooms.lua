@@ -12,6 +12,7 @@ require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisInfo"
 require "CannabisMod/CannabisClimate"
 require "CannabisMod/CannabisDrying"
+require "Moveables/ISMoveableSpriteProps"
 
 local Config = CannabisMod.Config
 local Net = CannabisMod.Net
@@ -450,6 +451,38 @@ Events.OnObjectAdded.Add(function(obj)
     if ok and isPanel then Rooms.onPlaced(obj) end
 end)
 
+--- Every square of the lamp on `square`: all tiles of a bar lamp, or just this one.
+local function lampTiles(square, obj)
+    local out = { square }
+    pcall(function()
+        local props = ISMoveableSpriteProps.fromObject(obj)
+        if props and props.isMultiSprite then
+            local grid = props:getSpriteGridInfo(square, true)
+            if grid and #grid > 0 then
+                out = {}
+                for _, member in ipairs(grid) do out[#out + 1] = member.square end
+            end
+        end
+    end)
+    if #out > 1 then return out end
+    -- A dedicated server has no moveable props (client code), so read the sprite's own grid instead.
+    pcall(function()
+        local sprite = obj:getSprite()
+        local grid = sprite and sprite:getSpriteGrid()
+        if not grid then return end
+        local gx, gy = grid:getSpriteGridPosX(sprite), grid:getSpriteGridPosY(sprite)
+        local cell, found = getCell(), {}
+        for dx = 0, grid:getWidth() - 1 do
+            for dy = 0, grid:getHeight() - 1 do
+                local sq = cell:getGridSquare(square:getX() - gx + dx, square:getY() - gy + dy, square:getZ())
+                if sq then found[#found + 1] = sq end
+            end
+        end
+        if #found > 0 then out = found end
+    end)
+    return out
+end
+
 --- What the panel window shows: the room's settings, its size and every lamp in it.
 function Rooms.info(panelKey, player)
     local room, set = panels[panelKey], tiles[panelKey]
@@ -458,7 +491,7 @@ function Rooms.info(panelKey, player)
     local hour = getGameTime():getHour()
     local schedule = nil
     if room.schedule ~= "24/0" then schedule = room.schedule end
-    local lamps, count = {}, 0
+    local lamps, count, counted = {}, 0, {}
     for key in pairs(set) do
         count = count + 1
         local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
@@ -466,8 +499,16 @@ function Rooms.info(panelKey, player)
         if square then
             local objects = square:getObjects()
             for i = 0, objects:size() - 1 do
-                local sprite = objects:get(i):getSprite()
+                local obj = objects:get(i)
+                local sprite = obj:getSprite()
                 local def = sprite and Config.Light.SPRITES[sprite:getName()]
+                -- A bar lamp spans several tiles; list it once, at the first tile we reach.
+                if def and counted[key] then def = nil end
+                if def then
+                    for _, member in ipairs(lampTiles(square, obj)) do
+                        counted[Config.tileKey(member:getX(), member:getY(), member:getZ())] = true
+                    end
+                end
                 if def then
                     local powered = CannabisMod.Light.isPowered(square)
                     lamps[#lamps + 1] = {
