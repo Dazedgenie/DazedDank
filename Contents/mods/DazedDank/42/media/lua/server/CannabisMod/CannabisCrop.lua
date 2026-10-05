@@ -85,11 +85,16 @@ local function vanillaCondition(plot)
 end
 
 local originalGetSpriteName = farming_vegetableconf.getSpriteName
+CannabisMod.vanillaSpriteName = originalGetSpriteName
 
 farming_vegetableconf.getSpriteName = function(plot)
     -- Other crops go straight to vanilla, without a bag lookup.
     local plowed = plot and plot.state == "plow"
     if not plot or (not plowed and plot.typeOfSeed ~= CROP) then
+        -- Another crop in a grow bag keeps showing the bag; the crop is drawn as a raised layer on top (CannabisVegBags).
+        local Registry = CannabisMod.Registry
+        local bag = plot and Registry and Registry.getBag and Registry.getBag(plot.x, plot.y, plot.z)
+        if bag and Config.VEG_LIFT[bag] then return Config.bagEmptySprite(bag, true) end
         return originalGetSpriteName(plot)
     end
     -- Grow bags are registered on the server by tile.

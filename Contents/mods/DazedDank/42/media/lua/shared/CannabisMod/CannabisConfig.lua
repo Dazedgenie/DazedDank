@@ -327,6 +327,10 @@ function Config.bagEmptySprite(bag, soiled)
     return Config.sheetOf(bag) .. "_" .. (soiled and def.emptySprite or def.drySprite)
 end
 
+-- Other crops grown in a pot are drawn on top of it, raised this many pixels (1x) so they sit on the soil.
+-- Flood tables are left out: their sprites change with facing, so a crop there still replaces the table.
+Config.VEG_LIFT = { small = 13, large = 20, xlbag = 25, dwc = 20, rdwc = 20, xldwc = 25 }
+
 --- True if this sprite is an unfilled (no soil yet) bag.
 function Config.bagIsUnfilled(spriteName)
     local sheet, n = Config.splitSprite(spriteName)

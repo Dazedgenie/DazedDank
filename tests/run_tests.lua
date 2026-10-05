@@ -3052,5 +3052,51 @@ check("selecting for speed reaches the top (" .. line.flw .. ")", line.flw >= 95
 
 end)()
 
+-- ---- Other crops in pots: the pot stays, the crop is a raised layer ------------
+do
+    farming_vegetableconf.getSpriteName = function(plot) return "vegetation_farming_01_" .. (plot.nbOfGrow or 0) end
+    farming_vegetableconf.getObjectName = function() return "Tomato" end
+    SPlantGlobalObject = { setSpriteName = function(self, n) self.spriteName = n end }
+    loaded["CannabisMod/CannabisCrop"] = nil
+    require "CannabisMod/CannabisCrop"
+    require "CannabisMod/CannabisVegBags"
+    local VB = CannabisMod.VegBags
+    local sq = { objs = {} }
+    local placed = {}
+    function sq:AddTileObject(obj) placed[#placed + 1] = obj; table.insert(self.objs, obj) end
+    function sq:RemoveTileObject(obj) for i, e in ipairs(self.objs) do if e == obj then table.remove(self.objs, i) break end end end
+    function sq:transmitRemoveItemFromSquare() end
+    function sq:getObjects()
+        local list = self.objs
+        return { size = function() return #list end, get = function(_, i) return list[i + 1] end }
+    end
+    IsoObject = { new = function(_, _, sprite)
+        local o = { isOverlay = true, md = {}, sprite = sprite }
+        function o:getModData() return self.md end
+        function o:getSprite() local n = self.sprite return { getName = function() return n end } end
+        function o:setRenderYOffset(v) self.yOff = v end
+        function o:transmitCompleteItemToClients() end
+        return o end }
+    CannabisMod.Registry.setBag(1200, 1200, 0, "large")
+    local plot = { x = 1200, y = 1200, z = 0, state = "seed", typeOfSeed = "Tomato", nbOfGrow = 2 }
+    function plot:getSquare() return sq end
+    check("a tomato in a large bag keeps the bag sprite", farming_vegetableconf.getSpriteName(plot) == C.bagEmptySprite("large", true))
+    SPlantGlobalObject.setSpriteName(plot, farming_vegetableconf.getSpriteName(plot))
+    local ov = placed[#placed]
+    check("the tomato is drawn as its own object, raised onto the soil",
+        ov and ov.sprite == "vegetation_farming_01_2" and ov.yOff == C.VEG_LIFT.large and ov.md.ddVegOverlay == true)
+    plot.nbOfGrow = 3
+    SPlantGlobalObject.setSpriteName(plot, farming_vegetableconf.getSpriteName(plot))
+    local count = 0
+    for _, e in ipairs(sq.objs) do if type(e) == "table" and e.isOverlay then count = count + 1 end end
+    check("growing swaps the layer instead of stacking another", count == 1 and placed[#placed].sprite == "vegetation_farming_01_3")
+    plot.state = "plow"
+    SPlantGlobalObject.setSpriteName(plot, farming_vegetableconf.getSpriteName(plot))
+    count = 0
+    for _, e in ipairs(sq.objs) do if type(e) == "table" and e.isOverlay then count = count + 1 end end
+    check("an emptied bag drops the crop layer", count == 0)
+    CannabisMod.Registry.clearBag(1200, 1200, 0)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

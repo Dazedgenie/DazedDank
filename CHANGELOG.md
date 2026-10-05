@@ -8,6 +8,8 @@
 - Added: more strain name variety. New crosses can be named after about 80 more Kentucky towns (Bardstown to Monkeys Eyebrow, Rabbit Hash and Possum Trot), and about 4 in 10 get a zombie-style name, like "Shambler Rush", "Patient Zero Kush" or "Frankfort Fever".
 - Added: real strain names as strain words: 14 each for indica (Northern Lights, Bubba Kush, Granddaddy Purple...), sativa (Sour Diesel, Durban Poison, Jack Herer...) and hybrid (Blue Dream, Gelato, Wedding Cake...), giving names like "Ekron Sour Diesel" or "Shambler Bubba Kush". New sandbox option **Strain Name Words**: original and real strains (default), original words only, or real strains only.
 - Art: the wall-mounted Heater, Dehumidifier and Humidifier are now Blender renders in the same style as the panel and fans, with new inventory icons.
+- Fixed: tomatoes and other vegetables planted in a grow bag, DWC bucket or RDWC bucket no longer turn the pot into a bare vanilla seedling. The pot stays and the crop grows on top of it; once harvested the pot empties for the next planting. Flood tables still show the vanilla crop for now.
+- Changed: the **Sow** menu on a grow bag or bucket lists only the seeds you're carrying.
 
 ## dd53.1
 - Fixed: the Exhaust Fan, Intake Fan, Dehumidifier and Humidifier recipes used items that don't exist in 42.21 (Motor, Empty Water Bottle), so the game threw those recipes out. They now take a Blower Fan and a Water Bottle.
