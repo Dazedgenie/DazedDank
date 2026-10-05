@@ -4,6 +4,8 @@
 - Fixed: the Exhaust Fan, Intake Fan, Dehumidifier and Humidifier recipes used items that don't exist in 42.21 (Motor, Empty Water Bottle), so the game threw those recipes out. They now take a Blower Fan and a Water Bottle.
 - Fixed: the Grow Room Panel updates by itself when a lamp is hung or taken down while the window is open.
 - Fixed: a bar lamp (large basic or large pro) shows as one lamp in the panel, not one row per tile.
+- Fixed: a reservoir on a Dazed Plumbing water line takes its first fill from the line, and **Top Up** on a piped reservoir now fills it from the line instead of asking for carried water.
+- Fixed: **Hang Blackout Curtain** shows up when you right-click near a door or window, the way vanilla sheets do, and works on player-built windows and doors too.
 
 ## dd53 (Grow Rooms, in testing)
 - Added: **Grow Rooms.** Seal a room with walls, doors and windows, place a **Grow Room Panel** on a wall, and right-click it to open the room window (Lights, Hydro, Plants, Climate, Log tabs).

@@ -170,7 +170,9 @@ end)
 --- True when the object is a door or a window frame.
 local function isFrame(obj)
     local ok, yes = pcall(function()
-        return instanceof(obj, "IsoWindow") or instanceof(obj, "IsoDoor") or (instanceof(obj, "IsoThumpable") and obj:isDoor())
+        return instanceof(obj, "IsoWindow") or instanceof(obj, "IsoDoor")
+            or (instanceof(obj, "IsoThumpable") and (obj:isDoor() or obj:isWindow()))
+            or instanceof(obj, "IsoWindowFrame")
     end)
     return ok and yes == true
 end
@@ -186,11 +188,30 @@ local function hasCurtain(square, dir)
     return false
 end
 
+--- Which wall a door or window sits on: true for north, false for west, nil when it can't be told.
+local function frameNorth(obj)
+    for _, m in ipairs({ "getNorth", "isNorth" }) do
+        if obj[m] then
+            local ok, v = pcall(obj[m], obj)
+            if ok and type(v) == "boolean" then return v end
+        end
+    end
+    -- Fall back on the tile's own flags.
+    local ok, v = pcall(function()
+        local props = obj:getProperties()
+        if props:Is(IsoFlagType.WindowN) or props:Is(IsoFlagType.doorN) or props:Is(IsoFlagType.DoorWallN) then return true end
+        if props:Is(IsoFlagType.WindowW) or props:Is(IsoFlagType.doorW) or props:Is(IsoFlagType.DoorWallW) then return false end
+        return nil
+    end)
+    if ok then return v end
+    return nil
+end
+
 --- Offer to hang or take down a blackout curtain on a door or window frame.
 local function addCurtainOption(player, context, obj)
     local square = obj:getSquare()
-    local ok, north = pcall(obj.getNorth, obj)
-    if not square or not ok then return end
+    local north = frameNorth(obj)
+    if not square or north == nil then return end
     local dir = north and "N" or "W"
     local function act(command)
         if luautils.walkAdj(player, square) then
@@ -215,12 +236,31 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
     if test or not worldObjects then return end
     local player = getSpecificPlayer(playerNum)
     if not player then return end
-    local framed = false
-    for _, obj in ipairs(worldObjects) do
-        if not framed and isFrame(obj) then
-            framed = true
-            addCurtainOption(player, context, obj)
+    -- Like vanilla sheets, find a door or window on the clicked squares or on the walls of their south and east neighbours.
+    local frame = nil
+    local seen = {}
+    local function look(sq)
+        if frame or not sq or seen[sq] then return end
+        seen[sq] = true
+        local objects = sq:getObjects()
+        for i = 0, objects:size() - 1 do
+            if isFrame(objects:get(i)) then frame = objects:get(i) return end
         end
+    end
+    for _, obj in ipairs(worldObjects) do
+        if not frame and isFrame(obj) then frame = obj end
+    end
+    for _, obj in ipairs(worldObjects) do
+        local sq = obj:getSquare()
+        look(sq)
+        if sq then
+            local cell = getCell()
+            look(cell:getGridSquare(sq:getX(), sq:getY() + 1, sq:getZ()))
+            look(cell:getGridSquare(sq:getX() + 1, sq:getY(), sq:getZ()))
+        end
+    end
+    if frame then addCurtainOption(player, context, frame) end
+    for _, obj in ipairs(worldObjects) do
         local sprite = obj:getSprite()
         local name = sprite and sprite:getName()
         if name and Config.Rooms.PANEL_SPRITES[name] then
