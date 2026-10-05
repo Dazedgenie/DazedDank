@@ -203,3 +203,13 @@ option CannabisMod.StrainTint
     page = CannabisMod,
     translation = CannabisMod_StrainTint,
 }
+
+option CannabisMod.StrainWords
+{
+    type = enum,
+    numValues = 3,
+    default = 1,
+    page = CannabisMod,
+    translation = CannabisMod_StrainWords,
+    valueTranslation = CannabisMod_StrainWords,
+}

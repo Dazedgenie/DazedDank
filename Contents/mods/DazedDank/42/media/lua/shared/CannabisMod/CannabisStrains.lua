@@ -85,6 +85,29 @@ local WORDS = {
     sativa = { "Haze", "Lightning", "Gold", "Sunrise", "Rush", "Spark", "Jolt", "Daybreak" },
     hybrid = { "Mist", "Fog", "Cross", "Blend", "Twist", "Drift", "Smoke", "Shuffle" },
 }
+-- The alternate word lists: pieces of real, well-known strains of each lean ("Knox Northern Lights", "Ekron Sour Diesel").
+local REAL_WORDS = {
+    indica = { "Northern Lights", "Bubba Kush", "Granddaddy Purple", "Hindu Kush", "Afghan", "Purple Kush", "Blueberry",
+               "Grape Ape", "Purple Urkle", "Ice Cream Cake", "Do-Si-Dos", "Mendo Breath", "Kosher Kush", "Master Kush" },
+    sativa = { "Sour Diesel", "Durban Poison", "Jack Herer", "Green Crack", "Super Lemon Haze", "Strawberry Cough",
+               "Maui Wowie", "Tangie", "Super Silver Haze", "Ghost Train Haze", "Acapulco Gold", "Trainwreck",
+               "Amnesia Haze", "Panama Red" },
+    hybrid = { "Blue Dream", "Girl Scout Cookies", "Gelato", "Wedding Cake", "Gorilla Glue", "White Widow",
+               "Pineapple Express", "Zkittlez", "Runtz", "OG Kush", "Chemdawg", "Cherry Pie", "Sherbert", "Skywalker OG" },
+}
+Strains.WORDS, Strains.REAL_WORDS = WORDS, REAL_WORDS
+
+--- The strain words a lean draws from, by the Strain Words sandbox option: 1 both lists, 2 the original words, 3 real strains.
+local function wordsFor(key)
+    local style = tonumber(Config.sandbox and Config.sandbox("StrainWords")) or 1
+    if style == 2 then return WORDS[key] end
+    if style == 3 then return REAL_WORDS[key] end
+    local both = {}
+    for _, w in ipairs(WORDS[key]) do both[#both + 1] = w end
+    for _, w in ipairs(REAL_WORDS[key]) do both[#both + 1] = w end
+    return both
+end
+
 -- Zombie-style names: some crosses lead with the apocalypse instead of a town, or end on a zombie word.
 local ZOMBIE_LEADS = { "Undead", "Shambler", "Walker", "Rotter", "Bloodmoon", "Outbreak", "Quarantine", "Patient Zero",
                        "Day One", "Exclusion Zone", "Knox Event", "Infected", "Horde", "Sprinter", "Crawler",
@@ -193,7 +216,7 @@ function Strains.nameFor(strain, parentA, parentB)
             end
         end
     end
-    local tail = pick(WORDS[key], strain, 2)
+    local tail = pick(wordsFor(key), strain, 2)
     if roll >= 10 - ZOMBIE_TAIL_ROLLS then tail = pick(ZOMBIE_TAILS[key], strain, 4) end
     return lead .. " " .. tail
 end

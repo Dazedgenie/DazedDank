@@ -43,5 +43,10 @@
     "Sandbox_CannabisMod_RoomPowerPenalty": "Room Power Penalty",
     "Sandbox_CannabisMod_RoomPowerPenalty_tooltip": "If enabled, a power cut in a grow room adds stress to flowering plants for every lit hour lost. If off, only the normal per-plant penalty applies.",
     "Sandbox_CannabisMod_StrainTint": "Strain Tint",
-    "Sandbox_CannabisMod_StrainTint_tooltip": "If enabled, each strain tints its plants a little: indica leans violet, sativa leans gold."
+    "Sandbox_CannabisMod_StrainTint_tooltip": "If enabled, each strain tints its plants a little: indica leans violet, sativa leans gold.",
+    "Sandbox_CannabisMod_StrainWords": "Strain Name Words",
+    "Sandbox_CannabisMod_StrainWords_tooltip": "The words new crosses are named with after their town or zombie lead. Real strains uses pieces of well-known strain names, like Northern Lights, Sour Diesel and Blue Dream.",
+    "Sandbox_CannabisMod_StrainWords_option1": "Original and real strains",
+    "Sandbox_CannabisMod_StrainWords_option2": "Original words only",
+    "Sandbox_CannabisMod_StrainWords_option3": "Real strains only"
 }

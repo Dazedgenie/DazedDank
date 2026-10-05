@@ -6,6 +6,7 @@
 - The panel also refreshes when equipment is placed or picked up near it.
 - Changed: basic (purple) grow lamps glow twice as strongly.
 - Added: more strain name variety. New crosses can be named after about 80 more Kentucky towns (Bardstown to Monkeys Eyebrow, Rabbit Hash and Possum Trot), and about 4 in 10 get a zombie-style name, like "Shambler Rush", "Patient Zero Kush" or "Frankfort Fever".
+- Added: real strain names as strain words: 14 each for indica (Northern Lights, Bubba Kush, Granddaddy Purple...), sativa (Sour Diesel, Durban Poison, Jack Herer...) and hybrid (Blue Dream, Gelato, Wedding Cake...), giving names like "Ekron Sour Diesel" or "Shambler Bubba Kush". New sandbox option **Strain Name Words**: original and real strains (default), original words only, or real strains only.
 - Art: the wall-mounted Heater, Dehumidifier and Humidifier are now Blender renders in the same style as the panel and fans, with new inventory icons.
 
 ## dd53.1

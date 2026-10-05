@@ -789,6 +789,7 @@ Config.SandboxDefaults = {
     ReservoirUseRate  = 1.0,  -- multiplier on how fast reservoirs drain and go stale
     HydroQualityBonus = 0.15, -- extra quality ceiling RDWC can reach (0.15 = up to 115)
     PumpsNeedPower    = true, -- hydro pumps only run with power
+    StrainWords       = 1,    -- strain name words: 1 original and real strains, 2 original only, 3 real strains only
     RoomClimate       = true, -- grow rooms simulate temperature and humidity (off = rooms sit at their targets)
     LightLeaks        = true, -- light from outside a grow room's own lamps counts as a leak in its dark hours
     RoomPowerPenalty  = true, -- a power cut in a grow room adds stress for the lit hours lost (off = only the per-plant penalty)
