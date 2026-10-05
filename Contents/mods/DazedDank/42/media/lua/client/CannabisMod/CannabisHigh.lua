@@ -59,7 +59,7 @@ function High.tickPlayer(player, now)
     local high = state.high
     local effects
     if high and now < high.endsAt then
-        effects = Use.highEffects(high.type, High.currentStrength(high, now), high.moldy)
+        effects = Use.highEffects(high.type, High.currentStrength(high, now), high.moldy, high.strain)
     elseif state.withdrawal > 0 then
         effects = Use.withdrawalEffects(state.withdrawal)
     end
@@ -125,8 +125,8 @@ Net.clientHandlers.smoked = function(args)
         log(string.format("smoked reply: %s strength %.2f for %.2fh, moldy=%s, tolerance %s, dependency %s", tostring(args.type),
             args.strength or -1, args.hours or -1, tostring(args.moldy), tostring(args.tolerance), tostring(args.dependency)))
     end
-    state.high = { type = args.type, moldy = args.moldy, strength = args.strength,
-                   startedAt = now, endsAt = now + args.hours }
+    state.high = { type = args.type, strain = CannabisMod.Strains.sanitize(args.strain), moldy = args.moldy,
+                   strength = args.strength, startedAt = now, endsAt = now + args.hours }
     pcall(function() player:getModData().DazedHigh = state.high end)
     state.withdrawal = 0
     local msg

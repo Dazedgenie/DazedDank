@@ -149,6 +149,8 @@ Config.STAGE_TO_NBOFGROW = {
 Config.SPRITE_SHEET = "dazeddank_plants_01"
 -- Second sheet for the hydro systems: Project Zomboid allows at most 512 tiles per sheet.
 Config.HYDRO_SHEET = "dazeddank_hydro_01"
+-- Third sheet for the grow room panel and its fittings.
+Config.ROOMS_SHEET = "dazeddank_rooms_01"
 Config.MAX_SHEET_TILES = 512
 
 -- Vanilla's names for plant conditions -> our block number.
@@ -190,6 +192,48 @@ Config.GrowBag = {
               drain = 1, yield = 1.2, careMult = 0.85, emptySprite = 123, drySprite = 122, soil = 0,
               plantBase = 124, maleBase = 189, lastSprite = 233,
               furnItem = "CannabisMod.FloodTable", furnSprite = 114, furnSprites = { 114, 115, 116, 117, 118, 119, 120, 121 } },
+    -- Mother pots: room for a big root ball, so they give more cuttings and keep a line healthy. Same yield as large.
+    xlbag = { name = "XL Grow Bag", mother = true, sheet = "dazeddank_hydro_01",
+              drain = 0.45, yield = 1.25, spriteBlock = 3, emptySprite = 236, drySprite = 237, soil = 3,
+              plantBase = 238, maleBase = 303, lastSprite = 347,
+              furnItem = "CannabisMod.GrowBagXLPlaceable", furnSprite = 235 },
+    xldwc = { name = "XL DWC Bucket", hydro = "dwc", mother = true, sheet = "dazeddank_hydro_01", reservoirL = 30,
+              drain = 1, yield = 1.3, careMult = 0.75, emptySprite = 350, drySprite = 349, soil = 0,
+              plantBase = 351, maleBase = 416, lastSprite = 460,
+              furnItem = "CannabisMod.DWCBucketXL", furnSprite = 348 },
+}
+
+--- The hydro system a container kind runs ("dwc", "rdwc", "ebb"), or nil for soil and ground.
+function Config.hydroOf(bag)
+    local def = bag and Config.GrowBag[bag]
+    return def and def.hydro or nil
+end
+
+--- True for the XL pots that suit a mother plant.
+function Config.isMotherPot(bag)
+    local def = bag and Config.GrowBag[bag]
+    return def ~= nil and def.mother == true
+end
+
+-- Topping: snip the main tip in veg so the plant grows more colas. Once per plant.
+Config.Topping = {
+    YIELD_BONUS = 0.20,  -- +20% buds at harvest
+    STRESS      = 10,
+    PAUSE_HOURS = 12,    -- growth stops this long while it recovers (before GrowthSpeed)
+}
+
+-- Cuttings: each pot holds a budget of cuttings that regrows; cutting past it sets the plant back.
+Config.Cuttings = {
+    BUDGET = { ground = 3, small = 2, large = 4, xlbag = 8, dwc = 4, xldwc = 8, rdwc = 4, ebb = 2 },
+    REFILL_DAYS = 4,     -- an empty budget is full again after this many days
+    OVERCUT_STRESS = 8,  -- extra stress for a cutting past the budget
+}
+
+-- XL pots treat the plant as a mother.
+Config.Mother = {
+    DRIFT_MIN = 0, DRIFT_MAX = 2,     -- genetics lost per clone generation (normal pots: 1-5)
+    FEED_EVERY_HOURS = 96,            -- held-veg feeding interval (normal pots: 48)
+    CUT_STRESS_RECOVERY_PER_HOUR = 1, -- stress from cuttings fades this fast while held in veg
 }
 -- Ground plants: the first 65 sprites, and males from MALE_SPRITE_BASE.
 Config.GROUND_SPRITES = { plantBase = 0, maleBase = 237 }
@@ -214,7 +258,7 @@ end
 function Config.splitSprite(spriteName)
     if type(spriteName) ~= "string" then return nil end
     local sheet, n = spriteName:match("^(.-)_(%d+)$")
-    if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET then return nil end
+    if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET and sheet ~= Config.ROOMS_SHEET then return nil end
     return sheet, tonumber(n)
 end
 
@@ -494,6 +538,73 @@ Config.Timer = {
     HUNGRY_PENALTY = 3,                         -- care lost for each missed feeding while held in veg
 }
 
+-- Room climate model. Temperatures in degrees C, humidity in percent.
+Config.Climate = {
+    -- Comfortable ranges by room mode: temperature, and humidity for seedlings/clones ("young") or everything else.
+    TARGETS = {
+        Veg    = { tLo = 24, tHi = 28, hLo = 50, hHi = 65, youngLo = 65, youngHi = 75 },
+        Flower = { tLo = 20, tHi = 26, hLo = 40, hHi = 50, youngLo = 65, youngHi = 75 },
+        Drying = { tLo = 15, tHi = 21, hLo = 55, hHi = 62, youngLo = 55, youngHi = 62 },
+    },
+    TEMP_STRESS_BELOW = 15, TEMP_STRESS_ABOVE = 32,
+    TEMP_STRESS_PER_HOUR = 3,                   -- stress per hour outside the safe range
+    FLOWER_MOLD_ABOVE = 65,                     -- humidity above this in a flower room raises mold risk
+    MOLD_STRESS_PER_HOUR = 2,
+    LAMP_HEAT_PER_RADIUS = 1.0,                 -- degrees C a lit lamp adds per tile of its radius
+    HEATER_C = 3,                               -- degrees C a running heater adds
+    PLANT_HUMIDITY = { veg = 0.5, flower = 0.75 },  -- percentage points per plant
+    RESERVOIR_HUMIDITY = 0.8,                   -- per reservoir holding water
+    WET_PLANT_HUMIDITY = 2.0,                   -- per wet plant hanging on a rack
+    HUMIDIFIER = 14, DEHUMIDIFIER = 14,         -- percentage points of humidity the machines move
+    MAX_RISE = 30,                              -- the most a room can climb above the outdoor temperature
+    BASE_VENT = 0.3,                            -- air change a sealed room still has
+    VENT = { exhaust = 1.2, intake = 0.6 },     -- air change per fan at full effect
+    INSIDE_WALL_FACTOR = 0.25,                  -- a fan on an inside wall only moves this much air
+    RELAX = 0.3,                                -- how far toward its balance point the room moves each ten minutes
+    -- Drying and mold by room humidity: wetter air dries slower and molds more.
+    DRY_PER_HUMIDITY = 0.01, MOLD_PER_HUMIDITY = 0.06, MOLD_REF_HUMIDITY = 60,
+}
+
+-- Grow rooms: a wall panel claims the indoor floor around it and runs every lamp in it on one schedule.
+Config.Rooms = {
+    MAX_TILES = 400,                            -- the flood fill stops growing past this many tiles
+    FALLBACK_RADIUS = 10,                       -- past the cap the room is the indoor tiles within this many tiles of the panel
+    SCHEDULES = { "24/0", "18/6", "12/12" },    -- what the panel can set; 24/0 is a lamp with no timer
+    DEFAULT_SCHEDULE = "18/6",
+    MODES = { "Veg", "Flower", "Drying" },
+    DEFAULT_MODE = "Veg",
+    NAME_MAX = 24,                              -- longest room name
+    LOG_KEEP = 30,                              -- entries kept in a room's log
+    OUTAGE_STRESS_PER_LIT_HOUR = 1.5,           -- extra stress per hour the lamps were due on while the panel had no power
+    OUTAGE_STRESS_CAP = 25,                     -- most extra stress one outage adds
+    LEAK_NEAR = 4,                              -- a plant this close to an uncovered opening is reached by light coming through it
+    SUN_FROM = 6, SUN_TO = 20,                  -- hours of the day when the sun shines through windows
+    CURTAIN_ITEM = "CannabisMod.BlackoutCurtain",
+    -- Climate equipment sprites on the rooms sheet. Fans hang on a wall edge (facing S = N wall, E = W wall, N = S wall, W = E wall).
+    EQUIPMENT = {
+        dazeddank_rooms_01_8  = { kind = "exhaust", name = "Exhaust fan", facing = "S" },
+        dazeddank_rooms_01_9  = { kind = "exhaust", name = "Exhaust fan", facing = "E" },
+        dazeddank_rooms_01_10 = { kind = "exhaust", name = "Exhaust fan", facing = "N" },
+        dazeddank_rooms_01_11 = { kind = "exhaust", name = "Exhaust fan", facing = "W" },
+        dazeddank_rooms_01_12 = { kind = "intake", name = "Intake fan", facing = "S" },
+        dazeddank_rooms_01_13 = { kind = "intake", name = "Intake fan", facing = "E" },
+        dazeddank_rooms_01_14 = { kind = "intake", name = "Intake fan", facing = "N" },
+        dazeddank_rooms_01_15 = { kind = "intake", name = "Intake fan", facing = "W" },
+        dazeddank_rooms_01_16 = { kind = "heater", name = "Heater" },
+        dazeddank_rooms_01_17 = { kind = "dehumidifier", name = "Dehumidifier" },
+        dazeddank_rooms_01_18 = { kind = "humidifier", name = "Humidifier" },
+    },
+    EQUIPMENT_ORDER = { "exhaust", "intake", "heater", "dehumidifier", "humidifier" },
+    EQUIPMENT_NAMES = { exhaust = "Exhaust fan", intake = "Intake fan", heater = "Heater", dehumidifier = "Dehumidifier", humidifier = "Humidifier" },
+    CURTAIN_SPRITES = {                         -- the curtain overlay for each kind of opening and wall edge
+        door = { N = "dazeddank_rooms_01_4", W = "dazeddank_rooms_01_5" },
+        window = { N = "dazeddank_rooms_01_6", W = "dazeddank_rooms_01_7" },
+    },
+    PANEL_SPRITES = {                           -- the panel's wall sprite for each facing
+        dazeddank_rooms_01_0 = "S", dazeddank_rooms_01_1 = "E", dazeddank_rooms_01_2 = "N", dazeddank_rooms_01_3 = "W",
+    },
+}
+
 --- True if a lamp on this schedule is lit at this hour of the day (0-23); nil means no timer (24/0).
 function Config.Timer.isOn(schedule, hour)
     local onHours = schedule and Config.Timer.SCHEDULES[schedule]
@@ -636,12 +747,12 @@ end
 -- above the player's level are never sent, so they can't be read by
 -- inspecting network traffic or client memory.
 Config.InfoTiers = {
-    { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container" } },
-    { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir" } },
-    { level = 3,  fields = { "type", "sex", "light", "lightCycle", "roots", "rootRot" } },
+    { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container", "topped" } },
+    { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir", "cuttings" } },
+    { level = 3,  fields = { "type", "strain", "sex", "light", "lightCycle", "roots", "rootRot" } },
     { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg", "rootRotTrend" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },
-    { level = 9,  fields = { "generation", "geneticsBand" } },
+    { level = 9,  fields = { "generation", "geneticsBand", "traits" } },
     { level = 10, fields = { "qualityEstimate" } },
 }
 
@@ -672,6 +783,10 @@ Config.SandboxDefaults = {
     ReservoirUseRate  = 1.0,  -- multiplier on how fast reservoirs drain and go stale
     HydroQualityBonus = 0.15, -- extra quality ceiling RDWC can reach (0.15 = up to 115)
     PumpsNeedPower    = true, -- hydro pumps only run with power
+    RoomClimate       = true, -- grow rooms simulate temperature and humidity (off = rooms sit at their targets)
+    LightLeaks        = true, -- light from outside a grow room's own lamps counts as a leak in its dark hours
+    RoomPowerPenalty  = true, -- a power cut in a grow room adds stress for the lit hours lost (off = only the per-plant penalty)
+    StrainTint        = true, -- plants take a light tint from their strain
 }
 
 --- Hours a wet plant takes to dry fully (sandbox DryingHours).

@@ -324,6 +324,17 @@ module CannabisMod
         WorldObjectSprite = dazeddank_plants_01_204,
     }
 
+    /* XL bag: a mother pot. More cuttings before she's set back, and her clones drift less. */
+    item GrowBagXLPlaceable
+    {
+        DisplayName     = XL Grow Bag,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 2.5,
+        Icon            = GrowBagXL,
+        WorldObjectSprite = dazeddank_hydro_01_235,
+    }
+
     /* Recipe magazine: reading it teaches every crafting recipe in the mod.
        The recipe names must match CannabisRecipes.txt (tests check this). */
     item GrowersHandbook
@@ -335,7 +346,7 @@ module CannabisMod
         Icon            = GrowersHandbook,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDMakeCuringBarrel;DDSwapPapers,
+        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeGrowBagXL;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDMakeCuringBarrel;DDSwapPapers,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,
@@ -352,6 +363,17 @@ module CannabisMod
         Weight          = 4.0,
         Icon            = DWCBucket,
         WorldObjectSprite = dazeddank_plants_01_372,
+    }
+
+    /* XL DWC bucket: a hydro mother pot with a 30 L reservoir. */
+    item DWCBucketXL
+    {
+        DisplayName     = XL DWC Bucket,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 7.0,
+        Icon            = DWCBucketXL,
+        WorldObjectSprite = dazeddank_hydro_01_348,
     }
 
     /* RDWC: site buckets share the reservoir of a control bucket within 3
@@ -447,11 +469,108 @@ module CannabisMod
         Icon            = HydroMagazine,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeDWCBucket;DDMakeClayPebbles;DDMakeRDWCSite;DDMakeRDWCControl;DDMakeFloodTable;DDMakeFloodReservoir;DDMakeFloodTimer,
+        LearnedRecipes  = DDMakeDWCBucket;DDMakeDWCBucketXL;DDMakeClayPebbles;DDMakeRDWCSite;DDMakeRDWCControl;DDMakeFloodTable;DDMakeFloodReservoir;DDMakeFloodTimer,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,
         OnCreate        = ItemCodeOnCreate.onCreateRecipeMagazine,
+    }
+
+    /* Recipe magazine for grow rooms: teaches the room panel. */
+    item ControlledEnvMagazine
+    {
+        DisplayName     = Controlled Environment Quarterly,
+        DisplayCategory = RecipeResource,
+        ItemType        = base:literature,
+        Weight          = 0.5,
+        Icon            = ControlledEnvMagazine,
+        BoredomChange   = -20,
+        StressChange    = -15,
+        LearnedRecipes  = DDMakeGrowRoomPanel;DDMakeBlackoutCurtain;DDMakeExhaustFan;DDMakeIntakeFan;DDMakeHeater;DDMakeDehumidifier;DDMakeHumidifier,
+        StaticModel     = Magazine,
+        WorldStaticModel = MagazineGround,
+        Tags            = base:magazine,
+        OnCreate        = ItemCodeOnCreate.onCreateRecipeMagazine,
+    }
+
+    /* Blackout curtain: hang it on a door or window frame of a grow room to keep light out. */
+    item BlackoutCurtain
+    {
+        DisplayName     = Blackout Curtain,
+        DisplayCategory = Furniture,
+        ItemType        = base:normal,
+        Weight          = 0.8,
+        Icon            = BlackoutCurtain,
+        Tooltip         = Tooltip_DD_BlackoutCurtain,
+    }
+
+    /* Grow room panel: wall furniture that claims the room around it and runs
+       every lamp in it on one schedule. The sprite is a placeholder until the art lands. */
+    item GrowRoomPanel
+    {
+        DisplayName     = Grow Room Panel,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 3.0,
+        Icon            = GrowRoomPanel,
+        Tooltip         = Tooltip_DD_GrowRoomPanel,
+        WorldObjectSprite = dazeddank_rooms_01_0,
+    }
+
+    /* Climate equipment for grow rooms: placed in the room, detected by the panel, powered through it. */
+    item ExhaustFan
+    {
+        DisplayName     = Exhaust Fan,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 4.0,
+        Icon            = ExhaustFan,
+        Tooltip         = Tooltip_DD_ExhaustFan,
+        WorldObjectSprite = dazeddank_rooms_01_8,
+    }
+
+    item IntakeFan
+    {
+        DisplayName     = Intake Fan,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 4.0,
+        Icon            = IntakeFan,
+        Tooltip         = Tooltip_DD_IntakeFan,
+        WorldObjectSprite = dazeddank_rooms_01_12,
+    }
+
+    item Heater
+    {
+        DisplayName     = Grow Room Heater,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 6.0,
+        Icon            = Heater,
+        Tooltip         = Tooltip_DD_Heater,
+        WorldObjectSprite = dazeddank_rooms_01_16,
+    }
+
+    item Dehumidifier
+    {
+        DisplayName     = Dehumidifier,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 8.0,
+        Icon            = Dehumidifier,
+        Tooltip         = Tooltip_DD_Dehumidifier,
+        WorldObjectSprite = dazeddank_rooms_01_17,
+    }
+
+    item Humidifier
+    {
+        DisplayName     = Humidifier,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 5.0,
+        Icon            = Humidifier,
+        Tooltip         = Tooltip_DD_Humidifier,
+        WorldObjectSprite = dazeddank_rooms_01_18,
     }
 
     /* Smoking. A joint is rolled from a bud and rolling papers; a pipe is

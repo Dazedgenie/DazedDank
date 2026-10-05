@@ -171,3 +171,35 @@ option CannabisMod.PumpsNeedPower
     page = CannabisMod,
     translation = CannabisMod_PumpsNeedPower,
 }
+
+option CannabisMod.RoomClimate
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_RoomClimate,
+}
+
+option CannabisMod.LightLeaks
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_LightLeaks,
+}
+
+option CannabisMod.RoomPowerPenalty
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_RoomPowerPenalty,
+}
+
+option CannabisMod.StrainTint
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_StrainTint,
+}

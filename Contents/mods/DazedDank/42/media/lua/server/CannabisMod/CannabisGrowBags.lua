@@ -31,6 +31,7 @@ function GrowBags.reset(luaObject)
     pcall(function() luaObject.exterior = luaObject:getSquare():isOutside() end)
     luaObject:setSpriteName(farming_vegetableconf.getSpriteName(luaObject))
     luaObject:setObjectName(farming_vegetableconf.getObjectName(luaObject))
+    Farming.applyTint(nil, luaObject)  -- the empty bag loses the old plant's strain colour
     luaObject:saveData()
 end
 
@@ -264,13 +265,23 @@ local function pairTable(x, y, z, facing, part)
     end
 end
 
---- Swap a placed furniture bag for a bag plot. Returns true when done.
-local function convertBagAt(x, y, z)
-    local square = getCell():getGridSquare(x, y, z)
-    if not square then return false end
-    local obj, size = furnitureBagAt(square)
-    if not obj then return false end
-    if Farming.getVanilla(x, y, z) then return false end
+--- The other half of a flood table that is still furniture: the neighbour holding the complementary sprite, or nil.
+local function tableHalfFurniture(x, y, z, facing, part)
+    local def = Config.GrowBag.ebb
+    local wantSprite = Config.sheetOf("ebb") .. "_" .. (def.furnSprites[1] + (facing - 1) * 2 + (1 - part))
+    for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+        local square = getCell():getGridSquare(x + d[1], y + d[2], z)
+        local furn = square and furnitureBagAt(square)
+        if furn and furn:getSprite():getName() == wantSprite and not Farming.getVanilla(x + d[1], y + d[2], z) then
+            return square, furn
+        end
+    end
+    return nil
+end
+
+--- Turn one furniture tile into a plot, leaving the furniture in place. Returns true when done.
+local function plotFromFurniture(square, obj, size)
+    local x, y, z = square:getX(), square:getY(), square:getZ()
     local spriteName = obj:getSprite():getName()
     -- A fresh bucket or table starts with a clean record, whatever stood here before.
     if CannabisMod.Hydro then CannabisMod.Hydro.clear(x, y, z) end
@@ -280,9 +291,32 @@ local function convertBagAt(x, y, z)
         local facing, part = GrowBags.tablePart(spriteName)
         if facing then pairTable(x, y, z, facing, part) end
     end
-    if CannabisMod.Hydro then CannabisMod.Hydro.forgetLinks() end
+    return true
+end
+
+local function removeFurniture(square, obj)
     pcall(function() square:transmitRemoveItemFromSquare(obj) end)
     pcall(function() square:RemoveTileObject(obj) end)
+end
+
+--- Swap a placed furniture bag for a bag plot. Returns true when done.
+--- A flood table is one two-tile object, and removing either half's furniture takes both, so both halves become plots first.
+local function convertBagAt(x, y, z)
+    local square = getCell():getGridSquare(x, y, z)
+    if not square then return false end
+    local obj, size = furnitureBagAt(square)
+    if not obj then return false end
+    if Farming.getVanilla(x, y, z) then return false end
+    local otherSquare, otherObj = nil, nil
+    if size == "ebb" then
+        local facing, part = GrowBags.tablePart(obj:getSprite():getName())
+        if facing then otherSquare, otherObj = tableHalfFurniture(x, y, z, facing, part) end
+    end
+    if not plotFromFurniture(square, obj, size) then return false end
+    if otherObj then plotFromFurniture(otherSquare, otherObj, size) end
+    if CannabisMod.Hydro then CannabisMod.Hydro.forgetLinks() end
+    removeFurniture(square, obj)
+    if otherObj then removeFurniture(otherSquare, otherObj) end
     return true
 end
 GrowBags.convertBagAt = convertBagAt

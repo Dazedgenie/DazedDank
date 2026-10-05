@@ -21,5 +21,14 @@
     "DDSwapPapers": "Repack Rolling Papers",
     "DDMakeFloodTable": "Make Flood Table",
     "DDMakeFloodReservoir": "Make Flood Reservoir",
-    "DDMakeFloodTimer": "Make Flood Timer"
+    "DDMakeFloodTimer": "Make Flood Timer",
+    "DDMakeGrowRoomPanel": "Make Grow Room Panel",
+    "DDMakeBlackoutCurtain": "Make Blackout Curtain",
+    "DDMakeExhaustFan": "Make Exhaust Fan",
+    "DDMakeIntakeFan": "Make Intake Fan",
+    "DDMakeHeater": "Make Grow Room Heater",
+    "DDMakeDehumidifier": "Make Dehumidifier",
+    "DDMakeHumidifier": "Make Humidifier",
+    "DDMakeGrowBagXL": "Make XL Grow Bag",
+    "DDMakeDWCBucketXL": "Make XL DWC Bucket"
 }

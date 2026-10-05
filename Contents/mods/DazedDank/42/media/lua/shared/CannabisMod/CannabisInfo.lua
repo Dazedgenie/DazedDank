@@ -3,6 +3,7 @@
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisGenetics"
+require "CannabisMod/CannabisStrains"
 
 local Config = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
@@ -95,6 +96,29 @@ end
 
 builders.type = function(plant)
     return plant.type
+end
+
+-- Topping is plain to see on the plant.
+builders.topped = function(plant)
+    return plant.topped == true or nil
+end
+
+-- Cuttings she can give before being set back, while cuttings can be taken at all.
+builders.cuttings = function(plant, now)
+    if not Genetics.canClone(plant) then return nil end
+    return { left = math.floor(Genetics.cutsAvailable(plant, now)), max = Genetics.cutBudgetMax(plant) }
+end
+
+-- The strain's name, shown with the type.
+builders.strain = function(plant)
+    local s = CannabisMod.Strains.of(plant)
+    return s and s.name or nil
+end
+
+-- The strain's traits in words, for growers who can read genetics.
+builders.traits = function(plant)
+    local s = CannabisMod.Strains.of(plant)
+    return s and CannabisMod.Strains.describe(s) or nil
 end
 
 -- Sex is shown whenever the player's level unlocks it (Agriculture 3, same as
@@ -234,5 +258,8 @@ function Info.seedLabel(seedData, level)
     if level < Config.SEED_INSPECT_LEVEL or not seedData then
         return "Unknown cannabis seed"
     end
-    return seedData.type .. " seed (" .. seedData.sex .. ")"
+    local strain = seedData.strain and seedData.strain.name
+    local label = (strain and (strain .. " (" .. seedData.type .. ")") or seedData.type) .. " seed (" .. seedData.sex .. ")"
+    if level >= 9 and seedData.strain then label = label .. ": " .. CannabisMod.Strains.describe(seedData.strain) end
+    return label
 end

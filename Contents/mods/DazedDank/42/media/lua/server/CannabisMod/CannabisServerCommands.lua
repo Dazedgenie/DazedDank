@@ -43,12 +43,8 @@ CannabisMod.ServerCommands = {
     agricultureLevel = agricultureLevel,
 }
 
-commands.requestPlantInfo = function(player, args)
-    -- Validate the arguments are actually numbers.
-    local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
-    if not (x and y and z) then return end
-    if not isNear(player, x, y, z) then return end
-
+--- Send a player the Inspect data for the plant on a tile (what they may see depends on their Agriculture level).
+local function sendPlantInfo(player, x, y, z)
     local plant = Registry.getPlant(x, y, z)
     if not plant then
         -- Tell the client so it can close or skip the window.
@@ -65,6 +61,15 @@ commands.requestPlantInfo = function(player, args)
         data.debugSpeed = Config.sandbox("GrowthSpeed")
     end
     Net.toPlayer(player, "plantInfo", data)
+end
+CannabisMod.ServerCommands.sendPlantInfo = sendPlantInfo
+
+commands.requestPlantInfo = function(player, args)
+    -- Validate the arguments are actually numbers.
+    local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
+    if not (x and y and z) then return end
+    if not isNear(player, x, y, z) then return end
+    sendPlantInfo(player, x, y, z)
 end
 
 -- --------------------------------------------------------------------------

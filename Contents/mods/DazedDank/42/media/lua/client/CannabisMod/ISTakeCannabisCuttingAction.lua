@@ -1,4 +1,4 @@
--- The short animation of a player snipping a cutting off a plant.
+-- The short animation of a player snipping a plant: taking a cutting, or topping it.
 
 require "TimedActions/ISBaseTimedAction"
 require "CannabisMod/CannabisConfig"
@@ -33,18 +33,20 @@ function ISTakeCannabisCuttingAction:stop()
 end
 
 function ISTakeCannabisCuttingAction:perform()
-    sendClientCommand(self.character, Config.COMMAND_MODULE, "takeCutting", {
+    sendClientCommand(self.character, Config.COMMAND_MODULE, self.command, {
         x = self.square:getX(), y = self.square:getY(), z = self.square:getZ(),
     })
     -- needed to remove from queue / start the next action
     ISBaseTimedAction.perform(self)
 end
 
-function ISTakeCannabisCuttingAction:new(character, plot, square)
+--- `command` is the server command to send when done: "takeCutting" (the default) or "topPlant".
+function ISTakeCannabisCuttingAction:new(character, plot, square, command)
     local o = ISBaseTimedAction.new(self, character)
     o.character = character
     o.plot = plot
     o.square = square
+    o.command = command or "takeCutting"
     o.maxTime = 80
     if character:isTimedActionInstant() then o.maxTime = 1 end
     return o

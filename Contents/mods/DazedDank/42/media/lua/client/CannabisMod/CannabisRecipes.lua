@@ -8,12 +8,14 @@ CannabisMod.Recipes = Recipes
 
 -- Must match the craftRecipe names in CannabisRecipes.txt and the magazine's LearnedRecipes; a test keeps them in sync.
 Recipes.NAMES = {
-    "DDMakeGrowBagSmall", "DDMakeGrowBagLarge", "DDMakeSoilSack", "DDMakeDryingRack", "DDMakeDryingFan",
+    "DDMakeGrowBagSmall", "DDMakeGrowBagLarge", "DDMakeGrowBagXL", "DDMakeSoilSack", "DDMakeDryingRack", "DDMakeDryingFan",
     "DDMakeGrowLampBasic", "DDMakeGrowLampPro", "DDMakeGrowLampLargeBasic", "DDMakeGrowLampLargePro",
     "DDMakeGrowFloodBasic", "DDMakeGrowFloodPro", "DDMakeLightTimer",
     "DDMakeCuringJar", "DDMakeCuringBarrel", "DDSwapPapers",
-    "DDMakeDWCBucket", "DDMakeClayPebbles", "DDMakeRDWCSite", "DDMakeRDWCControl",
+    "DDMakeDWCBucket", "DDMakeDWCBucketXL", "DDMakeClayPebbles", "DDMakeRDWCSite", "DDMakeRDWCControl",
     "DDMakeFloodTable", "DDMakeFloodReservoir", "DDMakeFloodTimer",
+    "DDMakeGrowRoomPanel", "DDMakeBlackoutCurtain",
+    "DDMakeExhaustFan", "DDMakeIntakeFan", "DDMakeHeater", "DDMakeDehumidifier", "DDMakeHumidifier",
 }
 
 --- Learn every recipe on this player unless the magazine is required; returns how many were newly learned.

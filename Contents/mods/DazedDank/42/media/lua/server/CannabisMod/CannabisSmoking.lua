@@ -15,6 +15,7 @@ require "CannabisMod/CannabisServerCommands"
 
 local Config   = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
+local Strains  = CannabisMod.Strains
 local Use      = CannabisMod.Use
 local Seeds    = CannabisMod.Seeds
 local Net      = CannabisMod.Net
@@ -56,8 +57,13 @@ end
 local function budInfo(bud)
     local rec = Drying.budRecord(bud)
     if not rec then return { type = "Hybrid", quality = 50, moldy = false } end
-    return { type = rec.type, quality = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked),
-             moldy = rec.moldy == true }
+    return { type = rec.type, strain = Strains.copy(rec.strain),
+             quality = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked), moldy = rec.moldy == true }
+end
+
+--- What a bud or joint is called: its strain when it has one, else its type.
+local function strainWord(info)
+    return (info.strain and info.strain.name) or tostring(info.type)
 end
 
 local function findById(player, id, fullType)
@@ -93,7 +99,7 @@ commands.rollJoint = function(player, args)
     take(player, bud)
     take(player, paper)
     Drying.data().buds[id] = nil
-    local name = (info.moldy and "Moldy " or (Config.qualityTier(info.quality) .. " ")) .. info.type .. " Joint"
+    local name = (info.moldy and "Moldy " or (Config.qualityTier(info.quality) .. " ")) .. strainWord(info) .. " Joint"
     -- The joint carries what it was rolled from; set before the item is sent, so clients get it too.
     Farming.giveItems(player, Smoke.JOINT_ITEM, 1, function(item)
         item:setName(name)
@@ -127,12 +133,12 @@ commands.smoke = function(player, args)
     Drying.data().buds[id] = nil
 
     local user = userOf(player)
-    local strength, hours = Use.dose(user, now(), Use.potency(info.quality, info.moldy), method)
+    local strength, hours = Use.dose(user, now(), Use.potency(info.quality, info.moldy, info.strain), method)
     if Config.debugOn() then
         Config.debugLog(string.format("smoke: dose strength %.2f for %.2fh (quality %s)", strength, hours, tostring(info.quality)))
     end
     Net.toPlayer(player, "smoked", {
-        type = info.type, moldy = info.moldy, strength = strength, hours = hours,
+        type = info.type, strain = info.strain, moldy = info.moldy, strength = strength, hours = hours,
         tolerance = user.tol, dependency = user.dep, method = method,
     })
 end

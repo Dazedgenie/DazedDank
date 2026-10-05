@@ -19,6 +19,15 @@ local function isPowered(square)
     return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
 end
 
+--- True if this square has power for a lamp (the grow room panel reads this too).
+Light.isPowered = isPowered
+
+--- False when the tile sits in a grow room whose panel has no power, so its lamps are dead.
+local function roomPowered(x, y, z)
+    local Rooms = CannabisMod.Rooms
+    return not Rooms or Rooms.poweredAt(x, y, z) ~= false
+end
+
 --- Schedule of the timer on a lamp tile, or nil for a lamp without one (24/0).
 local function scheduleAt(x, y, z)
     local Timers = CannabisMod.Timers
@@ -45,7 +54,7 @@ local function readSquare(square, x, y, z)
         local def = sprite and sprites[sprite:getName()]
         if def then
             found = found or {}
-            found[#found + 1] = { def = def, schedule = scheduleAt(x, y, z), powered = isPowered(square) }
+            found[#found + 1] = { def = def, schedule = scheduleAt(x, y, z), powered = isPowered(square) and roomPowered(x, y, z) }
         end
     end
     -- Loose lamp items lying on the ground have no timer.
@@ -90,6 +99,9 @@ function Light.lampsAt(x, y, z)
     local needPower = Config.sandbox("LampsNeedPower")
     local R = math.ceil(Config.Light.MAX_RADIUS * range)
     local reaches, isOn, isLongDay = Config.Light.reaches, Config.Timer.isOn, Config.Timer.isLongDay
+    -- A plant in a grow room is only reached by outside lamps through an uncovered door or window.
+    local Rooms = CannabisMod.Rooms
+    local roomKey = Rooms and Rooms.keyAt(x, y, z)
     pcall(function()
         local cell = getCell()
         for dx = -R, R do
@@ -98,7 +110,9 @@ function Light.lampsAt(x, y, z)
                 if lamps then
                     for _, lamp in ipairs(lamps) do
                         local def = lamp.def
-                        if reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
+                        local blocked = roomKey and Rooms.keyAt(x + dx, y + dy, z) ~= roomKey
+                            and not Rooms.outsideLampReaches(roomKey, x, y, x + dx, y + dy, def, range)
+                        if not blocked and reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
                             local on = isOn(lamp.schedule, hour)
                             if isLongDay(lamp.schedule) then
                                 out.anyLong = true
@@ -162,6 +176,17 @@ function Light.update(plant)
     local scheduledDark = cap == 0 and (lamps.anyShort or lamps.anyLong)
     plant.lightSource = scheduledDark and "Lights off (timer)" or source
 
+    -- Sunlight through an uncovered window into a 12/12 room's dark hours.
+    local Rooms = CannabisMod.Rooms
+    local roomKey = Rooms and Rooms.keyAt(plant.x, plant.y, plant.z)
+    local hourNow = getGameTime():getHour()
+    local sunLeak = roomKey ~= nil and Config.sandbox("LightLeaks") and Rooms.sunLeakAt(roomKey, plant.x, plant.y, hourNow)
+    if sunLeak then
+        plant.stress = Config.clamp((plant.stress or 0) + Config.Timer.LEAK_STRESS_PER_HOUR / 6, 0, Config.Stress.MAX)
+        plant.warnings.lightLeak = true
+        Rooms.noteLeak(roomKey, "Light leak: sunlight through an uncovered window")
+    end
+
     if scheduledDark then
         plant.warnings.noLight = nil
         plant.lightOn = false
@@ -190,7 +215,8 @@ function Light.update(plant)
     if cycle == "leak" and shortDark and lamps.longOn then
         plant.stress = Config.clamp((plant.stress or 0) + Config.Timer.LEAK_STRESS_PER_HOUR / 6, 0, Config.Stress.MAX)
         plant.warnings.lightLeak = true
-    elseif cycle ~= "leak" then
+        if roomKey then Rooms.noteLeak(roomKey, "Light leak: a lamp outside the room") end
+    elseif cycle ~= "leak" and not sunLeak then
         plant.warnings.lightLeak = nil
     end
 

@@ -20,6 +20,8 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
         Preview.note(self, square)
         local lamp = Config.Light.SPRITES[self.spriteName]
         if lamp and not lamp.floor then
+            -- Ceiling lamps hang high, so vanilla lets them go over low gear like the RDWC control bucket and flood reservoir.
+            self.isHigh = true
             for _, sq in ipairs(Preview.coveredSquares(self, square)) do
                 local ok, inside = pcall(indoorsOffTable, sq)
                 if not (ok and inside) then return false end

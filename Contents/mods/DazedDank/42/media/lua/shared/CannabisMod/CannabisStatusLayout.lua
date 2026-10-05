@@ -37,7 +37,8 @@ local BAND_LABELS = { healthBand = "Health", stressBand = "Stress", geneticsBand
 local WARNINGS = {
     nutrientBurn = { "Nutrient burn", "bad" }, wrongNutrient = { "Wrong nutrient", "bad" }, overwatered = { "Overwatered", "bad" },
     underwatered = { "Underwatered", "warn" }, noLight = { "No light", "bad" }, lightInterrupted = { "Light interrupted", "warn" },
-    lightLeak = { "Light leak", "bad" }, hungry = { "Hungry", "warn" },
+    lightLeak = { "Light leak", "bad" }, hungry = { "Hungry", "warn" }, overcut = { "Cut too hard", "bad" },
+    roomTemp = { "Room temperature", "warn" }, roomHumid = { "Humid room", "warn" },
     reservoirDry = { "Reservoir dry", "bad" }, staleReservoir = { "Stale reservoir", "warn" },
     pumpOff = { "Pumps off", "bad" }, rootRot = { "Root rot", "bad" }, noControl = { "No control bucket", "bad" },
     noFlood = { "No flood reservoir", "bad" }, mediumDry = { "Rockwool dry", "bad" },
@@ -97,7 +98,7 @@ function Layout.build(data, fontH, measure)
     rect(0, 0, 4, PAD + medium + small + 10, accent, 1)
     text(data.name or "Cannabis Plant", PAD, y, COLORS.text, "Medium")
     if data.type then
-        local label = data.type .. (data.sex and (" " .. data.sex) or "")
+        local label = (data.strain or data.type) .. (data.sex and (" " .. data.sex) or "")
         local cw = measure("Small", label) + 14
         rect(W - PAD - cw, y + 2, cw, small + 4, accent, 0.9)
         text(label, W - PAD - cw / 2, y + 4, { 0.08, 0.08, 0.08 }, "Small", "center")
@@ -224,6 +225,11 @@ function Layout.build(data, fontH, measure)
     if data.extraVeg then
         row("Extra veg", Layout.formatHours(data.extraVeg.hours) .. "  (+" .. data.extraVeg.bonus .. "% yield)", COLORS.good)
     end
+    if data.topped then row("Topped", "Yes  (+" .. math.floor(Config.Topping.YIELD_BONUS * 100 + 0.5) .. "% yield)", COLORS.good) end
+    if data.cuttings then
+        local c = data.cuttings
+        row("Cuttings ready", c.left .. " of " .. c.max, c.left > 0 and COLORS.text or COLORS.warn)
+    end
     if data.lastNutrient then row("Last nutrient", data.lastNutrient) end
     if data.harvestWindow then
         local color = (data.harvestWindow == "Ready now") and COLORS.good or ((data.harvestWindow == "Overripe") and COLORS.warn or COLORS.text)
@@ -232,6 +238,10 @@ function Layout.build(data, fontH, measure)
     if data.pollinated ~= nil then row("Pollinated", data.pollinated and "Yes" or "No", data.pollinated and COLORS.warn or COLORS.text) end
     if data.hermieSigns then row("Hermie signs", "Yes", COLORS.bad) end
     if data.generation then row("Generation", data.generation) end
+    if data.traits then
+        text(data.traits, PAD, y, COLORS.muted)
+        y = y + small + 4
+    end
 
     -- Warnings as chips.
     if data.warnings and #data.warnings > 0 then

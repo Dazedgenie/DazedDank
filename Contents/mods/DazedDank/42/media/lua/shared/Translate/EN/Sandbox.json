@@ -35,5 +35,13 @@
     "Sandbox_CannabisMod_HydroQualityBonus": "Hydro Quality Bonus",
     "Sandbox_CannabisMod_HydroQualityBonus_tooltip": "How far above 100 an RDWC grow's quality can reach (0.15 = up to 115). 0 removes the Top Shelf tier.",
     "Sandbox_CannabisMod_PumpsNeedPower": "Pumps Need Power",
-    "Sandbox_CannabisMod_PumpsNeedPower_tooltip": "If enabled, hydro air and water pumps only run with power. Without air, roots start to rot."
+    "Sandbox_CannabisMod_PumpsNeedPower_tooltip": "If enabled, hydro air and water pumps only run with power. Without air, roots start to rot.",
+    "Sandbox_CannabisMod_RoomClimate": "Room Climate",
+    "Sandbox_CannabisMod_RoomClimate_tooltip": "If enabled, grow rooms simulate temperature and humidity and need fans, heaters and dehumidifiers. If off, rooms always sit at their target.",
+    "Sandbox_CannabisMod_LightLeaks": "Light Leaks",
+    "Sandbox_CannabisMod_LightLeaks_tooltip": "If enabled, light that does not come from a grow room's own lamps counts as a leak during its dark hours. Blackout curtains block it.",
+    "Sandbox_CannabisMod_RoomPowerPenalty": "Room Power Penalty",
+    "Sandbox_CannabisMod_RoomPowerPenalty_tooltip": "If enabled, a power cut in a grow room adds stress to flowering plants for every lit hour lost. If off, only the normal per-plant penalty applies.",
+    "Sandbox_CannabisMod_StrainTint": "Strain Tint",
+    "Sandbox_CannabisMod_StrainTint_tooltip": "If enabled, each strain tints its plants a little: indica leans violet, sativa leans gold."
 }

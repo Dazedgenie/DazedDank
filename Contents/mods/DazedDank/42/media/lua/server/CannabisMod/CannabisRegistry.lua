@@ -6,9 +6,14 @@ if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisGenetics"
+require "CannabisMod/CannabisStrains"
 
 local Config = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
+local Strains = CannabisMod.Strains
+
+-- Stages whose length a strain's flowering speed changes.
+local FLOWER_STAGES = { PreFlower = true, Flowering = true }
 
 local Registry = {}
 CannabisMod.Registry = Registry
@@ -30,10 +35,14 @@ local function nowHours()
 end
 Registry.nowHours = nowHours
 
---- Random length for a stage, scaled by the GrowthSpeed sandbox option.
-local function rollStageHours(stageIndex)
-    local range = Config.STAGE_HOURS[Config.STAGES[stageIndex]]
+--- Random length for a stage, scaled by the GrowthSpeed sandbox option and, in flower, by the strain.
+local function rollStageHours(stageIndex, plant)
+    local stageName = Config.STAGES[stageIndex]
+    local range = Config.STAGE_HOURS[stageName]
     local hours = Config.randInt(range.min, range.max)
+    if plant and FLOWER_STAGES[stageName] then
+        hours = hours * Strains.flowerMult(Strains.of(plant))
+    end
     local speed = Config.sandbox("GrowthSpeed")
     if speed and speed > 0 then
         -- The option allows 0.1 to 10. Clamp so a bad value can never make a
@@ -55,6 +64,8 @@ local function onInitGlobalModData(isNewGame)
     domes = ModData.getOrCreate(Config.MODDATA_KEY .. "_Domes")
     bags = ModData.getOrCreate(Config.MODDATA_KEY .. "_Bags")
     soiled = ModData.getOrCreate(Config.MODDATA_KEY .. "_BagSoil")
+    -- Every strain name given out, so two different crosses never share one.
+    Strains.useRegistry(ModData.getOrCreate(Config.MODDATA_KEY .. "_StrainNames"))
 end
 Events.OnInitGlobalModData.Add(onInitGlobalModData)
 
@@ -79,6 +90,7 @@ function Registry.addPlant(x, y, z, seed, opts)
 
         -- Genetics, copied from the seed or cutting.
         type          = seed.type,
+        strain        = Strains.copy(Strains.of(seed)),
         sex           = seed.sex,
         genetics      = seed.genetics,
         generation    = seed.generation or 0,
@@ -109,6 +121,7 @@ function Registry.addPlant(x, y, z, seed, opts)
         -- Pollination / hermie.
         seeded     = false,  -- true once pollinated (by a male or hermie)
         fatherType = nil,  -- type of whatever pollinated it, for seeds
+        fatherStrain = nil,  -- and its strain, which the seeds cross with the mother's
         fatherHermieLineage = false,
         isHermie   = false,
 
@@ -185,7 +198,7 @@ function Registry.startRooting(plant, hours, success)
     local now = nowHours()
     plant.rooting = { readyAt = now + hours, success = success == true }
     -- The vegetative timer only starts once the roots are in.
-    plant.nextStageAt = plant.rooting.readyAt + rollStageHours(plant.stage)
+    plant.nextStageAt = plant.rooting.readyAt + rollStageHours(plant.stage, plant)
 end
 
 --- Settle a soil cutting whose rooting time is up.
@@ -328,6 +341,7 @@ function Registry.pollinateAround(source)
             and abs(other.x - source.x) <= r and abs(other.y - source.y) <= r then
             other.seeded = true
             other.fatherType = source.type
+            other.fatherStrain = Strains.copy(Strains.of(source))
             other.fatherHermieLineage = source.hermieLineage == true
         end
     end
@@ -347,9 +361,18 @@ end
 function Registry.extendVeg(plant, now)
     plant.extraVegHours = (plant.extraVegHours or 0) + 1 / 6
     plant.vegHeld = true
+    if plant.warnings.overcut and Genetics.cutsAvailable(plant, now) >= 1 then plant.warnings.overcut = nil end
+    local mother = Config.isMotherPot(plant.bag)
+    -- A mother in an XL pot shakes off the stress of being cut while she's held in veg.
+    if mother and (plant.cutStress or 0) > 0 then
+        local r = math.min(plant.cutStress, Config.Mother.CUT_STRESS_RECOVERY_PER_HOUR / 6)
+        plant.cutStress = plant.cutStress - r
+        plant.stress = math.max(0, (plant.stress or 0) - r)
+    end
     -- Hydro plants eat from their reservoir instead of a feeding schedule.
     if Config.isHydro(plant.bag) then return end
-    plant.vegFeedDueAt = plant.vegFeedDueAt or (now + Config.Timer.FEED_EVERY_HOURS)
+    local every = mother and Config.Mother.FEED_EVERY_HOURS or Config.Timer.FEED_EVERY_HOURS
+    plant.vegFeedDueAt = plant.vegFeedDueAt or (now + every)
     if now >= plant.vegFeedDueAt then
         if (plant.fedThisStage or 0) == 0 then
             Registry.applyPenalty(plant, Config.Timer.HUNGRY_PENALTY, "hungry")
@@ -357,8 +380,32 @@ function Registry.extendVeg(plant, now)
             plant.warnings.hungry = nil
         end
         plant.fedThisStage = 0
-        plant.vegFeedDueAt = now + Config.Timer.FEED_EVERY_HOURS
+        plant.vegFeedDueAt = now + every
     end
+end
+
+--- Top a plant in veg: more colas at harvest, some stress and a short pause. Returns nil, or why it can't be done.
+function Registry.top(plant, now)
+    if plant.stage ~= Config.STAGE.Vegetative then return "Plants can only be topped in veg" end
+    if plant.topped then return "This plant has already been topped" end
+    local t = Config.Topping
+    plant.topped = true
+    plant.stress = Config.clamp((plant.stress or 0) + t.STRESS, 0, Config.Stress.MAX)
+    local speed = math.max(0.1, math.min(10, Config.sandbox("GrowthSpeed") or 1))
+    -- A plant already held in veg pauses from now; one still in its veg timer has that timer pushed back.
+    plant.nextStageAt = math.max(plant.nextStageAt or now, now) + t.PAUSE_HOURS / speed
+    return nil
+end
+
+--- Cutting past the pot's budget sets the plant back: pre-flower drops to veg, and the veg timer starts over.
+function Registry.setBack(plant, now)
+    if plant.stage == Config.STAGE.PreFlower then
+        plant.stage = Config.STAGE.Vegetative
+        plant.fedThisStage = 0
+        if CannabisMod.Farming then CannabisMod.Farming.onStageChanged(plant) end
+    end
+    plant.nextStageAt = now + rollStageHours(Config.STAGE.Vegetative, plant)
+    plant.warnings.overcut = true
 end
 
 --- Move a plant to its next stage and start the new stage timer.
@@ -372,9 +419,10 @@ function Registry.advanceStage(plant)
         plant.warnings.hungry = nil
     end
     plant.stage = plant.stage + 1
-    plant.nextStageAt = nowHours() + rollStageHours(plant.stage)
+    plant.nextStageAt = nowHours() + rollStageHours(plant.stage, plant)
     plant.fedThisStage = 0
     plant.warnings.nutrientBurn = nil
+    plant.warnings.overcut = nil
     plant.warnings.wrongNutrient = nil
 
     -- Ripe: remember when the harvest window opened. The window closes at
@@ -423,6 +471,7 @@ local function flowerChecks(plant)
     if plant.isHermie then
         plant.seeded = true
         plant.fatherType = plant.fatherType or plant.type
+        plant.fatherStrain = plant.fatherStrain or Strains.copy(Strains.of(plant))
         plant.fatherHermieLineage = true
         Registry.pollinateAround(plant)
     end

@@ -1,8 +1,10 @@
 -- The rules for using cannabis: potency, how long a high lasts, what it does, tolerance, dependency and withdrawal. Pure functions, no game calls.
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisStrains"
 
 local Config = CannabisMod.Config
+local Strains = CannabisMod.Strains
 local U = Config.Use
 
 local Use = {}
@@ -23,10 +25,11 @@ function Use.decay(user, now)
     user.at = now
 end
 
---- How strong a bud is, 0.4 for poor up to 1.2 for premium and a little more for Top Shelf; mold ruins it.
-function Use.potency(quality, moldy)
+--- How strong a bud is, 0.4 for poor up to 1.2 for premium and a little more for Top Shelf, times the strain's potency; mold ruins it.
+function Use.potency(quality, moldy, strain)
     if moldy then return U.MOLDY_POTENCY end
-    return 0.4 + 0.8 * Config.clamp((quality or 50) / 100, 0, Config.maxQuality(true) / 100)
+    local base = 0.4 + 0.8 * Config.clamp((quality or 50) / 100, 0, Config.maxQuality(true) / 100)
+    return base * (strain and Strains.potencyMult(strain) or 1)
 end
 
 --- Take one dose. Returns strength (after tolerance) and how many game hours it lasts.
@@ -55,12 +58,15 @@ function Use.withdrawal(user, now)
 end
 
 --- Per-hour stat changes for a high of `type` at `strength` (a 0-1.5 scale), or the moldy version.
-function Use.highEffects(type, strength, moldy)
+--- With a strain, the indica and sativa effects are mixed by its indica share instead of the flat type table.
+function Use.highEffects(type, strength, moldy, strain)
     local out = {}
-    local base = moldy and U.MOLDY_EFFECTS or (U.EFFECTS[type] or U.EFFECTS.Hybrid)
+    local base = moldy and U.MOLDY_EFFECTS or (strain and Strains.effects(strain)) or (U.EFFECTS[type] or U.EFFECTS.Hybrid)
     local scale = Config.sandbox("EffectStrength")
     for stat, perHour in pairs(base) do out[stat] = perHour * scale * (moldy and 1 or strength) end
-    if not moldy and strength > U.ANXIETY_ABOVE and type ~= "Indica" then
+    -- The racier the strain, the sooner a strong hit turns anxious; a pure indica never does.
+    local anxious = strain and (strain.ind or 50) < Strains.INDICA_MIN or (not strain and type ~= "Indica")
+    if not moldy and strength > U.ANXIETY_ABOVE and anxious then
         out.STRESS = (out.STRESS or 0) + U.ANXIETY_STRESS * (strength - U.ANXIETY_ABOVE) / (1.5 - U.ANXIETY_ABOVE) * scale
     end
     return out

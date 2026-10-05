@@ -83,7 +83,9 @@ function Hydro.capacity(r)
         return H.RDWC_CONTROL_L + H.RDWC_SITE_L * Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z))
     end
     if r and r.kind == "ebb" then return H.EBB_RESERVOIR_L end
-    return H.RESERVOIR_L.dwc
+    -- A DWC bucket holds its own size: the XL bucket more than the standard one.
+    local def = r and r.x and Config.GrowBag[Registry.getBag(r.x, r.y, r.z)]
+    return (def and def.reservoirL) or H.RESERVOIR_L.dwc
 end
 
 -- During the plant tick every site of a shared reservoir asks the same questions; their answers are kept until it ends.
@@ -294,14 +296,14 @@ function Hydro.reservoirAt(x, y, z, kind)
         r.isFlood = true
         return r
     end
-    if kind == "dwc" and Registry.getBag(x, y, z) == "dwc" then return Hydro.get(x, y, z, "dwc") end
+    if kind == "dwc" and Config.hydroOf(Registry.getBag(x, y, z)) == "dwc" then return Hydro.get(x, y, z, "dwc") end
     return nil
 end
 
 --- The reservoir record behind an object already known to be one (Dazed Plumbing hands it over), without re-scanning its square.
 function Hydro.reservoirOfObject(x, y, z, kind)
     if kind == "dwc" then
-        return Registry.getBag(x, y, z) == "dwc" and Hydro.get(x, y, z, "dwc") or nil
+        return Config.hydroOf(Registry.getBag(x, y, z)) == "dwc" and Hydro.get(x, y, z, "dwc") or nil
     end
     local r = Hydro.get(x, y, z, kind)
     if r then
@@ -309,6 +311,13 @@ function Hydro.reservoirOfObject(x, y, z, kind)
         if kind == "ebb" then r.isFlood = true end
     end
     return r
+end
+
+--- True when a flood timer keeps this reservoir's tables wet: one fitted to it, or the grow room panel's.
+function Hydro.hasFloodTimer(r)
+    if r.floodTimer then return true end
+    local Rooms = CannabisMod.Rooms
+    return Rooms ~= nil and Rooms.floodTimerAt(r.x, r.y, r.z)
 end
 
 --- Flood every table a reservoir feeds: the rockwool soaks up enough to stay wet for EBB_WET_HOURS.
@@ -338,6 +347,8 @@ function Hydro.pumpsOn(x, y, z)
     if not Config.sandbox("PumpsNeedPower") then return true end
     local square = getCell():getGridSquare(x, y, z)
     if not square then return nil end
+    -- A grow room panel without power takes every pump in its room down with it.
+    if CannabisMod.Rooms and CannabisMod.Rooms.poweredAt(x, y, z) == false then return false end
     local ok, on = pcall(function()
         if square:haveElectricity() then return true end
         return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
@@ -394,6 +405,9 @@ local function advanceReservoir(r, now)
     local change = risk * hours * (Config.sandbox("RootRotRisk") or 1)
     if r.recovering then change = change - H.ROT_RECOVER_PER_HOUR * hours end
     r.rot = Config.clamp(r.rot + change, 0, H.ROT_DEAD)
+    if before < H.ROT_EARLY and r.rot >= H.ROT_EARLY and CannabisMod.Rooms then
+        CannabisMod.Rooms.logTile(Config.tileKey(r.x, r.y, r.z), "Root rot set in at the reservoir at " .. r.x .. ", " .. r.y, now)
+    end
     if r.rot <= 0 then r.recovering = nil end
     -- Which way the rot moved this tick: 1 rising, -1 falling, 0 steady.
     r.rotTrend = (r.rot > before + 0.001 and 1) or (r.rot < before - 0.001 and -1) or 0
@@ -435,7 +449,7 @@ function Hydro.update(plant, now)
     local wet, wetHours = true, nil
     if ebb then
         local site = Hydro.get(plant.x, plant.y, plant.z, "ebb")
-        if r.floodTimer and not Hydro.floodBlocker(r) then site.wetUntil = now + H.EBB_WET_HOURS end
+        if Hydro.hasFloodTimer(r) and not Hydro.floodBlocker(r) then site.wetUntil = now + H.EBB_WET_HOURS end
         wetHours = math.max(0, (site.wetUntil or 0) - now)
         wet = wetHours > 0
         plant.warnings.mediumDry = (not wet) or nil
@@ -468,7 +482,7 @@ function Hydro.update(plant, now)
     if r.kind == "rdwc" then sites = Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z)) end
     if ebb then sites = #Hydro.ebbSitesOf(Config.tileKey(r.x, r.y, r.z)) end
     plant.hydro = { level = r.level, cap = cap, strength = r.strength, nutrient = r.nutrient, stale = stale,
-                    sites = sites, ebb = ebb or nil, wetHours = wetHours, floodTimer = (ebb and r.floodTimer) or nil }
+                    sites = sites, ebb = ebb or nil, wetHours = wetHours, floodTimer = (ebb and Hydro.hasFloodTimer(r)) or nil }
     -- Rot in a shared reservoir reaches every site's roots.
     if r.rot >= H.ROT_EARLY then
         Registry.applyPenalty(plant, H.ROT_CARE_PER_HOUR * hours, "rootRot")
@@ -490,12 +504,8 @@ function Hydro.isMoist(x, y, z)
     return true
 end
 
---- Mix a nutrient into the plant's reservoir; dosing a reservoir that is still strong burns the plant.
-function Hydro.feed(plant, nutrient)
-    local r = Hydro.reservoirOf(plant.x, plant.y, plant.z)
-    if not r or r.level <= 0 then return "noWater" end
-    local burn = r.strength > H.BURN_ABOVE
-    r.strength, r.nutrient = 1, nutrient
+--- Mix a nutrient into one plant's share of a reservoir: burn if the water was still strong, a penalty for the wrong food, a bonus for the right one.
+local function applyNutrient(plant, nutrient, burn)
     plant.lastNutrient = nutrient
     plant.warnings.hungry = nil
     if burn then
@@ -511,6 +521,29 @@ function Hydro.feed(plant, nutrient)
     plant.fedThisStage = (plant.fedThisStage or 0) + 1
     if plant.fedThisStage == 1 then plant.care = math.min(100, plant.care + Config.Care.RIGHT_NUTRIENT_BONUS) end
     return "mixed"
+end
+
+--- Mix a nutrient into the plant's reservoir; dosing a reservoir that is still strong burns the plant.
+function Hydro.feed(plant, nutrient)
+    local r = Hydro.reservoirOf(plant.x, plant.y, plant.z)
+    if not r or r.level <= 0 then return "noWater" end
+    local burn = r.strength > H.BURN_ABOVE
+    r.strength, r.nutrient = 1, nutrient
+    return applyNutrient(plant, nutrient, burn)
+end
+
+--- Mix a nutrient into a reservoir with no one plant in mind (the grow room panel): every living plant it feeds takes the result.
+--- Returns "noWater", "burn" or "mixed" for the water, and how many plants were fed.
+function Hydro.dose(r, nutrient)
+    if r.level <= 0 then return "noWater", 0 end
+    local burn = r.strength > H.BURN_ABOVE
+    r.strength, r.nutrient = 1, nutrient
+    local fed = 0
+    for _, plant in ipairs(Hydro.servedPlants(r)) do
+        applyNutrient(plant, nutrient, burn)
+        fed = fed + 1
+    end
+    return burn and "burn" or "mixed", fed
 end
 
 -- --------------------------------------------------------------------------
@@ -615,17 +648,17 @@ commands.hydroAddMedium = function(player, args)
     Net.notify(player, args.medium == "rockwool" and "Set a rockwool cube in the net pot" or "Filled the net pot with clay pebbles")
 end
 
-commands.hydroTopUp = function(player, args)
-    local r = reservoirFor(player, args)
-    if not r then return end
+--- Top up `r` for the player. `say` receives each message (the menu shows it as a floating note; the panel gathers them).
+function Hydro.topUp(player, r, say)
+    say = say or function(text) Net.notify(player, text) end
     local room = Hydro.capacity(r) - r.level
     if room <= 0.05 then
-        Net.notify(player, "The reservoir is full")
+        say("The reservoir is full")
         return
     end
     local poured, tainted = pourWater(player, room)
     if poured <= 0 then
-        Net.notify(player, "You have no water to pour")
+        say("You have no water to pour")
         return
     end
     -- A brand-new reservoir's first fill is fresh water, so its age starts then (topping up a dried-out one isn't a change).
@@ -634,21 +667,30 @@ commands.hydroTopUp = function(player, args)
     r.level = r.level + poured
     if tainted then r.tainted = true end
     if r.level >= Hydro.capacity(r) - 0.05 then r.fillPending = nil end
-    Net.notify(player, string.format("Topped up the reservoir: %.1f of %d L", r.level, Hydro.capacity(r))
+    say(string.format("Topped up the reservoir: %.1f of %d L", r.level, Hydro.capacity(r))
         .. (tainted and " (tainted water)" or ""))
 end
 
-commands.hydroChange = function(player, args)
+commands.hydroTopUp = function(player, args)
     local r = reservoirFor(player, args)
-    if not r then return end
+    if r then Hydro.topUp(player, r) end
+end
+
+--- Drain and refill `r` for the player. `say` receives each message (the menu shows it as a floating note; the panel gathers them).
+function Hydro.change(player, r, say)
+    say = say or function(text) Net.notify(player, text) end
     local cap = Hydro.capacity(r)
     -- A reservoir on a Dazed Plumbing line is dumped here and refilled by the line over the next minutes.
-    local plumbed = CannabisMod.Plumbing.isPlumbedAt(r.x, r.y, r.z)
+    local own = CannabisMod.Plumbing.isPlumbedAt(r.x, r.y, r.z)
+    -- Without its own line, another reservoir's line in the same grow room refills it.
+    local Rooms = CannabisMod.Rooms
+    local roomLine = not own and Rooms ~= nil and Rooms.lineFeeder(r) ~= nil
+    local plumbed = own or roomLine
     local poured, tainted = 0, false
     if not plumbed then
         poured, tainted = pourWater(player, cap)
         if poured <= 0 then
-            Net.notify(player, "You need water to refill it")
+            say("You need water to refill it")
             return
         end
     end
@@ -657,27 +699,34 @@ commands.hydroChange = function(player, args)
     r.changedAt = Registry.nowHours()
     r.everFilled = true
     r.fillPending = plumbed or nil
+    if roomLine then Rooms.waitOnLine(r) end
     -- With every rotted plant pulled, fresh water leaves the system clean.
     local cleaned = r.rot > 0 and not Hydro.hasLivingPlants(r)
     if cleaned then r.rot, r.recovering, r.rotTrend = 0, nil, -1 end
-    local text = plumbed and "Drained the reservoir: the water line is refilling it. Add nutrients once it's full."
+    local text = (roomLine and "Drained the reservoir: the room's water line is refilling it. Add nutrients once it's full.")
+        or plumbed and "Drained the reservoir: the water line is refilling it. Add nutrients once it's full."
         or string.format("Drained and refilled the reservoir: %.1f of %d L. Add nutrients.", poured, cap)
-    Net.notify(player, text .. (cleaned and " The system is clean of rot." or ""))
+    say(text .. (cleaned and " The system is clean of rot." or ""))
 end
 
-commands.hydroBleach = function(player, args)
+commands.hydroChange = function(player, args)
     local r = reservoirFor(player, args)
-    if not r then return end
+    if r then Hydro.change(player, r) end
+end
+
+--- Treat with bleach `r` for the player. `say` receives each message (the menu shows it as a floating note; the panel gathers them).
+function Hydro.bleach(player, r, say)
+    say = say or function(text) Net.notify(player, text) end
     if r.rot <= 0 then
-        Net.notify(player, "The roots are healthy")
+        say("The roots are healthy")
         return
     end
     if r.rot >= H.ROT_EARLY then
-        Net.notify(player, "The rot has gone too far for bleach to save it")
+        say("The rot has gone too far for bleach to save it")
         return
     end
     if Registry.nowHours() - (r.changedAt or 0) > H.TREAT_WITHIN_HOURS then
-        Net.notify(player, "Change the reservoir first, then treat it")
+        say("Change the reservoir first, then treat it")
         return
     end
     local bottle = nil
@@ -690,28 +739,39 @@ commands.hydroBleach = function(player, args)
         return ok and yes
     end)) do bottle = item break end
     if not bottle then
-        Net.notify(player, "You need bleach")
+        say("You need bleach")
         return
     end
     bottle:getFluidContainer():removeFluid(H.BLEACH_L)
     pcall(function() sendItemStats(bottle) end)
     r.recovering = true
     r.tainted = false
-    Net.notify(player, "Treated the reservoir with bleach: the roots will recover over the next few hours")
+    say("Treated the reservoir with bleach: the roots will recover over the next few hours")
 end
 
---- True if any living plant drinks from this reservoir.
-local function hasLivingPlants(r)
+commands.hydroBleach = function(player, args)
+    local r = reservoirFor(player, args)
+    if r then Hydro.bleach(player, r) end
+end
+
+--- The living plants that drink from this reservoir.
+function Hydro.servedPlants(r)
     -- Only plants close enough to share this reservoir are looked up (a DWC bucket is its own tile).
     local reach = (r.kind == "rdwc" and H.RDWC_RANGE) or (r.kind == "ebb" and H.EBB_SCAN_MAX) or 0
+    local out = {}
     for _, plant in Registry.each() do
         if not plant.dead and plant.z == r.z and math.abs(plant.x - r.x) <= reach and math.abs(plant.y - r.y) <= reach
                 and Config.isHydro(Registry.getBag(plant.x, plant.y, plant.z))
                 and Hydro.reservoirOf(plant.x, plant.y, plant.z) == r then
-            return true
+            out[#out + 1] = plant
         end
     end
-    return false
+    return out
+end
+
+--- True if any living plant drinks from this reservoir.
+local function hasLivingPlants(r)
+    return #Hydro.servedPlants(r) > 0
 end
 Hydro.hasLivingPlants = hasLivingPlants
 
@@ -736,7 +796,8 @@ commands.hydroCheck = function(player, args)
     local r = reservoirFor(player, args)
     if not r then return end
     -- Reading the reservoir changes nothing: its plants move it on every 10 minutes.
-    if r.fillPending and not CannabisMod.Plumbing.isPlumbedAt(r.x, r.y, r.z) then r.fillPending = nil end
+    local roomFed = CannabisMod.Rooms and CannabisMod.Rooms.isWaitingOnLine(r)
+    if r.fillPending and not roomFed and not CannabisMod.Plumbing.isPlumbedAt(r.x, r.y, r.z) then r.fillPending = nil end
     local parts = { string.format("%.1f of %d L", math.min(r.level, Hydro.capacity(r)), Hydro.capacity(r)) }
     if r.kind == "rdwc" then
         local n = Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z))
@@ -754,7 +815,7 @@ commands.hydroCheck = function(player, args)
     parts[#parts + 1] = string.format("%.0f days old", age) .. (Hydro.isStale(r, Registry.nowHours()) and " (stale)" or "")
     if r.tainted then parts[#parts + 1] = "tainted" end
     if r.fillPending then
-        parts[#parts + 1] = "refilling from the water line"
+        parts[#parts + 1] = roomFed and "refilling from the room's water line" or "refilling from the water line"
     elseif CannabisMod.Plumbing.isPlumbedAt(r.x, r.y, r.z) then
         parts[#parts + 1] = "on a water line"
     end
@@ -781,7 +842,7 @@ function Hydro.onReset(x, y, z)
         Registry.setBagSoiled(x, y, z, false)
     end
     -- A DWC bucket's own reservoir starts clean for the next plant; an RDWC site shares its control's water.
-    if r and kind == "dwc" then r.rot = 0 end
+    if r and Config.hydroOf(kind) == "dwc" then r.rot = 0 end
     -- With no roots left in the water, its clock stops until the next plant goes in.
     local shared = Hydro.reservoirOf(x, y, z)
     if shared and not Hydro.hasLivingPlants(shared) then shared.lastTick = nil end
@@ -815,6 +876,9 @@ commands.floodTables = function(player, args)
     end
     local result = Hydro.flood(r, now)
     local n = #Hydro.ebbSitesOf(Config.tileKey(r.x, r.y, r.z))
+    if result == "flooded" and CannabisMod.Rooms then
+        CannabisMod.Rooms.logTile(Config.tileKey(r.x, r.y, r.z), "Flooded " .. n .. " table site" .. (n == 1 and "" or "s") .. " by hand", now)
+    end
     local text = {
         flooded = "Flooded " .. n .. " table site" .. (n == 1 and "" or "s") .. ": the rockwool will stay wet for about " .. H.EBB_WET_HOURS .. " hours",
         noPower = "The flood pump has no power",
@@ -913,9 +977,10 @@ Events.EveryTenMinutes.Add(Hydro.cleanup)
 commands.debugHydroKit = function(player, args)
     if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then return end
     Farming.giveItems(player, "CannabisMod.DWCBucket", 2)
+    Farming.giveItems(player, Config.GrowBag.xldwc.furnItem, 1)
     Farming.giveItems(player, H.CONTROL_ITEM, 1)
     Farming.giveItems(player, "CannabisMod.RDWCSite", 2)
-    Farming.giveItems(player, H.MEDIUM_ITEMS.rockwool, 4)
+    Farming.giveItems(player, H.MEDIUM_ITEMS.rockwool, 5)
     Farming.giveItems(player, H.MEDIUM_ITEMS.pebbles, 1)
     Farming.giveItems(player, Config.NUTRIENT_ITEMS.Veg, 2)
     Farming.giveItems(player, Config.NUTRIENT_ITEMS.Bloom, 2)
@@ -923,6 +988,6 @@ commands.debugHydroKit = function(player, args)
     Farming.giveItems(player, "CannabisMod.FloodTable", 2)
     Farming.giveItems(player, H.FLOOD_ITEM, 1)
     Farming.giveItems(player, H.FLOOD_TIMER_ITEM, 1)
-    Net.notify(player, "Gave 2 DWC buckets, an RDWC control and 2 sites, 2 flood tables, a flood reservoir and timer, "
-        .. "4 rockwool cubes, clay pebbles, nutrients and bleach. Bring your own water.")
+    Net.notify(player, "Gave 2 DWC buckets, an XL DWC bucket, an RDWC control and 2 sites, 2 flood tables, a flood reservoir and timer, "
+        .. "5 rockwool cubes, clay pebbles, nutrients and bleach. Bring your own water.")
 end

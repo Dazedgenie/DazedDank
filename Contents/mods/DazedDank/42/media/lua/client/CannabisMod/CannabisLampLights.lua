@@ -8,13 +8,13 @@ local Config = CannabisMod.Config
 local LampLights = {}
 CannabisMod.LampLights = LampLights
 
--- Light colours by lamp tier: basic lamps run blurple LEDs, pro lamps a warm full-spectrum yellow.
+-- Light colours by lamp tier: basic lamps run blurple LEDs, pro lamps a strong HPS-style yellow-orange.
 LampLights.COLORS = {
     basic = { 0.85, 0.25, 1.00 },
-    pro   = { 1.00, 0.82, 0.45 },
+    pro   = { 1.00, 0.62, 0.12 },
 }
--- How many light sources each tier stacks on its tile: two each, so both colours read strongly.
-LampLights.LAYERS = { basic = 2, pro = 2 }
+-- How many light sources each tier stacks on its tile: pro gets a third so its yellow-orange reads as strongly as the purple.
+LampLights.LAYERS = { basic = 2, pro = 3 }
 LampLights.SCAN_RADIUS = 30   -- tiles around the player that get lamp lights
 LampLights.ROWS_PER_TICK = 1  -- rows of the scan area read each tick, so a full pass takes about a second
 
@@ -98,8 +98,10 @@ local function scanRow(cell, s, needPower, hour)
                 if def then
                     local key = Config.tileKey(x, y, z)
                     s.seen[key] = true
-                    local schedule = obj:getModData().DDTimer
-                    local on = (not needPower or powered(square)) and isOn(schedule, hour)
+                    local md = obj:getModData()
+                    local schedule = md.DDTimer
+                    -- DDRoomOff is set by the server while the lamp's grow room panel has no power.
+                    local on = (not needPower or powered(square)) and not md.DDRoomOff and isOn(schedule, hour)
                     if on and not active[key] then addLight(key, x, y, z, def) end
                     if not on and active[key] then
                         removeLight(key)

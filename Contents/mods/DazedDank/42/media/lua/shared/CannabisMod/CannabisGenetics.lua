@@ -2,8 +2,10 @@
 -- rooting odds.
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisStrains"
 
 local Config = CannabisMod.Config
+local Strains = CannabisMod.Strains
 local T = Config.TYPES
 local SEX = Config.SEX
 
@@ -26,8 +28,8 @@ end
 --- Create the data for a new seed. This table is what gets stored in the seed
 --- item's modData, and later copied into the plant record when the seed is
 --- planted.
---- @param plantType one of Config.TYPES
---- @param opts optional { hermieLineage = true } for seeds from a hermie
+--- @param plantType one of Config.TYPES, or a strain record (its type is worked out from it)
+--- @param opts optional { hermieLineage = true } for seeds from a hermie, { strain = record } to set the strain
 function Genetics.newSeed(plantType, opts)
     opts = opts or {}
     local genetics = Config.Genetics.START
@@ -36,8 +38,13 @@ function Genetics.newSeed(plantType, opts)
     if opts.hermieLineage then
         genetics = genetics - Config.Genetics.HERMIE_PENALTY
     end
+    -- A strain passed in place of a type, or asked for by type, so every seed has one.
+    local strain = opts.strain
+    if type(plantType) == "table" then strain, plantType = plantType, nil end
+    strain = Strains.copy(strain) or Strains.randomStarter(plantType)
     return {
-        type          = plantType,
+        type          = Strains.typeOf(strain) or plantType,
+        strain        = strain,
         sex           = Genetics.rollSex(),
         genetics      = genetics,
         generation    = 0,  -- 0 = grown from seed, 1+ = clone generations
@@ -91,10 +98,14 @@ function Genetics.seedsFromPollination(mother, father)
     -- If EITHER parent carries a hermie line, the seeds do too.
     local hermie = (mother.hermieLineage == true) or (father.hermieLineage == true)
 
+    -- One cross per pollination: every seed in the batch is the same new strain, with its own trait roll.
+    local ma, fa = Strains.of(mother), Strains.of(father)
     local seeds = {}
     for i = 1, count do
-        local seedType = Genetics.breedType(mother.type, father.type)
-        seeds[i] = Genetics.newSeed(seedType, { hermieLineage = hermie })
+        -- Only the first seed claims a name; its siblings share it, so a batch never uses up numbers.
+        local strain = (i == 1) and Strains.cross(ma, fa) or Strains.crossTraits(ma, fa)
+        if i > 1 then strain.name = seeds[1].strain.name end
+        seeds[i] = Genetics.newSeed(strain, { hermieLineage = hermie })
     end
     return seeds
 end
@@ -109,12 +120,41 @@ function Genetics.canClone(plant)
     return Config.CLONEABLE_STAGES[stageName] == true
 end
 
---- Build the genetics for a new cutting: it copies the mother, then drifts.
+--- The most cuttings a plant's pot holds at once.
+function Genetics.cutBudgetMax(plant)
+    local b = Config.Cuttings.BUDGET
+    return b[plant.bag or "ground"] or b.ground
+end
+
+--- Cuttings a plant can give right now: its stored budget, refilled for the time since it was last spent.
+function Genetics.cutsAvailable(plant, now)
+    local max = Genetics.cutBudgetMax(plant)
+    if plant.cutBudget == nil then return max end
+    local speed = math.max(0.1, math.min(10, Config.sandbox("GrowthSpeed") or 1))
+    local perHour = max / (Config.Cuttings.REFILL_DAYS * 24) * speed
+    return math.min(max, plant.cutBudget + math.max(0, now - (plant.cutBudgetAt or now)) * perHour)
+end
+
+--- Spend one cutting. True if it was within budget, false if it overcut the plant.
+function Genetics.spendCut(plant, now)
+    local avail = Genetics.cutsAvailable(plant, now)
+    plant.cutBudgetAt = now
+    if avail >= 1 then
+        plant.cutBudget = avail - 1
+        return true
+    end
+    plant.cutBudget = avail  -- an overcut doesn't drain it further; it keeps refilling from here
+    return false
+end
+
+--- Build the genetics for a new cutting: it copies the mother, then drifts (less from a mother in an XL pot).
 function Genetics.cloneFrom(mother)
     local g = Config.Genetics
-    local drift = Config.randInt(g.DRIFT_MIN, g.DRIFT_MAX)
+    local m = Config.isMotherPot(mother.bag) and Config.Mother or g
+    local drift = Config.randInt(m.DRIFT_MIN, m.DRIFT_MAX)
     return {
         type          = mother.type,
+        strain        = Strains.copy(Strains.of(mother)),
         sex           = mother.sex,  -- a clone of a female is always female
         genetics      = math.max(g.FLOOR, mother.genetics - drift),
         generation    = (mother.generation or 0) + 1,

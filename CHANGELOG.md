@@ -1,5 +1,46 @@
 # Dazed Dank patch notes
 
+## dd53 (Grow Rooms, in testing)
+- Added: **Grow Rooms.** Seal a room with walls, doors and windows, place a **Grow Room Panel** on a wall, and right-click it to open the room window (Lights, Hydro, Plants, Climate, Log tabs).
+- Added: one shared lamp schedule per room, bulk hydro actions (Top Up, Change, Dose, Bleach) and a plant overview from the panel.
+- Added: power loss. If the panel loses power, lamps and climate equipment stop. Plants take a forgiving penalty (sandbox: RoomPowerPenalty).
+- Added: light leaks. Doors and windows with no curtain let light in during the dark period. **Blackout Curtains** go on a door or window frame via right-click (sandbox: LightLeaks).
+- Added: room climate for temperature and humidity, with Veg, Flower and Drying targets. Sealed rooms run warmer, lamps add heat, and a room with no fans runs hotter still. Plants outside their range are stressed, and flowering plants in humid air risk mold (sandbox: RoomClimate).
+- Added: **Exhaust Fan, Intake Fan, Heater, Dehumidifier, Humidifier**, each with a recipe in the magazine, loot spawns and art. Fans on an outside wall work fully; on an inside wall they work at 25%. Equipment runs automatically, or set Auto, On or Off per kind in the Climate tab.
+- Added: the room's Log tab records light schedule and mode changes, renames, floods by hand, root rot setting in, harvests, and mold on racks and in jars.
+- Added: one water line for the room. If any reservoir in a grow room has a Dazed Plumbing line, a Change on any other reservoir in that room is refilled from it too.
+- Changed: Drying racks in a room use the room's temperature and humidity.
+- Fixed: the "require Farming/farming_vegetableconf failed" warning in console.txt at startup. The guard that keeps a soil-only grow bag's hover name from erroring now switches on at game start, where before it never switched on.
+- Changed: pro lamps glow a stronger HPS-style yellow-orange instead of pale yellow.
+- Fixed: watering a tall plant (such as a rooted cutting, which starts at Vegetative) said "Furrow needs seeds" when the cursor was on its leaves. The watering cursor now finds the plant in front of the hovered furrow.
+- Added: Inspect Bud shows the bud's moisture (about 75% wet, 12% properly dried, lower when over-dried) and its mold state and mold risk. Buds trimmed before this update show an estimate.
+- Fixed: placing a flood table only made one of its two tiles a plant site, and picking it up then took two tiles but gave back one table. Both halves now become sites together.
+- Fixed: ceiling grow lamps couldn't be hung over an RDWC control bucket or flood reservoir.
+- Not included: a curtain on a door does not hide the room from zombies.
+
+## dd52
+- Added: Top Plant. In veg, snip the main tip (scissors or a sharp knife) for +20% buds at harvest. Costs 10 stress and pauses growth for 12 hours. Once per plant. The status window shows "Topped" to anyone.
+- Added: cutting budget. Each pot holds a number of cuttings that regrows (full again after about 4 days): ground 3, small bag 2, large bag 4, DWC 4, RDWC 4, flood table 2, XL pots 8. Cutting past it costs 8 extra stress and sets her back: pre-flower drops to veg and the veg timer starts over. The status window shows "Cuttings ready: 3 of 8" from Agriculture 2, and a "Cut too hard" warning after an overcut.
+- Added: XL Grow Bag (3 soil sacks) and XL DWC Bucket (30 L reservoir), made for mother plants. Both have the same yield as the large bag and the DWC. Mothers in them get an 8-cutting budget and lose only 0-2 genetics per clone generation (normal pots: 1-5). While held in veg they need feeding every 96 hours instead of 48, and the stress from cuttings fades at 1 per hour (other stress stays).
+- Added: recipes Make XL Grow Bag (Farming 3, Grower's Handbook) and Make XL DWC Bucket (Electricity 3, Hydroponics Monthly). The debug grow and hydro kits include one of each.
+- Art: the XL sprites are scaled from the large bag and DWC renders (hydro sheet tiles 235-460). After re-rendering those, `python tools/make_xl_sprites.py` rebuilds them. `tools/pzpack.py` and `tools/tdef.py` read and write the .pack and .tiles files.
+- Changed: Plumbing and the reservoir menu treat the XL DWC as a DWC bucket.
+- Fixed: two different crosses could get the same strain name. The server now keeps a list of every name it gives out, and a new strain that lands on a taken name is numbered ("Dixie Mist #2"). Starter names are reserved. All seeds from one pollination share one name, and breeding a strain with itself keeps its name.
+- Changed: indica starters now flower faster than normal (Knox Kush 9%, Muldraugh Purple 12%, Rosewood Stone 6%) and sativas slower (Riverside Haze 10%, March Ridge Gold 4%, West Point Lightning 14%), so crossing and keeping the fastest seeds can breed a strain that flowers up to 20% faster. A flowering speed of 50 now means exactly normal time.
+- Changed: strain traits read as exact numbers ("potency +8%, yield +17%, flowers 2% faster") instead of Low/Mid/High, so growers can tell which seed to keep.
+- Kept: seeds and plants already in a save keep their old trait numbers; only new starter seeds use the new speeds. Names given out before this update aren't on the list, so one of them could match a new cross once.
+- Tests: 33 new checks (203 total).
+
+## dd51
+- Added: strains. Every seed, cutting, plant, bud and joint now carries a named strain with four hidden traits: indica share, potency, yield and flowering speed. Looted seeds are one of six starters: Knox Kush, Muldraugh Purple and Rosewood Stone (indica), Riverside Haze, West Point Lightning and March Ridge Gold (sativa).
+- Added: breeding makes new strains. A pollinated female's seeds average both parents' traits with a little noise (and a rare bigger throw), and the cross gets a generated name like "Riverside Mist". The same strain crossed with itself breeds true. Every seed from one pollination is the same strain.
+- Added: traits matter. Fast strains finish pre-flower and flowering up to 20% sooner, slow ones take up to 25% longer. Yield runs from x0.75 to x1.25 buds, potency from x0.8 to x1.2 on the high. The high itself mixes the indica and sativa effects by the strain's indica share, so a 70/30 cross is mostly calm with a little lift. Only strains under 65% indica can get anxious on a strong hit.
+- Added: Indica / Sativa / Hybrid is now read from the strain (65%+ indica, 35% or less, between). Sprites and the Wet / Dried Whole Plant items still follow that type.
+- Added: strain names on items. Buds and joints read "Good Knox Kush Bud", "Premium Riverside Mist Joint". Seeds, cuttings and the status window show the strain at Agriculture 3, and its traits in words at 9 (buds at 6 on Inspect Bud).
+- Added: plants take a light tint from their strain (indica leans violet, sativa gold). Sandbox option Strain Tint turns it off. An emptied bag loses the colour.
+- Kept: old saves. A plant, seed or bud from before this update gets a starter strain of its own type the first time it is read, picked by its item ID or tile so it never changes. Nothing on an old item is rewritten in place.
+- Tests: the offline suite is back in step with the mod (container dome, whole-plant harvest, sex readable at Agriculture 3) and gains 18 strain checks. Run with `texlua tests/run_tests.lua .` or any Lua 5.1+ (`lua tests/run_tests.lua .`).
+
 ## dd50
 - Changed: buds and joints now carry their own type, quality and mold on the item. The save only keeps records for buds part-way through a cure and plants that have been on a rack, so it no longer grows with every bud you trim.
 - Changed: when a bud finishes curing in a jar or barrel, it is swapped for a bud that carries its full cure, and its record is dropped. Its name updates to its cured quality (e.g. Good becomes Premium), or "Moldy" if the jar went bad. Mold in a neglected jar still spoils finished buds in it.

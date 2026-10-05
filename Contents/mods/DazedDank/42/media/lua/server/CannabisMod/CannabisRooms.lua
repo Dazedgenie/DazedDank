@@ -1,0 +1,1000 @@
+-- Grow rooms: a wall panel claims the connected indoor floor around it, and every lamp in that room runs the room's schedule.
+-- Only the panels are saved; the tiles of each room are worked out again at load and whenever a wall or door changes.
+
+if isClient() then return end
+
+require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisNet"
+require "CannabisMod/CannabisServerCommands"
+require "CannabisMod/CannabisLight"
+require "CannabisMod/CannabisRegistry"
+require "CannabisMod/CannabisSeeds"
+require "CannabisMod/CannabisInfo"
+require "CannabisMod/CannabisClimate"
+require "CannabisMod/CannabisDrying"
+
+local Config = CannabisMod.Config
+local Net = CannabisMod.Net
+local commands = CannabisMod.ServerCommands.handlers
+local isNear = CannabisMod.ServerCommands.isNear
+
+local Rooms = {}
+CannabisMod.Rooms = Rooms
+
+-- panels[panelKey] = { x, y, z, name, schedule, mode }, saved with the world.
+local panels = nil
+-- curtains[edgeKey] = true for every door or window frame with a blackout curtain on it, saved with the world.
+local curtains = nil
+-- openings[panelKey] = the room's doors and windows, rebuilt with the room.
+local openings = {}
+-- Rebuilt from the panels: tileRoom[tileKey] = panelKey, and tiles[panelKey] = { [tileKey] = true }.
+local tileRoom, tiles = {}, {}
+
+Events.OnInitGlobalModData.Add(function()
+    panels = ModData.getOrCreate(Config.MODDATA_KEY .. "_Rooms")
+    curtains = ModData.getOrCreate(Config.MODDATA_KEY .. "_Curtains")
+end)
+
+--- Replace the saved panels (tests use this to start clean).
+function Rooms._reset(tbl, curtainTbl)
+    panels = tbl or {}
+    curtains = curtainTbl or {}
+    tileRoom, tiles, openings = {}, {}, {}
+end
+
+--- True when the way from square a to the next square b is shut by a wall, a door frame or a window frame.
+function Rooms.edgeBlocked(a, b)
+    local ok, shut = pcall(a.isBlockedTo, a, b)
+    if ok and shut then return true end
+    ok, shut = pcall(a.isDoorTo, a, b)
+    if ok and shut then return true end
+    ok, shut = pcall(a.isWindowTo, a, b)
+    return ok and shut == true
+end
+
+local DIRS = { { 1, 0, "E" }, { -1, 0, "W" }, { 0, 1, "S" }, { 0, -1, "N" } }
+
+--- The key of the wall edge on one side of a tile. Every edge is named from the tile that owns its N or W side, so both sides agree.
+function Rooms.edgeKey(x, y, z, dir)
+    if dir == "S" then y, dir = y + 1, "N" end
+    if dir == "E" then x, dir = x + 1, "W" end
+    return Config.tileKey(x, y, z) .. "_" .. dir
+end
+
+--- "door" or "window" when the edge between squares a and b is a door or window frame, else nil.
+function Rooms.edgeKind(a, b)
+    local ok, yes = pcall(a.isDoorTo, a, b)
+    if ok and yes then return "door" end
+    ok, yes = pcall(a.isWindowTo, a, b)
+    if ok and yes then return "window" end
+    return nil
+end
+
+--- True when a vanilla curtain on the window between a and b is drawn shut.
+function Rooms.vanillaCovered(a, b)
+    local ok, covered = pcall(function()
+        local window = a:getWindowTo(b)
+        local curtain = window and window:HasCurtains()
+        return curtain ~= nil and curtain ~= false and not curtain:IsOpen()
+    end)
+    return ok and covered == true
+end
+
+--- Every door and window frame on a room's edge, with whether a curtain covers it.
+function Rooms.findOpenings(set)
+    local cell = getCell()
+    local out = {}
+    for tileKey in pairs(set) do
+        local x, y, z = tileKey:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local sq = cell:getGridSquare(x, y, z)
+        for _, d in ipairs(DIRS) do
+            local nx, ny = x + d[1], y + d[2]
+            if sq and not set[Config.tileKey(nx, ny, z)] then
+                local nb = cell:getGridSquare(nx, ny, z)
+                local kind = nb and Rooms.edgeKind(sq, nb)
+                if kind then
+                    local edge = Rooms.edgeKey(x, y, z, d[3])
+                    local covered = curtains[edge] == true or (kind == "window" and Rooms.vanillaCovered(sq, nb))
+                    out[#out + 1] = { x = x, y = y, z = z, ox = nx, oy = ny, kind = kind, edge = edge, covered = covered }
+                end
+            end
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.x ~= b.x then return a.x < b.x end
+        if a.y ~= b.y then return a.y < b.y end
+        return a.edge < b.edge
+    end)
+    return out
+end
+
+--- The openings of a room by its panel key.
+function Rooms.openingsOf(panelKey) return openings[panelKey] or {} end
+
+--- True when light from an outside lamp at (lx, ly) can reach a plant at (px, py) inside the room: only through an uncovered opening.
+function Rooms.outsideLampReaches(panelKey, px, py, lx, ly, def, range)
+    if not Config.sandbox("LightLeaks") then return false end
+    for _, o in ipairs(openings[panelKey] or {}) do
+        if not o.covered and math.abs(px - o.x) + math.abs(py - o.y) <= Config.Rooms.LEAK_NEAR
+            and Config.Light.reaches(o.ox - lx, o.oy - ly, def.radius, range) then
+            return true
+        end
+    end
+    return false
+end
+
+--- True when sunlight through an uncovered window reaches a plant of a 12/12 room during its dark hours.
+function Rooms.sunLeakAt(panelKey, px, py, hour)
+    local room = panels[panelKey]
+    if not room or room.schedule ~= "12/12" or Config.Timer.isOn("12/12", hour) then return false end
+    if hour < Config.Rooms.SUN_FROM or hour >= Config.Rooms.SUN_TO then return false end
+    for _, o in ipairs(openings[panelKey] or {}) do
+        if o.kind == "window" and not o.covered and math.abs(px - o.x) + math.abs(py - o.y) <= Config.Rooms.LEAK_NEAR then
+            return true
+        end
+    end
+    return false
+end
+
+--- Log a line at most once every twelve hours per `kind`, so a steady problem doesn't flood the log.
+function Rooms.noteOnce(panelKey, kind, text, now)
+    local room = panels[panelKey]
+    if not room then return end
+    now = now or getGameTime():getWorldAgeHours()
+    room.leakAt = room.leakAt or {}
+    if now - (room.leakAt[kind] or -1000) >= 12 then
+        room.leakAt[kind] = now
+        Rooms.log(room, text, now)
+    end
+end
+
+--- Log a leak at most once every twelve hours per kind of leak.
+function Rooms.noteLeak(panelKey, text, now)
+    Rooms.noteOnce(panelKey, text, text, now)
+end
+
+local NEIGHBOURS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+
+--- The indoor tiles connected to `square` without crossing a wall, door frame or window frame, on one floor.
+--- Returns the set of tile keys, how many there are, and true when the cap cut it short (the set is then a radius around the panel).
+function Rooms.fill(square, blocked)
+    blocked = blocked or Rooms.edgeBlocked
+    local cell = getCell()
+    local z = square:getZ()
+    local sx, sy = square:getX(), square:getY()
+    local set, count = {}, 0
+    local queue, head = { square }, 1
+    set[Config.tileKey(sx, sy, z)] = true
+    count = 1
+    while head <= #queue do
+        local sq = queue[head]
+        head = head + 1
+        local x, y = sq:getX(), sq:getY()
+        for _, d in ipairs(NEIGHBOURS) do
+            local nx, ny = x + d[1], y + d[2]
+            local key = Config.tileKey(nx, ny, z)
+            if not set[key] then
+                local nb = cell:getGridSquare(nx, ny, z)
+                if nb and not nb:isOutside() and not blocked(sq, nb) then
+                    set[key] = true
+                    count = count + 1
+                    queue[#queue + 1] = nb
+                    if count > Config.Rooms.MAX_TILES then
+                        return Rooms.radiusFill(square), count, true
+                    end
+                end
+            end
+        end
+    end
+    return set, count, false
+end
+
+--- The fallback for a very large space: every indoor tile within the fallback radius of the panel.
+function Rooms.radiusFill(square)
+    local cell = getCell()
+    local z, R = square:getZ(), Config.Rooms.FALLBACK_RADIUS
+    local set = {}
+    for dx = -R, R do
+        for dy = -R, R do
+            local x, y = square:getX() + dx, square:getY() + dy
+            local sq = cell:getGridSquare(x, y, z)
+            if sq and not sq:isOutside() then set[Config.tileKey(x, y, z)] = true end
+        end
+    end
+    return set
+end
+
+--- True when the object is one of the panel's wall sprites.
+local function isPanelObject(obj)
+    local sprite = obj:getSprite()
+    local name = sprite and sprite:getName()
+    return name ~= nil and Config.Rooms.PANEL_SPRITES[name] ~= nil
+end
+
+--- True when a panel object stands on the square.
+local function panelOn(square)
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        if isPanelObject(objects:get(i)) then return true end
+    end
+    return false
+end
+
+--- Hand every lamp in a room the room's schedule and give back any timer it carried.
+--- With a player the freed timers go to them; otherwise they drop at the panel.
+function Rooms.sync(panelKey, player)
+    local Timers = CannabisMod.Timers
+    local room, set = panels[panelKey], tiles[panelKey]
+    if not (Timers and Timers.adoptRoom and room and set) then return 0 end
+    local schedule = nil
+    if room.schedule ~= "24/0" then schedule = room.schedule end
+    local freed = Timers.adoptRoom(set, schedule)
+    if freed > 0 then
+        if player then
+            CannabisMod.Farming.giveItems(player, Config.Timer.ITEM, freed)
+        else
+            local square = getCell():getGridSquare(room.x, room.y, room.z)
+            if square then
+                for _ = 1, freed do pcall(square.AddWorldInventoryItem, square, Config.Timer.ITEM, 0.5, 0.5, 0) end
+            end
+        end
+    end
+    return freed
+end
+
+--- Work out every room's tiles again from the saved panels.
+function Rooms.rebuild(blocked)
+    tileRoom, tiles, openings = {}, {}, {}
+    if not panels then return end
+    local cell = getCell()
+    local gone = {}
+    for key, panel in pairs(panels) do
+        local square = cell:getGridSquare(panel.x, panel.y, panel.z)
+        if square and not panelOn(square) then
+            gone[#gone + 1] = key
+        elseif square then
+            local set = Rooms.fill(square, blocked)
+            tiles[key] = set
+            for tileKey in pairs(set) do tileRoom[tileKey] = key end
+            openings[key] = Rooms.findOpenings(set)
+            Rooms.sync(key)
+        end
+    end
+    for _, key in ipairs(gone) do panels[key] = nil end
+end
+
+--- The room record covering a tile, or nil.
+function Rooms.roomAt(x, y, z)
+    local key = tileRoom[Config.tileKey(x, y, z)]
+    return key and panels[key] or nil
+end
+
+--- The panel key a tile belongs to, or nil.
+function Rooms.keyAt(x, y, z)
+    return tileRoom[Config.tileKey(x, y, z)]
+end
+
+--- Add a line to a room's log, keeping only the newest few.
+function Rooms.log(room, text, now)
+    room.log = room.log or {}
+    room.log[#room.log + 1] = { t = now or getGameTime():getWorldAgeHours(), text = text }
+    while #room.log > Config.Rooms.LOG_KEEP do table.remove(room.log, 1) end
+end
+
+--- Add a log line to the room covering a tile (by tile key), if any room does.
+function Rooms.logTile(key, text, now)
+    local pk = key and tileRoom[key]
+    local room = pk and panels[pk]
+    if room then Rooms.log(room, text, now) end
+end
+
+--- Whether the room covering a tile has power at its panel: nil when no room covers it, false during an outage.
+function Rooms.poweredAt(x, y, z)
+    local room = Rooms.roomAt(x, y, z)
+    if not room then return nil end
+    local square = getCell():getGridSquare(room.x, room.y, room.z)
+    if square then return CannabisMod.Light.isPowered(square) == true end
+    return room.powered ~= false
+end
+
+--- True when the panel of the room covering a tile holds a flood timer for every flood reservoir in it.
+function Rooms.floodTimerAt(x, y, z)
+    local room = Rooms.roomAt(x, y, z)
+    return room ~= nil and room.floodTimer == true
+end
+
+--- The temperature and humidity of the room covering a tile, or nil outside a room or with room climate switched off.
+function Rooms.climateAt(x, y, z)
+    local room = Rooms.roomAt(x, y, z)
+    if not room or room.temp == nil or not Config.sandbox("RoomClimate") then return nil end
+    return room.temp, room.hum
+end
+
+--- The tile set of a room by its panel key.
+function Rooms.tilesOf(panelKey) return tiles[panelKey] end
+
+--- For a lamp tile: whether a grow room rules it, and the schedule it runs (nil for 24/0).
+function Rooms.scheduleAt(x, y, z)
+    local room = Rooms.roomAt(x, y, z)
+    if not room then return false, nil end
+    if room.schedule == "24/0" then return true, nil end
+    return true, room.schedule
+end
+
+--- Place a panel at a square. Returns true and how many lamp timers were handed back, or false and the reason (another panel already rules this room).
+function Rooms.register(square, player, blocked)
+    local key = Config.tileKey(square:getX(), square:getY(), square:getZ())
+    if panels[key] then return false, "There is already a panel here" end
+    if square:isOutside() then return false, "A grow room panel needs an indoor room" end
+    local set = Rooms.fill(square, blocked)
+    for otherKey, other in pairs(panels) do
+        if set[otherKey] then
+            return false, "This room already has a panel at " .. other.x .. ", " .. other.y
+        end
+    end
+    panels[key] = {
+        x = square:getX(), y = square:getY(), z = square:getZ(),
+        name = "Grow Room", schedule = Config.Rooms.DEFAULT_SCHEDULE, mode = Config.Rooms.DEFAULT_MODE,
+    }
+    tiles[key] = set
+    for tileKey in pairs(set) do tileRoom[tileKey] = key end
+    openings[key] = Rooms.findOpenings(set)
+    return true, Rooms.sync(key, player)
+end
+
+--- Take a panel away: its lamps go back to their own behaviour (24/0 until a timer is fitted again).
+function Rooms.remove(panelKey)
+    if not panels[panelKey] then return false end
+    for tileKey in pairs(tiles[panelKey] or {}) do tileRoom[tileKey] = nil end
+    tiles[panelKey] = nil
+    openings[panelKey] = nil
+    panels[panelKey] = nil
+    return true
+end
+
+--- True when the player may use the panel: vanilla safehouse rules, or free use outside a safehouse.
+function Rooms.canUse(player, room)
+    local ok, allowed = pcall(function()
+        local safe = SafeHouse and SafeHouse.getSafeHouse(getCell():getGridSquare(room.x, room.y, room.z))
+        if not safe then return true end
+        return safe:playerAllowed(player)
+    end)
+    return not ok or allowed == true
+end
+
+--- Clean a typed room name: trimmed, limited in length, never empty.
+function Rooms.cleanName(text)
+    text = tostring(text or "")
+    text = text:gsub("^%s+", "")
+    text = text:gsub("%s+$", "")
+    if #text == 0 then return "Grow Room" end
+    return text:sub(1, Config.Rooms.NAME_MAX)
+end
+
+--- The panel a player is acting on: close enough, a real panel, and allowed to use it.
+local function panelFor(player, args)
+    local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
+    if not (x and y and z and panels) or not isNear(player, x, y, z) then return nil end
+    local room = panels[Config.tileKey(x, y, z)]
+    if not room or not Rooms.canUse(player, room) then return nil end
+    return room
+end
+
+commands.roomSetSchedule = function(player, args)
+    local room = panelFor(player, args)
+    local valid = false
+    for _, s in ipairs(Config.Rooms.SCHEDULES) do if s == args.schedule then valid = true end end
+    if not room or not valid then return end
+    room.schedule = args.schedule
+    Rooms.log(room, "Lights set to " .. args.schedule)
+    Rooms.sync(Config.tileKey(room.x, room.y, room.z), player)
+    Net.notify(player, room.name .. " lights set to " .. args.schedule)
+    commands.requestRoom(player, args)
+end
+
+commands.roomSetMode = function(player, args)
+    local room = panelFor(player, args)
+    local valid = false
+    for _, m in ipairs(Config.Rooms.MODES) do if m == args.mode then valid = true end end
+    if not room or not valid then return end
+    room.mode = args.mode
+    Rooms.log(room, "Mode set to " .. args.mode)
+    Net.notify(player, room.name .. " set to " .. args.mode)
+    commands.requestRoom(player, args)
+end
+
+commands.roomRename = function(player, args)
+    local room = panelFor(player, args)
+    if not room then return end
+    room.name = Rooms.cleanName(args.name)
+    Rooms.log(room, "Renamed to " .. room.name)
+    commands.requestRoom(player, args)
+end
+
+--- The online player nearest a tile, or nil (used to tell someone their panel was refused).
+local function nearestPlayer(x, y, z)
+    local best, bestDist = nil, 1e9
+    local function consider(p)
+        if p and math.floor(p:getZ()) == z then
+            local d = math.abs(p:getX() - x) + math.abs(p:getY() - y)
+            if d < bestDist then best, bestDist = p, d end
+        end
+    end
+    if getOnlinePlayers then
+        local list = getOnlinePlayers()
+        for i = 0, list:size() - 1 do consider(list:get(i)) end
+    elseif getPlayer then
+        consider(getPlayer())
+    end
+    return best
+end
+
+--- A panel object was placed: register it, or take it back down and hand the item over when the room already has one.
+function Rooms.onPlaced(obj)
+    local square = obj:getSquare()
+    if not square then return end
+    local key = Config.tileKey(square:getX(), square:getY(), square:getZ())
+    if panels[key] then return end
+    local ok, why = Rooms.register(square, nil)
+    if ok then return end
+    pcall(square.RemoveTileObject, square, obj)
+    pcall(square.transmitRemoveItemFromSquare, square, obj)
+    pcall(square.AddWorldInventoryItem, square, "CannabisMod.GrowRoomPanel", 0.5, 0.5, 0)
+    local player = nearestPlayer(square:getX(), square:getY(), square:getZ())
+    if player then Net.notify(player, why) end
+end
+
+Events.OnObjectAdded.Add(function(obj)
+    local ok, isPanel = pcall(isPanelObject, obj)
+    if ok and isPanel then Rooms.onPlaced(obj) end
+end)
+
+--- What the panel window shows: the room's settings, its size and every lamp in it.
+function Rooms.info(panelKey, player)
+    local room, set = panels[panelKey], tiles[panelKey]
+    if not (room and set) then return nil end
+    local cell = getCell()
+    local hour = getGameTime():getHour()
+    local schedule = nil
+    if room.schedule ~= "24/0" then schedule = room.schedule end
+    local lamps, count = {}, 0
+    for key in pairs(set) do
+        count = count + 1
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        local square = cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        if square then
+            local objects = square:getObjects()
+            for i = 0, objects:size() - 1 do
+                local sprite = objects:get(i):getSprite()
+                local def = sprite and Config.Light.SPRITES[sprite:getName()]
+                if def then
+                    local powered = CannabisMod.Light.isPowered(square)
+                    lamps[#lamps + 1] = {
+                        name = def.name, x = tonumber(x), y = tonumber(y), z = tonumber(z),
+                        powered = powered, lit = powered and Config.Timer.isOn(schedule, hour),
+                    }
+                end
+            end
+        end
+    end
+    table.sort(lamps, function(a, b)
+        if a.x ~= b.x then return a.x < b.x end
+        return a.y < b.y
+    end)
+    local panelSquare = cell:getGridSquare(room.x, room.y, room.z)
+    return {
+        x = room.x, y = room.y, z = room.z, name = room.name, schedule = room.schedule, mode = room.mode,
+        tiles = count, lamps = lamps, hour = hour, openings = Rooms.openingsOf(panelKey),
+        reservoirs = Rooms.reservoirRows(panelKey), floodTimer = room.floodTimer == true,
+        plants = Rooms.plantRows(panelKey, player and CannabisMod.ServerCommands.agricultureLevel(player) or 0),
+        log = room.log or {}, now = getGameTime():getWorldAgeHours(),
+        powered = panelSquare ~= nil and CannabisMod.Light.isPowered(panelSquare),
+        climate = {
+            enabled = Config.sandbox("RoomClimate") == true,
+            temp = room.temp, hum = room.hum, outT = room.outT, outH = room.outH,
+            targets = CannabisMod.Climate.targets(room.mode, room.young == true),
+            present = room.present or {}, running = room.running or {},
+            override = room.override or {}, notes = room.notes or {},
+        },
+    }
+end
+
+--- Every hydro reservoir in a room as live records: { key, record, name }, nearest the panel first.
+function Rooms.reservoirRecords(panelKey)
+    local Hydro, Registry = CannabisMod.Hydro, CannabisMod.Registry
+    local set, room = tiles[panelKey], panels[panelKey]
+    local out = {}
+    if not (Hydro and set and room) then return out end
+    for key in pairs(set) do
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local r, name
+        local bag = Registry.getBag(x, y, z)
+        if Config.hydroOf(bag) == "dwc" then r, name = Hydro.reservoirAt(x, y, z, "dwc"), (bag == "xldwc" and "XL DWC bucket" or "DWC bucket")
+        elseif Hydro.hasControl(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "rdwc"), "RDWC control"
+        elseif Hydro.hasFlood(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "ebb"), "Flood reservoir" end
+        if r then out[#out + 1] = { key = key, record = r, name = name, dist = math.abs(x - room.x) + math.abs(y - room.y) } end
+    end
+    table.sort(out, function(a, b)
+        if a.dist ~= b.dist then return a.dist < b.dist end
+        return a.key < b.key
+    end)
+    return out
+end
+
+--- A reservoir in the same room as `r` that has its own Dazed Plumbing line, so the room's line can refill `r`; nil when there is none.
+function Rooms.lineFeeder(r)
+    local pk = tileRoom[Config.tileKey(r.x, r.y, r.z)]
+    if not pk then return nil end
+    for _, e in ipairs(Rooms.reservoirRecords(pk)) do
+        local o = e.record
+        if o ~= r and CannabisMod.Plumbing.isPlumbedAt(o.x, o.y, o.z) then return o end
+    end
+    return nil
+end
+
+--- Mark `r` as waiting on its room's water line after a change.
+function Rooms.waitOnLine(r)
+    local pk = tileRoom[Config.tileKey(r.x, r.y, r.z)]
+    local room = pk and panels[pk]
+    if not room then return end
+    room.lineWaiting = room.lineWaiting or {}
+    room.lineWaiting[Config.tileKey(r.x, r.y, r.z)] = r.kind
+end
+
+--- True if `r` is waiting on its room's water line.
+function Rooms.isWaitingOnLine(r)
+    local pk = tileRoom[Config.tileKey(r.x, r.y, r.z)]
+    local room = pk and panels[pk]
+    return room ~= nil and room.lineWaiting ~= nil and room.lineWaiting[Config.tileKey(r.x, r.y, r.z)] ~= nil
+end
+
+--- The reservoirs a plumbed reservoir's line also refills: the others in its room still waiting on the room's line.
+function Rooms.lineDependents(r)
+    local pk = tileRoom[Config.tileKey(r.x, r.y, r.z)]
+    local room = pk and panels[pk]
+    local out = {}
+    if not (room and room.lineWaiting) then return out end
+    local Hydro = CannabisMod.Hydro
+    for key, kind in pairs(room.lineWaiting) do
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        local o = Hydro.reservoirAt(tonumber(x), tonumber(y), tonumber(z), kind)
+        if o and o ~= r and o.fillPending then
+            out[#out + 1] = o
+        else
+            room.lineWaiting[key] = nil
+        end
+    end
+    return out
+end
+
+--- The reservoir rows the Hydro tab shows.
+function Rooms.reservoirRows(panelKey)
+    local Hydro, Registry = CannabisMod.Hydro, CannabisMod.Registry
+    local now = Registry.nowHours()
+    local rows = {}
+    for _, e in ipairs(Rooms.reservoirRecords(panelKey)) do
+        local r = e.record
+        rows[#rows + 1] = {
+            key = e.key, name = e.name, x = r.x, y = r.y, z = r.z, kind = r.kind,
+            level = r.level, cap = Hydro.capacity(r), strength = r.strength, nutrient = r.nutrient,
+            rot = r.rot, tainted = r.tainted == true, pump = Hydro.pumpState(r) == true,
+            age = now - (r.changedAt or now), plants = #Hydro.servedPlants(r),
+        }
+    end
+    return rows
+end
+
+--- The rows of the Plants tab: each plant in the room, with only what the viewer's Agriculture level lets them read.
+function Rooms.plantRows(panelKey, level)
+    local Registry, Info = CannabisMod.Registry, CannabisMod.Info
+    local set = tiles[panelKey]
+    local rows = {}
+    if not set then return rows end
+    local now = Registry.nowHours()
+    for key, plant in Registry.each() do
+        if set[key] and not plant.dead then
+            local d = Info.buildVisible(plant, level, now)
+            local water = d.water
+            if type(water) == "number" then water = string.format("%d%%", water) end
+            rows[#rows + 1] = {
+                x = plant.x, y = plant.y, z = plant.z, name = d.name or "Cannabis Plant",
+                stage = d.stage or d.stageRough or "?", water = water or d.waterRough or "?",
+                health = d.healthBand, type = d.type, warnings = d.warnings and #d.warnings or 0,
+            }
+        end
+    end
+    table.sort(rows, function(a, b)
+        if a.x ~= b.x then return a.x < b.x end
+        return a.y < b.y
+    end)
+    return rows
+end
+
+local HYDRO_DONE = { topUp = "Topped up", change = "Drained", bleach = "Treated" }
+local HYDRO_VERB = { topUp = "Topped up", change = "Changed", bleach = "Treated with bleach", dose = "Dosed" }
+
+commands.roomHydro = function(player, args)
+    local room = panelFor(player, args)
+    local action = args.action
+    if not room or not (HYDRO_VERB[action]) then return end
+    local panelKey = Config.tileKey(room.x, room.y, room.z)
+    local Hydro = CannabisMod.Hydro
+    local targets = {}
+    for _, e in ipairs(Rooms.reservoirRecords(panelKey)) do
+        if args.target == "all" or args.target == e.key then targets[#targets + 1] = e end
+    end
+    if #targets == 0 then return end
+    local nutrient = args.nutrient
+    local itemType = Config.NUTRIENT_ITEMS[nutrient]
+    if action == "dose" and not itemType then return end
+    local done, last = 0, nil
+    for _, e in ipairs(targets) do
+        local r = e.record
+        local say = function(text) last = text end
+        if action == "dose" then
+            if r.level > 0 then
+                local bottle = CannabisMod.Seeds.findItem(player:getInventory(), function(item) return item:getFullType() == itemType end)
+                if not bottle then last = "You have no " .. nutrient .. " nutrients" break end
+                local container = bottle:getContainer()
+                if container then
+                    container:Remove(bottle)
+                    sendRemoveItemFromContainer(container, bottle)
+                end
+                Hydro.dose(r, nutrient)
+                done = done + 1
+            else
+                last = "The reservoir is empty: top it up first"
+            end
+        else
+            Hydro[action](player, r, say)
+            if last and last:sub(1, #HYDRO_DONE[action]) == HYDRO_DONE[action] then done = done + 1 end
+        end
+    end
+    if #targets == 1 then
+        Net.notify(player, last or "Done")
+    else
+        Net.notify(player, string.format("%s %d of %d reservoirs", HYDRO_VERB[action], done, #targets))
+    end
+    Rooms.log(room, string.format("%s %d of %d reservoirs", HYDRO_VERB[action], done, #targets))
+    commands.requestRoom(player, args)
+end
+
+commands.roomFloodTimer = function(player, args)
+    local room = panelFor(player, args)
+    if not room then return end
+    local itemType = Config.Hydro.FLOOD_TIMER_ITEM
+    if args.mode == "install" and not room.floodTimer then
+        local item = player:getInventory():getFirstTypeRecurse(itemType)
+        if not item then Net.notify(player, "You need a flood timer") return end
+        local container = item:getContainer()
+        container:Remove(item)
+        sendRemoveItemFromContainer(container, item)
+        room.floodTimer = true
+        Rooms.log(room, "Flood timer fitted to the panel")
+        Net.notify(player, "Flood timer fitted: every flood reservoir in the room runs on it")
+    elseif args.mode == "remove" and room.floodTimer then
+        room.floodTimer = nil
+        CannabisMod.Farming.giveItems(player, itemType, 1)
+        Rooms.log(room, "Flood timer taken off the panel")
+        Net.notify(player, "Flood timer removed")
+    end
+    commands.requestRoom(player, args)
+end
+
+commands.roomInspectPlant = function(player, args)
+    local room = panelFor(player, args)
+    if not room then return end
+    local set = tiles[Config.tileKey(room.x, room.y, room.z)]
+    local px, py, pz = tonumber(args.px), tonumber(args.py), tonumber(args.pz)
+    if not (px and py and pz and set and set[Config.tileKey(px, py, pz)]) then return end
+    CannabisMod.ServerCommands.sendPlantInfo(player, px, py, pz)
+end
+
+commands.requestRoom = function(player, args)
+    local room = panelFor(player, args)
+    if not room then return end
+    local info = Rooms.info(Config.tileKey(room.x, room.y, room.z), player)
+    if info then Net.toPlayer(player, "roomInfo", info) end
+end
+
+-- --------------------------------------------------------------------------
+-- Climate
+-- --------------------------------------------------------------------------
+
+--- Outdoor temperature (C) and humidity (%): the climate manager's readings, with plain fallbacks when the game API differs.
+function Rooms.outdoor()
+    local t, h = 15, 60
+    pcall(function()
+        local v = getClimateManager():getTemperature()
+        if type(v) == "number" then t = v end
+    end)
+    local found = false
+    pcall(function()
+        local v = getClimateManager():getHumidity()
+        if type(v) == "number" then
+            if v <= 1.5 then v = v * 100 end
+            h, found = v, true
+        end
+    end)
+    if not found then
+        pcall(function()
+            local c = getClimateManager()
+            h = 45 + 25 * c:getCloudIntensity() + 30 * c:getRainIntensity()
+        end)
+    end
+    return { t = t, h = Config.clamp(h, 5, 100) }
+end
+
+-- A fan faces into the room: the square on the far side of the wall it hangs on is one step the other way.
+local FAN_WALL = { S = { 0, -1 }, E = { -1, 0 }, N = { 0, 1 }, W = { 1, 0 } }
+
+--- How much air a fan on this square moves: full on an outside wall, a quarter on a wall to another indoor space.
+function Rooms.wallFactor(square, facing)
+    local off = FAN_WALL[facing]
+    if not off then return 1 end
+    local far = getCell():getGridSquare(square:getX() + off[1], square:getY() + off[2], square:getZ())
+    if not far or far:isOutside() then return 1 end
+    return Config.Climate.INSIDE_WALL_FACTOR
+end
+
+--- What a room holds that shapes its air: lamp heat, equipment by kind (count and fan air), wet plants on racks and reservoirs holding water.
+function Rooms.scan(panelKey)
+    local room, set = panels[panelKey], tiles[panelKey]
+    local K = Config.Climate
+    local out = { lampHeat = 0, count = {}, vent = { exhaust = 0, intake = 0 }, wet = 0, reservoirs = 0 }
+    if not (room and set) then return out end
+    local cell, Light, Drying = getCell(), CannabisMod.Light, CannabisMod.Drying
+    local hour = getGameTime():getHour()
+    local schedule = nil
+    if room.schedule ~= "24/0" then schedule = room.schedule end
+    local panelPowered = room.powered ~= false
+    for key in pairs(set) do
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        local square = cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        if square then
+            local objects = square:getObjects()
+            for i = 0, objects:size() - 1 do
+                local sprite = objects:get(i):getSprite()
+                local name = sprite and sprite:getName()
+                local lamp = name and Config.Light.SPRITES[name]
+                if lamp and panelPowered and Light.isPowered(square) and Config.Timer.isOn(schedule, hour) then
+                    out.lampHeat = out.lampHeat + lamp.radius * K.LAMP_HEAT_PER_RADIUS
+                end
+                local gear = name and Config.Rooms.EQUIPMENT[name]
+                if gear then
+                    out.count[gear.kind] = (out.count[gear.kind] or 0) + 1
+                    if gear.facing then
+                        out.vent[gear.kind] = out.vent[gear.kind] + Rooms.wallFactor(square, gear.facing) * K.VENT[gear.kind]
+                    end
+                end
+            end
+            if Drying then
+                for _, rack in ipairs(Drying.racksAt(square)) do out.wet = out.wet + Drying.wetCountIn(rack) end
+            end
+        end
+    end
+    for _, e in ipairs(Rooms.reservoirRecords(panelKey)) do
+        if e.record.level > 0 then out.reservoirs = out.reservoirs + 1 end
+    end
+    return out
+end
+
+--- The living plants standing in one room.
+function Rooms.plantsIn(panelKey)
+    local set = tiles[panelKey]
+    local list = {}
+    if not set then return list end
+    for key, plant in CannabisMod.Registry.each() do
+        if set[key] and not plant.dead then list[#list + 1] = plant end
+    end
+    return list
+end
+
+--- Work out a room's air and equipment. With `advance` the air moves a step and the plants feel it; without, only the equipment states are refreshed (after a manual override).
+function Rooms.updateClimate(panelKey, plants, outdoor, advance, now)
+    local room = panels[panelKey]
+    if not room then return end
+    local Climate, K = CannabisMod.Climate, Config.Climate
+    plants = plants or {}
+    local seedlings, flowering, growing = 0, 0, 0
+    for _, p in ipairs(plants) do
+        if p.stage < Config.STAGE.Vegetative then seedlings = seedlings + 1 end
+        if p.stage >= Config.STAGE.Flowering then flowering = flowering + 1 else growing = growing + 1 end
+    end
+    local young = seedlings > 0 and room.mode ~= "Drying"
+    room.young = young or nil
+    local targets = Climate.targets(room.mode, young)
+    room.notes = {}
+    if not Config.sandbox("RoomClimate") then
+        room.temp, room.hum = (targets.tLo + targets.tHi) / 2, (targets.hLo + targets.hHi) / 2
+        room.running, room.present = {}, {}
+        return
+    end
+    outdoor = outdoor or Rooms.outdoor()
+    room.outT, room.outH = outdoor.t, outdoor.h
+    room.temp = room.temp or outdoor.t
+    room.hum = room.hum or outdoor.h
+    local scan = Rooms.scan(panelKey)
+    local present = {}
+    for kind, n in pairs(scan.count) do if n > 0 then present[kind] = true end end
+    local running = Climate.control(room, targets, present, room.override)
+    if room.powered == false then running = {} end
+    room.running, room.present = running, scan.count
+    -- Mismatches between what the room is set up for and what is in it.
+    if room.mode == "Drying" and #plants > 0 then room.notes[#room.notes + 1] = "Living plants are in a Drying room" end
+    if room.mode ~= "Drying" and scan.wet > 0 then room.notes[#room.notes + 1] = "Wet plants are drying in a " .. room.mode .. " room: set Drying mode" end
+    if room.mode == "Flower" and seedlings > 0 then room.notes[#room.notes + 1] = "Seedlings are in a Flower room: set Veg mode" end
+    if not advance then return end
+    now = now or getGameTime():getWorldAgeHours()
+    Climate.step(room, {
+        outT = outdoor.t, outH = outdoor.h, lampHeat = scan.lampHeat,
+        moisture = growing * K.PLANT_HUMIDITY.veg + flowering * K.PLANT_HUMIDITY.flower
+            + scan.reservoirs * K.RESERVOIR_HUMIDITY + scan.wet * K.WET_PLANT_HUMIDITY,
+        exhaust = running.exhaust and scan.vent.exhaust or 0,
+        intake = running.intake and scan.vent.intake or 0,
+        heater = running.heater and scan.count.heater or 0,
+        humidifier = running.humidifier and scan.count.humidifier or 0,
+        dehumidifier = running.dehumidifier and scan.count.dehumidifier or 0,
+    })
+    local hotNow, wetNow = false, false
+    for _, p in ipairs(plants) do
+        local stress, hot, wet = Climate.plantStress(room.temp, room.hum, p.stage >= Config.STAGE.Flowering)
+        if stress > 0 then p.stress = Config.clamp((p.stress or 0) + stress, 0, Config.Stress.MAX) end
+        p.warnings = p.warnings or {}
+        p.warnings.roomTemp = hot or nil
+        p.warnings.roomHumid = wet or nil
+        hotNow = hotNow or hot
+        wetNow = wetNow or wet
+    end
+    if hotNow then
+        Rooms.noteOnce(panelKey, "temp", string.format("Plants stressed: the room is at %d C", math.floor(room.temp + 0.5)), now)
+    end
+    if wetNow then
+        Rooms.noteOnce(panelKey, "humid", string.format("Mold risk: %d%% humidity with flowering plants", math.floor(room.hum + 0.5)), now)
+    end
+    for _, note in ipairs(room.notes) do Rooms.noteOnce(panelKey, note, note, now) end
+end
+
+commands.roomOverride = function(player, args)
+    local room = panelFor(player, args)
+    local kind, state = args.kind, args.state
+    if not room or not Config.Rooms.EQUIPMENT_NAMES[kind] then return end
+    if state ~= "on" and state ~= "off" and state ~= "auto" then return end
+    room.override = room.override or {}
+    if state == "auto" then room.override[kind] = nil else room.override[kind] = state end
+    local key = Config.tileKey(room.x, room.y, room.z)
+    Rooms.updateClimate(key, Rooms.plantsIn(key), nil, false)
+    Rooms.log(room, Config.Rooms.EQUIPMENT_NAMES[kind] .. " set to " .. state)
+    commands.requestRoom(player, args)
+end
+
+--- Add stress to every flowering plant in a room for the lit hours its power cut cost.
+local function outagePenalty(set, litHours)
+    local stress = math.min(Config.Rooms.OUTAGE_STRESS_CAP, litHours * Config.Rooms.OUTAGE_STRESS_PER_LIT_HOUR)
+    if stress <= 0 then return 0 end
+    local hit = 0
+    for key, plant in CannabisMod.Registry.each() do
+        if set[key] and plant.stage == Config.STAGE.Flowering then
+            plant.stress = Config.clamp((plant.stress or 0) + stress, 0, Config.Stress.MAX)
+            hit = hit + 1
+        end
+    end
+    return hit
+end
+
+--- Every ten minutes: notice power going and coming back, count the lit hours lost, and pass the state on to the lamps.
+function Rooms.tick(now)
+    now = now or getGameTime():getWorldAgeHours()
+    local hour = getGameTime():getHour()
+    local cell = getCell()
+    local outdoor = Rooms.outdoor()
+    local byRoom = {}
+    for key, plant in CannabisMod.Registry.each() do
+        local panelKey = not plant.dead and tileRoom[key]
+        if panelKey then
+            local list = byRoom[panelKey]
+            if not list then list = {} byRoom[panelKey] = list end
+            list[#list + 1] = plant
+        end
+    end
+    for key, room in pairs(panels or {}) do
+        local square = cell:getGridSquare(room.x, room.y, room.z)
+        local set = tiles[key]
+        if square and set then
+            local powered = CannabisMod.Light.isPowered(square) == true
+            local schedule = nil
+            if room.schedule ~= "24/0" then schedule = room.schedule end
+            if not powered and room.powered ~= false then
+                room.powered, room.outage = false, { since = now, litHours = 0 }
+                Rooms.log(room, "Power lost", now)
+            end
+            if not powered and room.outage and Config.Timer.isOn(schedule, hour) then
+                room.outage.litHours = room.outage.litHours + 1 / 6
+            end
+            if powered and room.powered == false then
+                local lit = room.outage and room.outage.litHours or 0
+                local hit = 0
+                if Config.sandbox("RoomPowerPenalty") then hit = outagePenalty(set, lit) end
+                Rooms.log(room, string.format("Power restored: %.1f lit hours lost%s", lit, hit > 0 and (", " .. hit .. " flowering plants stressed") or ""), now)
+                room.powered, room.outage = nil, nil
+            end
+            if CannabisMod.Timers and CannabisMod.Timers.markRoomPower then
+                CannabisMod.Timers.markRoomPower(set, room.powered == false)
+            end
+            Rooms.updateClimate(key, byRoom[key], outdoor, true, now)
+        end
+    end
+end
+
+--- Draw the curtain on the wall edge owned by `square` (its N or W side), and tell clients about it.
+function Rooms.addCurtainObject(square, kind, dir)
+    local sprite = Config.Rooms.CURTAIN_SPRITES[kind][dir]
+    pcall(function()
+        local obj = IsoObject.new(getCell(), square, sprite)
+        square:AddTileObject(obj)
+        obj:transmitCompleteItemToClients()
+    end)
+end
+
+--- The curtain overlay object on a square for one wall edge, or nil.
+local function curtainObject(square, dir)
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        local name = sprite and sprite:getName()
+        if name and (name == Config.Rooms.CURTAIN_SPRITES.door[dir] or name == Config.Rooms.CURTAIN_SPRITES.window[dir]) then return obj end
+    end
+    return nil
+end
+
+--- The two squares either side of the N or W edge of the square at x, y, z.
+local function edgeSquares(x, y, z, dir)
+    local cell = getCell()
+    local near = cell:getGridSquare(x, y, z)
+    local far
+    if dir == "N" then far = cell:getGridSquare(x, y - 1, z) else far = cell:getGridSquare(x - 1, y, z) end
+    return near, far
+end
+
+commands.hangCurtain = function(player, args)
+    local x, y, z, dir = tonumber(args.x), tonumber(args.y), tonumber(args.z), args.dir
+    if not (x and y and z) or (dir ~= "N" and dir ~= "W") or not curtains or not isNear(player, x, y, z) then return end
+    local square, other = edgeSquares(x, y, z, dir)
+    local kind = square and other and Rooms.edgeKind(square, other)
+    if not kind then Net.notify(player, "A curtain only hangs on a door or window frame") return end
+    local edge = Rooms.edgeKey(x, y, z, dir)
+    if curtains[edge] then Net.notify(player, "That frame already has a curtain") return end
+    local item = player:getInventory():getFirstTypeRecurse(Config.Rooms.CURTAIN_ITEM)
+    if not item then Net.notify(player, "You need a blackout curtain") return end
+    local container = item:getContainer()
+    container:Remove(item)
+    sendRemoveItemFromContainer(container, item)
+    curtains[edge] = true
+    Rooms.addCurtainObject(square, kind, dir)
+    Rooms.rebuild()
+    Net.notify(player, "Blackout curtain hung")
+end
+
+commands.removeCurtain = function(player, args)
+    local x, y, z, dir = tonumber(args.x), tonumber(args.y), tonumber(args.z), args.dir
+    if not (x and y and z) or (dir ~= "N" and dir ~= "W") or not curtains or not isNear(player, x, y, z) then return end
+    local edge = Rooms.edgeKey(x, y, z, dir)
+    if not curtains[edge] then return end
+    local square = getCell():getGridSquare(x, y, z)
+    local obj = square and curtainObject(square, dir)
+    if obj then
+        pcall(square.RemoveTileObject, square, obj)
+        pcall(square.transmitRemoveItemFromSquare, square, obj)
+    end
+    curtains[edge] = nil
+    CannabisMod.Farming.giveItems(player, Config.Rooms.CURTAIN_ITEM, 1)
+    Rooms.rebuild()
+    Net.notify(player, "Blackout curtain taken down")
+end
+
+-- Walls and doors change rarely, so the rooms are re-read every ten minutes and once at load.
+Events.EveryTenMinutes.Add(function() Rooms.rebuild() Rooms.tick() end)
+Events.OnGameStart.Add(function() Rooms.rebuild() end)

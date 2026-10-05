@@ -28,6 +28,11 @@ function Timers._reset(tbl) timers = tbl or {} end
 
 --- The schedule of the timer on a lamp tile, or nil when it has none (24/0).
 function Timers.scheduleAt(x, y, z)
+    local Rooms = CannabisMod.Rooms
+    if Rooms then
+        local ruled, schedule = Rooms.scheduleAt(x, y, z)
+        if ruled then return schedule end
+    end
     local entry = timers and timers[Config.tileKey(x, y, z)]
     return entry and entry.s or nil
 end
@@ -59,6 +64,11 @@ local function lampSquares(square, obj)
         end
     end)
     return out
+end
+
+--- The schedule the lamp object carries for clients, or nil.
+local function objectSchedule(obj)
+    return obj:getModData().DDTimer
 end
 
 --- Copy the schedule onto the lamp object so the client's menu can read it.
@@ -93,6 +103,40 @@ local function itemTile(square, obj)
     return square
 end
 
+--- Put a grow room's schedule on every lamp in `tileSet` and clear any timer of their own.
+--- Returns how many timer items were freed, for the caller to hand back.
+function Timers.adoptRoom(tileSet, schedule)
+    if not timers then return 0 end
+    local cell = getCell()
+    local freed = 0
+    for key in pairs(tileSet) do
+        local entry = timers[key]
+        if entry then
+            timers[key] = nil
+            if entry.item then freed = freed + 1 end
+        end
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        local square = x and cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        local lamp = square and lampObject(square)
+        if lamp and objectSchedule(lamp) ~= schedule then markObject(square, schedule) end
+    end
+    return freed
+end
+
+--- Mark every lamp in `tileSet` as dead (or alive again) so clients stop (or restart) its glow when the room's panel loses power.
+function Timers.markRoomPower(tileSet, off)
+    local cell = getCell()
+    for key in pairs(tileSet) do
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        local square = x and cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        local lamp = square and lampObject(square)
+        if lamp and (lamp:getModData().DDRoomOff == true) ~= off then
+            lamp:getModData().DDRoomOff = off or nil
+            pcall(lamp.transmitModData, lamp)
+        end
+    end
+end
+
 --- Look up the lamp a player is acting on, after checking they're close enough.
 local function lampFor(player, args)
     local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
@@ -106,6 +150,10 @@ end
 commands.installTimer = function(player, args)
     local square, obj = lampFor(player, args)
     if not square then return end
+    if CannabisMod.Rooms and CannabisMod.Rooms.keyAt(square:getX(), square:getY(), square:getZ()) then
+        Net.notify(player, "The grow room panel sets this lamp's schedule")
+        return
+    end
     if Timers.scheduleAt(square:getX(), square:getY(), square:getZ()) then
         Net.notify(player, "That lamp already has a timer")
         return
@@ -125,6 +173,10 @@ end
 commands.setTimer = function(player, args)
     local square, obj = lampFor(player, args)
     if not square or not Config.Timer.SCHEDULES[args.schedule] then return end
+    if CannabisMod.Rooms and CannabisMod.Rooms.keyAt(square:getX(), square:getY(), square:getZ()) then
+        Net.notify(player, "The grow room panel sets this lamp's schedule")
+        return
+    end
     if not Timers.scheduleAt(square:getX(), square:getY(), square:getZ()) then return end
     local holder = itemTile(square, obj)
     setLamp(holder, obj, args.schedule)
@@ -134,15 +186,14 @@ end
 commands.removeTimer = function(player, args)
     local square, obj = lampFor(player, args)
     if not square then return end
+    if CannabisMod.Rooms and CannabisMod.Rooms.keyAt(square:getX(), square:getY(), square:getZ()) then
+        Net.notify(player, "The grow room panel sets this lamp's schedule")
+        return
+    end
     if not Timers.scheduleAt(square:getX(), square:getY(), square:getZ()) then return end
     setLamp(square, obj, nil)
     CannabisMod.Farming.giveItems(player, Config.Timer.ITEM, 1)
     Net.notify(player, "Timer removed: the lamp now runs 24/0")
-end
-
---- The schedule the lamp object carries for clients, or nil.
-local function objectSchedule(obj)
-    return obj:getModData().DDTimer
 end
 
 --- Drop the timer on the floor when its lamp has been picked up, so it is never lost.

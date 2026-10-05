@@ -40,5 +40,15 @@
     "CannabisMod.SmokingPipe": "Smoking Pipe",
     "CannabisMod.FloodTable": "Flood Table",
     "CannabisMod.FloodReservoir": "Flood Reservoir",
-    "CannabisMod.FloodTimer": "Flood Timer"
+    "CannabisMod.FloodTimer": "Flood Timer",
+    "CannabisMod.ControlledEnvMagazine": "Controlled Environment Quarterly",
+    "CannabisMod.GrowRoomPanel": "Grow Room Panel",
+    "CannabisMod.BlackoutCurtain": "Blackout Curtain",
+    "CannabisMod.ExhaustFan": "Exhaust Fan",
+    "CannabisMod.IntakeFan": "Intake Fan",
+    "CannabisMod.Heater": "Grow Room Heater",
+    "CannabisMod.Dehumidifier": "Dehumidifier",
+    "CannabisMod.Humidifier": "Humidifier",
+    "CannabisMod.GrowBagXLPlaceable": "XL Grow Bag",
+    "CannabisMod.DWCBucketXL": "XL DWC Bucket"
 }

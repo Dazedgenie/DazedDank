@@ -6,14 +6,17 @@ if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisGenetics"
+require "CannabisMod/CannabisStrains"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
+require "CannabisMod/CannabisClimate"
 
 local Config   = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
+local Strains  = CannabisMod.Strains
 local Seeds    = CannabisMod.Seeds
 local Net      = CannabisMod.Net
 local Registry = CannabisMod.Registry
@@ -44,13 +47,32 @@ Events.OnInitGlobalModData.Add(onInitGlobalModData)
 --- Test hook: the registry tables.
 function Drying.data() return db end
 
-local BUD_FIELDS = { "type", "quality", "cureHours", "moldy", "moldBaked", "moist", "seeded", "genetics" }
+local BUD_FIELDS = { "type", "quality", "cureHours", "moldy", "moldBaked", "moist", "moisture", "seeded", "genetics" }
+
+--- A bud's moisture (%) from its plant's drying hours: about 75% wet off the plant, 12% fully dry, down to 6% when over-dried.
+function Drying.moistureFromHours(hours)
+    local full = Config.dryHours()
+    if hours < full then return math.floor((75 - 63 * hours / full) * 10 + 0.5) / 10 end
+    return math.max(6, math.floor((12 - (hours - full) / 24) * 10 + 0.5) / 10)
+end
+
+--- A bud's moisture (%), estimating it for buds trimmed before moisture was recorded.
+function Drying.moistureOf(rec)
+    if type(rec.moisture) == "number" then return rec.moisture end
+    return rec.moist and 30 or 12
+end
 
 --- A copy of a bud's own fields, without the station bookkeeping.
 local function copyBud(from)
     local out = {}
     for _, k in ipairs(BUD_FIELDS) do out[k] = from[k] end
+    out.strain = Strains.copy(from.strain)
     return out
+end
+
+--- What a bud is called: its strain when it has one, else its type.
+local function strainWord(data)
+    return (data.strain and data.strain.name) or tostring(data.type)
 end
 
 --- The data a bud item was made with, or nil for a plain bud (or one from before buds carried their data).
@@ -194,6 +216,12 @@ function Drying.environment(square)
         pcall(function() env.rain = getClimateManager():getRainIntensity() > 0.05 end)
     end
     env.fan = hasFan(square)
+    -- Inside a grow room the room's own air decides temperature and humidity.
+    local Rooms = CannabisMod.Rooms
+    if Rooms then
+        local t, h = Rooms.climateAt(square:getX(), square:getY(), square:getZ())
+        if t then env.tempC, env.hum = t, h end
+    end
     return env
 end
 
@@ -203,6 +231,7 @@ function Drying.dryRate(env)
     if env.tempC then
         rate = 1 + (env.tempC - D.TEMP_REF_C) * D.TEMP_RATE_PER_C
     end
+    if env.hum then rate = rate * CannabisMod.Climate.dryFactor(env.hum) end
     rate = Config.clamp(rate, D.RATE_MIN, D.RATE_MAX)
     if env.fan then rate = rate * D.FAN_RATE end
     return rate
@@ -216,6 +245,7 @@ function Drying.moldPerHour(env, wetness)
     if env.tempC and env.tempC > D.MOLD_WARM_C then p = p * D.MOLD_WARM end
     if env.tempC and env.tempC < D.MOLD_COLD_C then p = p * D.MOLD_COLD end
     if env.fan then p = p * D.MOLD_FAN end
+    if env.hum then p = p * CannabisMod.Climate.moldFactor(env.hum) end
     return p * (Config.sandbox("MoldChance") or 1)
 end
 
@@ -255,6 +285,12 @@ local function wetPlantsIn(container)
     return directItems(container, Config.isHangingPlant)
 end
 
+--- How many wet hanging plants a container holds (the grow room's humidity counts them).
+function Drying.wetCountIn(container) return #wetPlantsIn(container) end
+
+--- The rack containers standing on a square.
+function Drying.racksAt(square) return racksAt(square) end
+
 --- Swap a plant that has finished drying for its dried item, carrying its record across.
 local function convertToDried(container, item, rec)
     local harvest = item:getModData().CannabisHarvest
@@ -292,7 +328,9 @@ local function settleRack(container, key, square, now)
         end
         if rec.at == key and rec.seen == prev and elapsed > 0 then
             env = env or Drying.environment(square)
+            local wasMoldy = rec.moldy
             Drying.advancePlant(rec, env, elapsed)
+            if rec.moldy and not wasMoldy and CannabisMod.Rooms then CannabisMod.Rooms.logTile(key, "Mold on a drying plant", now) end
         end
         rec.at, rec.seen, rec.touched = key, now, now
         if Config.isWetPlant(item:getFullType()) and rec.hours >= Config.dryHours() then
@@ -343,10 +381,11 @@ end
 
 --- The name a bud goes by for its quality now, like the names trimming gives.
 local function budName(data)
-    if data.moldy then return "Moldy " .. tostring(data.type) .. " Bud" end
+    if data.moldy then return "Moldy " .. strainWord(data) .. " Bud" end
     local q = Genetics.curedQuality(data.quality, data.cureHours, data.moldy, data.moldBaked)
-    return Config.qualityTier(q) .. " " .. tostring(data.type) .. " Bud"
+    return Config.qualityTier(q) .. " " .. strainWord(data) .. " Bud"
 end
+Drying.budName = budName
 
 --- Swap a bud for a fresh one that carries `rec` on the item, and drop its record. Used once nothing more can change.
 local function finishBud(container, item, rec)
@@ -392,6 +431,7 @@ local function settleCure(container, cureKey, key, now)
     for _, rec in ipairs(present) do rec.changed = true end
     -- Mold in the jar also spoils buds that had already finished curing.
     if Drying.advanceJar(jar, present, elapsed, now) then
+        if CannabisMod.Rooms then CannabisMod.Rooms.logTile(key, "Mold in a curing jar or barrel: every bud in it is spoiled", now) end
         for _, item in ipairs(finished) do
             local data = Drying.budData(item)
             if not data.moldy then
@@ -633,6 +673,7 @@ local function burpCure(player, container, cureKey, label)
         local rec = db.buds[item:getID()]
         if rec and rec.moist and (rec.cureHours or 0) >= 24 then
             rec.moist = false
+            rec.moisture = math.min(Drying.moistureOf(rec), 15)
             rec.changed = true
         end
     end
@@ -704,13 +745,14 @@ commands.trimPlant = function(player, args)
     end
     db.plants[id] = nil
 
-    local name = (rec.moldy and "Moldy " or (Config.qualityTier(quality) .. " ")) .. harvest.type .. " Bud"
+    local name = (rec.moldy and "Moldy " or (Config.qualityTier(quality) .. " ")) .. strainWord(harvest) .. " Bud"
     -- Each bud carries its own data; it is set before the item is sent, so clients get it too.
     Farming.giveItems(player, D.BUD_ITEM, count, function(item)
         item:setName(name)
         item:getModData()[D.BUD_DATA] = {
-            type = harvest.type, quality = quality, cureHours = 0,
+            type = harvest.type, strain = Strains.copy(harvest.strain), quality = quality, cureHours = 0,
             moldy = rec.moldy == true, moldBaked = rec.moldy == true, moist = moist,
+            moisture = Drying.moistureFromHours(rec.hours),
             seeded = harvest.seeded == true, genetics = harvest.genetics,
         }
     end)
@@ -759,8 +801,9 @@ for _, t in pairs(Config.TYPES) do KNOWN_TYPES[t] = true end
 --- A bud's data as the client read it off the item (for a bud in a nearby container), checked field by field.
 local function clientBud(data)
     if type(data) ~= "table" or not KNOWN_TYPES[data.type] or type(data.quality) ~= "number" then return nil end
-    return { type = data.type, quality = Config.clamp(data.quality, 0, 200), cureHours = tonumber(data.cureHours) or 0,
-             moldy = data.moldy == true, moldBaked = data.moldBaked == true }
+    return { type = data.type, strain = Strains.sanitize(data.strain), quality = Config.clamp(data.quality, 0, 200),
+             cureHours = tonumber(data.cureHours) or 0, moldy = data.moldy == true, moldBaked = data.moldBaked == true,
+             moist = data.moist == true, moisture = tonumber(data.moisture) }
 end
 
 --- What a bud is worth, by Agriculture level.
@@ -778,8 +821,18 @@ commands.inspectBud = function(player, args)
     end
     local level = SC.agricultureLevel(player)
     local q = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked)
-    local parts = { rec.type }
-    if rec.moldy then parts[#parts + 1] = "moldy" end
+    local parts = { rec.strain and (rec.strain.name .. " (" .. rec.type .. ")") or rec.type }
+    local moisture = Drying.moistureOf(rec)
+    parts[#parts + 1] = string.format("moisture %d%%", math.floor(moisture + 0.5))
+    -- Mold: moldy buds say so; clean ones show their risk, which moist buds raise in a jar.
+    if rec.moldy then
+        parts[#parts + 1] = "moldy"
+    elseif rec.moist or moisture > 15 then
+        parts[#parts + 1] = "no mold yet, high mold risk while curing (burp often)"
+    else
+        parts[#parts + 1] = "no mold, low mold risk"
+    end
+    if level >= 6 and rec.strain then parts[#parts + 1] = Strains.describe(rec.strain) end
     if level >= 4 then parts[#parts + 1] = Config.qualityTier(q) .. " quality" end
     if level >= 8 then parts[#parts + 1] = "quality " .. q end
     if level >= 3 then parts[#parts + 1] = string.format("cured %.0f days", (rec.cureHours or 0) / 24) end

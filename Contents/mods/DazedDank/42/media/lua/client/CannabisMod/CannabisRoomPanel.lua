@@ -1,0 +1,210 @@
+-- The Grow Room Panel: a right-click option on the wall panel opens one window with a tab per system: Lights, Hydro and Plants so far.
+
+require "ISUI/ISCollapsableWindow"
+require "ISUI/ISPanel"
+require "ISUI/ISButton"
+require "ISUI/ISTabPanel"
+require "ISUI/ISTextBox"
+require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisNet"
+require "CannabisMod/CannabisLightsTab"
+require "CannabisMod/CannabisHydroTab"
+require "CannabisMod/CannabisPlantsTab"
+require "CannabisMod/CannabisClimateTab"
+require "CannabisMod/CannabisLogTab"
+
+local Config = CannabisMod.Config
+local Net = CannabisMod.Net
+
+local RoomPanel = {}
+CannabisMod.RoomPanel = RoomPanel
+
+local WIDTH, HEIGHT = 560, 420
+local PURPLE = { r = 0.57, g = 0.25, b = 0.93, a = 1 }
+local PLAIN = { r = 0.15, g = 0.15, b = 0.18, a = 1 }
+
+local window = nil
+local lastTab = "Lights"
+local marks = {}    -- floor squares being tinted for the Show buttons: { x, y, z, untilMs }
+
+--- Tint the floor under a piece of equipment for a few seconds so the player can find it.
+function RoomPanel.highlight(x, y, z)
+    marks[#marks + 1] = { x = x, y = y, z = z, untilMs = getTimestampMs() + 4000 }
+end
+
+Events.OnTick.Add(function()
+    if #marks == 0 then return end
+    local now, cell = getTimestampMs(), getCell()
+    for i = #marks, 1, -1 do
+        local m = marks[i]
+        local square = cell and cell:getGridSquare(m.x, m.y, m.z)
+        local floor = square and square:getFloor()
+        if floor and now < m.untilMs then
+            pcall(function()
+                floor:setHighlightColor(0.57, 0.25, 0.93, 0.8)
+                floor:setHighlighted(true, true)
+            end)
+        else
+            table.remove(marks, i)
+        end
+    end
+end)
+
+local function send(player, command, args)
+    sendClientCommand(player, Config.COMMAND_MODULE, command, args)
+end
+
+--- Close the open panel window, keeping where it was so the next one opens in the same place.
+local function closeWindow()
+    if not window then return 200, 120 end
+    local x, y = window:getX(), window:getY()
+    local active = window.tabs and window.tabs.activeView
+    if active and active.name then lastTab = active.name end
+    pcall(window.removeFromUIManager, window)
+    window = nil
+    return x, y
+end
+
+--- Make a button that sends a room command, shown in purple when it is the current setting.
+local function choiceButton(parent, x, y, w, label, active, onClick)
+    local button = ISButton:new(x, y, w, 24, label, parent, onClick)
+    button:initialise()
+    button:instantiate()
+    button.backgroundColor = active and PURPLE or PLAIN
+    button.borderColor = { r = 0.6, g = 0.6, b = 0.7, a = 1 }
+    parent:addChild(button)
+    return button
+end
+RoomPanel.choiceButton = choiceButton
+
+--- Ask for a new room name in a small text box.
+local function askRename(player, info)
+    local box = ISTextBox:new(300, 260, 280, 160, "Room name:", info.name, nil, function(_, button)
+        if button.internal ~= "OK" then return end
+        local text = button.parent.entry:getText()
+        send(player, "roomRename", { x = info.x, y = info.y, z = info.z, name = text })
+    end, player:getPlayerNum())
+    box:initialise()
+    box:addToUIManager()
+end
+
+--- Open (or refresh) the window for a roomInfo reply.
+function RoomPanel.show(info)
+    local player = getPlayer()
+    if not player then return end
+    local x, y = closeWindow()
+    local titleH = ISCollapsableWindow.TitleBarHeight()
+    local win = ISCollapsableWindow:new(x, y, WIDTH, HEIGHT + titleH)
+    win:initialise()
+    win:setTitle(info.name .. " - Grow Room Panel")
+    win.resizable = false
+
+    local tabs = ISTabPanel:new(0, titleH, WIDTH, HEIGHT)
+    tabs:initialise()
+    tabs.tabPadX = 20
+    win:addChild(tabs)
+
+    local at = { x = info.x, y = info.y, z = info.z }
+    local function panelArgs(extra)
+        local args = { x = at.x, y = at.y, z = at.z }
+        for k, v in pairs(extra) do args[k] = v end
+        return args
+    end
+    local actions = {
+        schedule = function(schedule) send(player, "roomSetSchedule", panelArgs({ schedule = schedule })) end,
+        mode = function(mode) send(player, "roomSetMode", panelArgs({ mode = mode })) end,
+        rename = function() askRename(player, info) end,
+        hydro = function(action, target, nutrient) send(player, "roomHydro", panelArgs({ action = action, target = target, nutrient = nutrient })) end,
+        floodTimer = function(mode) send(player, "roomFloodTimer", panelArgs({ mode = mode })) end,
+        override = function(kind, state) send(player, "roomOverride", panelArgs({ kind = kind, state = state })) end,
+        inspect = function(px, py, pz) send(player, "roomInspectPlant", panelArgs({ px = px, py = py, pz = pz })) end,
+        highlight = RoomPanel.highlight,
+    }
+    local tabHeight = HEIGHT - 28
+    for _, def in ipairs({ { "Lights", CannabisMod.LightsTab }, { "Hydro", CannabisMod.HydroTab }, { "Plants", CannabisMod.PlantsTab },
+        { "Climate", CannabisMod.ClimateTab }, { "Log", CannabisMod.LogTab } }) do
+        local view = def[2]:new(0, 0, WIDTH, tabHeight, info, actions)
+        view:initialise()
+        view:createChildren()
+        tabs:addView(def[1], view)
+    end
+    tabs:activateView(lastTab)
+    win.tabs = tabs
+
+    win:addToUIManager()
+    win:setVisible(true)
+    window = win
+end
+
+Net.clientHandlers.roomInfo = RoomPanel.show
+
+--- True when the object is a door or a window frame.
+local function isFrame(obj)
+    local ok, yes = pcall(function()
+        return instanceof(obj, "IsoWindow") or instanceof(obj, "IsoDoor") or (instanceof(obj, "IsoThumpable") and obj:isDoor())
+    end)
+    return ok and yes == true
+end
+
+--- True when a blackout curtain overlay hangs on this square's wall edge.
+local function hasCurtain(square, dir)
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local sprite = objects:get(i):getSprite()
+        local name = sprite and sprite:getName()
+        if name and (name == Config.Rooms.CURTAIN_SPRITES.door[dir] or name == Config.Rooms.CURTAIN_SPRITES.window[dir]) then return true end
+    end
+    return false
+end
+
+--- Offer to hang or take down a blackout curtain on a door or window frame.
+local function addCurtainOption(player, context, obj)
+    local square = obj:getSquare()
+    local ok, north = pcall(obj.getNorth, obj)
+    if not square or not ok then return end
+    local dir = north and "N" or "W"
+    local function act(command)
+        if luautils.walkAdj(player, square) then
+            ISTimedActionQueue.add(ISGrowBagAction:new(player, square, command, { dir = dir }))
+        end
+    end
+    if hasCurtain(square, dir) then
+        context:addOption("Take Down Blackout Curtain", player, function() act("removeCurtain") end)
+        return
+    end
+    local option = context:addOption("Hang Blackout Curtain", player, function() act("hangCurtain") end)
+    if not player:getInventory():containsTypeRecurse(Config.Rooms.CURTAIN_ITEM) then
+        option.notAvailable = true
+        local tip = ISInventoryPaneContextMenu.addToolTip()
+        tip.description = "You need a blackout curtain."
+        option.toolTip = tip
+    end
+end
+
+--- Add "Open Grow Room Panel" when the right-click lands on a panel.
+local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, test)
+    if test or not worldObjects then return end
+    local player = getSpecificPlayer(playerNum)
+    if not player then return end
+    local framed = false
+    for _, obj in ipairs(worldObjects) do
+        if not framed and isFrame(obj) then
+            framed = true
+            addCurtainOption(player, context, obj)
+        end
+        local sprite = obj:getSprite()
+        local name = sprite and sprite:getName()
+        if name and Config.Rooms.PANEL_SPRITES[name] then
+            local square = obj:getSquare()
+            context:addOption("Open Grow Room Panel", player, function()
+                if luautils.walkAdj(player, square) then
+                    local action = ISGrowBagAction:new(player, square, "requestRoom")
+                    action.maxTime = 1
+                    ISTimedActionQueue.add(action)
+                end
+            end)
+            return
+        end
+    end
+end
+Events.OnFillWorldObjectContextMenu.Add(onFillWorldObjectContextMenu)

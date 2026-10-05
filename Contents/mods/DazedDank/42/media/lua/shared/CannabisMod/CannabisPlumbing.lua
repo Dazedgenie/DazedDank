@@ -17,14 +17,14 @@ function Plumb.available()
     return DazedPlumb ~= nil and DazedPlumb.Links ~= nil and DazedPlumb.Links.register ~= nil
 end
 
---- Which reservoir an object is: "dwc" for a DWC bucket plot, "rdwc" for an RDWC control bucket, "ebb" for a flood reservoir, or nil.
+--- Which reservoir an object is: "dwc" for a DWC bucket plot (standard or XL), "rdwc" for an RDWC control bucket, "ebb" for a flood reservoir, or nil.
 function Plumb.kindOf(obj)
     local sprite = obj and obj.getSprite and obj:getSprite()
     local name = sprite and sprite:getName()
     if type(name) ~= "string" then return nil end
     if name == Config.Hydro.CONTROL_SPRITE then return "rdwc" end
     if name == Config.Hydro.FLOOD_SPRITE then return "ebb" end
-    if Config.bagFromSprite(name) == "dwc" then return "dwc" end
+    if Config.hydroOf(Config.bagFromSprite(name)) == "dwc" then return "dwc" end
     return nil
 end
 
@@ -61,10 +61,9 @@ local function reservoir(obj)
     return Hydro.reservoirOfObject(square:getX(), square:getY(), square:getZ(), kind)
 end
 
---- Litres the line may pour in this minute: only while a changed reservoir is waiting to be refilled.
-function Plumb.room(obj)
-    local r = reservoir(obj)
-    if not (r and r.fillPending) then return 0 end
+--- Litres a reservoir still takes from the line after a change, clearing its wait once it's full.
+local function waiting(r)
+    if not r.fillPending then return 0 end
     local room = CannabisMod.Hydro.capacity(r) - r.level
     if room <= Plumb.FULL_MARGIN then
         r.fillPending = nil
@@ -73,15 +72,39 @@ function Plumb.room(obj)
     return room
 end
 
---- Take water from the line; tainted tank water taints the reservoir. Returns the litres taken.
+--- The reservoirs this line fills: its own, then the others in its grow room waiting on the room's line.
+local function fedBy(r)
+    local list = { r }
+    local Rooms = CannabisMod.Rooms
+    if Rooms and Rooms.lineDependents then
+        for _, o in ipairs(Rooms.lineDependents(r)) do list[#list + 1] = o end
+    end
+    return list
+end
+
+--- Litres the line may pour in this minute: only while a changed reservoir is waiting to be refilled.
+function Plumb.room(obj)
+    local r = reservoir(obj)
+    if not r then return 0 end
+    local total = 0
+    for _, o in ipairs(fedBy(r)) do total = total + waiting(o) end
+    return total
+end
+
+--- Take water from the line; tainted tank water taints what it fills. Returns the litres taken.
 function Plumb.put(obj, amount, dirty)
     local r = reservoir(obj)
-    if not (r and r.fillPending) then return 0 end
-    local cap = CannabisMod.Hydro.capacity(r)
-    local took = math.max(0, math.min(amount or 0, cap - r.level))
-    r.level = r.level + took
-    if dirty and took > 0 then r.tainted = true end
-    if r.level >= cap - Plumb.FULL_MARGIN then r.fillPending = nil end
+    if not r then return 0 end
+    local left, took = amount or 0, 0
+    for _, o in ipairs(fedBy(r)) do
+        local add = math.max(0, math.min(left, waiting(o)))
+        if add > 0 then
+            o.level = o.level + add
+            if dirty then o.tainted = true end
+            left, took = left - add, took + add
+            if o.level >= CannabisMod.Hydro.capacity(o) - Plumb.FULL_MARGIN then o.fillPending = nil end
+        end
+    end
     return took
 end
 

@@ -2,7 +2,6 @@
 -- server for plant info, and showing replies. This file only sends requests
 -- and displays answers.
 
-require "Farming/farming_vegetableconf"
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisDomeContainer"
 require "CannabisMod/CannabisInfo"
@@ -268,7 +267,7 @@ function addHydroOptions(player, context, plot, kind, action, square)
         local tip = ISInventoryPaneContextMenu.addToolTip()
         tip.description = "Dumps the old water; the water line refills it."
         change.toolTip = tip
-    elseif kind == "dwc" or not plot then
+    elseif Config.hydroOf(kind) == "dwc" or not plot then
         -- RDWC sites and flood tables share a reservoir elsewhere (maybe plumbed), so the server decides for them.
         needs(change, water, "Drains the old water and refills it. Needs water.")
     end
@@ -445,6 +444,25 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
                 option.toolTip = tip
             end
         end
+
+        -- Top Plant: veg only, once (the server knows if it's been done and says so).
+        if plot.nbOfGrow == Config.STAGE_TO_NBOFGROW.Vegetative then
+            local option = context:addOption("Top Plant", player, function(p)
+                if ISFarmingMenu.walkToPlant(p, square) then
+                    ISTimedActionQueue.add(ISTakeCannabisCuttingAction:new(p, plot, square, "topPlant"))
+                end
+            end)
+            local tip = ISToolTip:new()
+            tip:initialise()
+            tip:setVisible(false)
+            tip.description = "Snip the main tip so the plant grows more colas: +"
+                .. math.floor(Config.Topping.YIELD_BONUS * 100 + 0.5) .. "% buds, some stress and a short pause in growth. Once per plant."
+            if not Seeds.findCuttingTool(player) then
+                option.notAvailable = true
+                tip.description = "Needs scissors, a sharp knife or another plant-cutting tool"
+            end
+            option.toolTip = tip
+        end
     end
 
     -- A cloning dome sitting in the world (on a table or the floor).
@@ -531,10 +549,11 @@ local function describePlantable(item, level)
     local name = (kind == "rooted") and "Rooted cutting" or "Cutting"
     local parts = {}
     if level >= Config.SEED_INSPECT_LEVEL then
-        parts[#parts + 1] = data.type
+        parts[#parts + 1] = data.strain and (data.strain.name .. " (" .. data.type .. ")") or data.type
     end
     if level >= 9 then
         parts[#parts + 1] = "generation " .. tostring(data.generation)
+        if data.strain then parts[#parts + 1] = CannabisMod.Strains.describe(data.strain) end
     end
     if kind == "cutting" then
         parts[#parts + 1] = data.gel and "dipped in gel" or "no gel"
@@ -744,9 +763,11 @@ end
 Events.OnGameStart.Add(guardFarmingInfo)
 Events.OnGameStart.Add(guardFarmingInfoRender)
 
--- The same missing entry breaks vanilla's phase text, which also feeds the plot's hover name.
-local vanillaGetObjectPhase = farming_vegetableconf and farming_vegetableconf.getObjectPhase
-if vanillaGetObjectPhase then
+-- The same missing entry breaks vanilla's phase text, which also feeds the plot's hover name. Wrapped at game start, once vanilla's farming config has loaded.
+local function guardObjectPhase()
+    if not (farming_vegetableconf and farming_vegetableconf.getObjectPhase) or farming_vegetableconf.ddPhaseGuarded then return end
+    farming_vegetableconf.ddPhaseGuarded = true
+    local vanillaGetObjectPhase = farming_vegetableconf.getObjectPhase
     farming_vegetableconf.getObjectPhase = function(plant)
         if plant and not farming_vegetableconf.props[plant.typeOfSeed] then
             return getText("Farming_Plowed_Land")
@@ -754,3 +775,4 @@ if vanillaGetObjectPhase then
         return vanillaGetObjectPhase(plant)
     end
 end
+Events.OnGameStart.Add(guardObjectPhase)

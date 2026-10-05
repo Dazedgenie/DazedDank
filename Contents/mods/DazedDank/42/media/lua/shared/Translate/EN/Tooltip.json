@@ -1,4 +1,11 @@
 {
     "Tooltip_DD_LightTimer": "Install on a placed grow lamp. 18/6 keeps plants in veg; 12/12 flips them to flower. Lamps without a timer run 24/0.",
-    "Tooltip_DD_FloodTimer": "Install on a flood reservoir. While it has power and water it floods the tables a few times a day, so the rockwool never dries out."
+    "Tooltip_DD_FloodTimer": "Install on a flood reservoir. While it has power and water it floods the tables a few times a day, so the rockwool never dries out.",
+    "Tooltip_DD_GrowRoomPanel": "Mount on a wall inside a room. Every grow lamp in that room runs the panel's schedule, and the lamps' own timers come off.",
+    "Tooltip_DD_BlackoutCurtain": "Hang on a door or window frame of a grow room to block light in its dark hours. Right-click the frame.",
+    "Tooltip_DD_ExhaustFan": "Mount on a wall inside a grow room. Pulls hot, humid air out; full effect on an outside wall, a quarter on a wall to another room. Needs panel power.",
+    "Tooltip_DD_IntakeFan": "Mount on a wall inside a grow room. Brings outside air in; pair it with an exhaust fan. Full effect on an outside wall. Needs panel power.",
+    "Tooltip_DD_Heater": "Stand in a grow room. The panel switches it on when the room is too cold. Needs panel power.",
+    "Tooltip_DD_Dehumidifier": "Stand in a grow room. The panel switches it on when the air is too humid. Needs panel power.",
+    "Tooltip_DD_Humidifier": "Stand in a grow room. The panel switches it on when the air is too dry. Needs panel power."
 }
