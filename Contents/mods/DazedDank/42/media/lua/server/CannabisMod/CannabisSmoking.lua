@@ -11,6 +11,7 @@ require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisDrying"
+require "CannabisMod/CannabisWeather"
 require "CannabisMod/CannabisServerCommands"
 
 local Config   = CannabisMod.Config
@@ -57,13 +58,13 @@ end
 local function budInfo(bud)
     local rec = Drying.budRecord(bud)
     if not rec then return { type = "Hybrid", quality = 50, moldy = false } end
-    return { type = rec.type, strain = Strains.copy(rec.strain),
+    return { type = rec.type, strain = Strains.copy(rec.strain), purple = rec.purple == true or nil,
              quality = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked), moldy = rec.moldy == true }
 end
 
---- What a bud or joint is called: its strain when it has one, else its type.
+--- What a bud or joint is called: its strain when it has one, else its type, with "Purple" in front for purple buds.
 local function strainWord(info)
-    return (info.strain and info.strain.name) or tostring(info.type)
+    return CannabisMod.Weather.purplePrefix(info) .. ((info.strain and info.strain.name) or tostring(info.type))
 end
 
 local function findById(player, id, fullType)

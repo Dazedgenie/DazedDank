@@ -1,5 +1,13 @@
 # Dazed Dank patch notes
 
+## dd54 (Climate, in testing)
+- Added: works with **DazedCore 1.3.0** and **Dazed Climate**. Outdoor plants, rooting cuttings, drying racks and grow room outdoor air now read temperatures from DazedCore when it's loaded (real room temperatures with Dazed Climate). Without them, the game's own temperatures are used as before.
+- Added: lit grow lamps warm the room they hang in under Dazed Climate (about 3 C·squares per hour per tile of reach, so a large pro lamp is about 12). Sandbox: **Lamp Heat**.
+- Added: plants outside a grow room feel the weather. Below 15 C or above 32 C they take the same stress as in a bad grow room (warning: "Outdoor temperature"). Cold slows growth: half speed at 10 C, stopped at 5 C. Sandbox: **Plant Temperature**.
+- Added: **purple buds.** In the second half of flower and while ripe, nights (8 PM to 6 AM) at 5-15 C add up. After 12 cold night hours the plant gets one roll to turn purple: about 15% for a pure sativa up to 75% for a pure indica. Purple plants show purple, and their buds and joints are named "Purple ..." and are worth 5% more quality. Clones and seeds don't inherit it. Sandbox: **Purple Buds**.
+- Added: nights under 5 C in late flower cost 2% yield per hour, up to 25% (frost itself is Dazed Climate's job). Part of **Plant Temperature**.
+- Added: curing temperature. Jars and barrels cure at full speed at 15-21 C, slower outside that, and at half speed below 10 C or above 25 C. Above 25 C a missed burp molds 1.5x as often. Jars in a grow room use the room's air. Sandbox: **Curing Temperature**.
+
 ## dd53.2
 - Changed: the **Heater**, **Dehumidifier** and **Humidifier** now hang on a wall up high, like an overhead cupboard or a poster, in all four facings. The art is a placeholder until the Blender pass. Units already standing on the floor keep working.
 - Added: an **Equipment** tab on the Grow Room Panel listing every fan, heater, dehumidifier and humidifier in the room, with where it is, which wall it hangs on, whether it's running, and a Show button.

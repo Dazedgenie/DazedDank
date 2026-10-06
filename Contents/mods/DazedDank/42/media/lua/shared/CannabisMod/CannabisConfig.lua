@@ -510,10 +510,10 @@ Config.Light = {
 }
 -- Bar lamps span several tiles and each tile lights on its own. Large basic is 1x2 (sprites 214-221), large pro 1x3 (222-233).
 for n = 214, 221 do
-    Config.Light.SPRITES["dazeddank_plants_01_" .. n] = { cap = 85, radius = 3, name = "Large basic grow lamp" }
+    Config.Light.SPRITES["dazeddank_plants_01_" .. n] = { cap = 85, radius = 3, name = "Large basic grow lamp", tiles = 2 }
 end
 for n = 222, 233 do
-    Config.Light.SPRITES["dazeddank_plants_01_" .. n] = { cap = 100, radius = 4, name = "Large pro grow lamp" }
+    Config.Light.SPRITES["dazeddank_plants_01_" .. n] = { cap = 100, radius = 4, name = "Large pro grow lamp", tiles = 3 }
 end
 -- Widest radius of any lamp, rounded up: how far the scan has to look.
 Config.Light.MAX_RADIUS = 0
@@ -568,6 +568,22 @@ Config.Climate = {
     RELAX = 0.3,                                -- how far toward its balance point the room moves each ten minutes
     -- Drying and mold by room humidity: wetter air dries slower and molds more.
     DRY_PER_HUMIDITY = 0.01, MOLD_PER_HUMIDITY = 0.06, MOLD_REF_HUMIDITY = 60,
+}
+
+-- Plants and buds feeling the weather: outdoor temperature, cold nights in late flower, curing warmth and lamp heat for Dazed Climate.
+Config.Weather = {
+    SLOW_BELOW = 15, STALL_AT = 5,              -- outdoor growth slows below 15 C and stops at 5 C
+    NIGHT_FROM = 20, NIGHT_TO = 6,              -- game hours counted as night
+    PURPLE_LO = 5, PURPLE_HI = 15,              -- night temperatures that bring out purple in late flower
+    PURPLE_HOURS = 12,                          -- cold night hours before the plant shows whether it purples
+    PURPLE_BASE = 0.15, PURPLE_PER_INDICA = 0.6, -- purple chance: base plus this times the indica share
+    PURPLE_TINT = { 0.6, 0.35, 0.8 }, PURPLE_BLEND = 0.6,
+    PURPLE_QUALITY = 1.05,                      -- purple buds' bag appeal
+    FREEZE_YIELD_PER_HOUR = 0.02, FREEZE_YIELD_MAX = 0.25, -- yield lost per night hour under 5 C in late flower
+    LAMP_HEAT_PER_RADIUS = 3,                   -- heat a lit lamp gives a Dazed Climate room, in C x squares per hour
+    CURE_BEST_LO = 15, CURE_BEST_HI = 21,       -- jars cure at full speed here
+    CURE_OK_LO = 10, CURE_OK_HI = 25,           -- and at half speed outside this
+    CURE_SLOW = 0.5, CURE_WARM_MOLD = 1.5,      -- above CURE_OK_HI a missed burp molds this much more often
 }
 
 -- Grow rooms: a wall panel claims the indoor floor around it and runs every lamp in it on one schedule.
@@ -799,6 +815,10 @@ Config.SandboxDefaults = {
     LightLeaks        = true, -- light from outside a grow room's own lamps counts as a leak in its dark hours
     RoomPowerPenalty  = true, -- a power cut in a grow room adds stress for the lit hours lost (off = only the per-plant penalty)
     StrainTint        = true, -- plants take a light tint from their strain
+    LampHeat          = true, -- lit grow lamps warm Dazed Climate rooms
+    PlantTemperature  = true, -- plants outside grow rooms feel heat and cold, and freezing nights in late flower cost yield
+    PurpleBuds        = true, -- cold nights in late flower can turn buds purple
+    CuringTemperature = true, -- jars cure slower in cold or hot air and mold faster when hot
 }
 
 --- Hours a wet plant takes to dry fully (sandbox DryingHours).

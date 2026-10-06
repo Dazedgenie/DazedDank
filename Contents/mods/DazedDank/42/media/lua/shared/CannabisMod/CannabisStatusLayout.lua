@@ -38,7 +38,7 @@ local WARNINGS = {
     nutrientBurn = { "Nutrient burn", "bad" }, wrongNutrient = { "Wrong nutrient", "bad" }, overwatered = { "Overwatered", "bad" },
     underwatered = { "Underwatered", "warn" }, noLight = { "No light", "bad" }, lightInterrupted = { "Light interrupted", "warn" },
     lightLeak = { "Light leak", "bad" }, hungry = { "Hungry", "warn" }, overcut = { "Cut too hard", "bad" },
-    roomTemp = { "Room temperature", "warn" }, roomHumid = { "Humid room", "warn" },
+    roomTemp = { "Room temperature", "warn" }, roomHumid = { "Humid room", "warn" }, outdoorTemp = { "Outdoor temperature", "warn" },
     reservoirDry = { "Reservoir dry", "bad" }, staleReservoir = { "Stale reservoir", "warn" },
     pumpOff = { "Pumps off", "bad" }, rootRot = { "Root rot", "bad" }, noControl = { "No control bucket", "bad" },
     noFlood = { "No flood reservoir", "bad" }, mediumDry = { "Rockwool dry", "bad" },
