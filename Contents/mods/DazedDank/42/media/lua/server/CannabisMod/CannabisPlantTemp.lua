@@ -17,13 +17,39 @@ local W = Config.Weather
 local PlantTemp = {}
 CannabisMod.PlantTemp = PlantTemp
 
---- The air temperature (C) at a plant outside a grow room, or nil when nothing can tell.
+--- True when Dazed Climate's crop frost is on: it damages and kills outdoor plants at 0 C and below, so Dank leaves that to it.
+function PlantTemp.frostHandled()
+    local crops = DazedClimate and DazedClimate.Crops
+    if not (crops and crops.enabled) then return false end
+    local ok, on = pcall(crops.enabled)
+    return ok and on == true
+end
+
+--- Degrees a Dazed Climate frost cover over this plant adds (0 with none).
+function PlantTemp.coverBonus(plant)
+    local covers = DazedClimate and DazedClimate.Covers
+    if not (covers and covers.at) then return 0 end
+    local ok, item = pcall(covers.at, plant.x, plant.y, plant.z)
+    if not (ok and item) then return 0 end
+    local frost = DazedClimate.Frost
+    return (frost and tonumber(frost.COVER_BONUS)) or 4
+end
+
+--- The air temperature (C) at a plant outside a grow room, and whether it stands outdoors; nil when its square isn't loaded.
 function PlantTemp.outdoorTempOf(plant)
     local ok, square = pcall(function() return getCell():getGridSquare(plant.x, plant.y, plant.z) end)
-    if ok and square then return Weather.tempAt(square, nil) end
-    -- Nobody near: with DazedCore loaded the outdoor reading stands in, else the plant is left alone.
-    if Weather.core() then return Weather.outdoor() end
-    return nil
+    -- Nobody near: the plant is left alone, as the light check does.
+    if not (ok and square) then return nil, false end
+    local temp = Weather.tempAt(square, nil)
+    if temp == nil then return nil, false end
+    local outside = false
+    pcall(function() outside = square:isOutside() == true end)
+    return temp + PlantTemp.coverBonus(plant), outside
+end
+
+--- True when this temperature is frost that Dazed Climate already deals with for this plant.
+local function frostForDazedClimate(temp, outside)
+    return outside and temp <= 0 and PlantTemp.frostHandled()
 end
 
 --- When a flowering plant started flowering; plants from before this was saved get an estimate from the usual flowering time.
@@ -47,13 +73,15 @@ function PlantTemp.lateFlower(plant, now)
 end
 
 --- A plant outside a grow room feels the air: stress out of 15-32 C, and growth slows in the cold (not while light already stalls it).
-function PlantTemp.feel(plant, temp, stalled)
+--- Frost that Dazed Climate handles adds no stress here, but still stalls growth.
+function PlantTemp.feel(plant, temp, stalled, outside)
     plant.warnings = plant.warnings or {}
     if temp == nil or not Config.sandbox("PlantTemperature") then
         plant.warnings.outdoorTemp = nil
         return
     end
     local stress, bad = CannabisMod.Climate.plantStress(temp, 0, false)
+    if frostForDazedClimate(temp, outside) then stress = 0 end
     if stress > 0 then plant.stress = Config.clamp((plant.stress or 0) + stress, 0, Config.Stress.MAX) end
     plant.warnings.outdoorTemp = bad or nil
     local slow = Weather.slowdown(temp)
@@ -72,12 +100,22 @@ function PlantTemp.rollPurple(plant)
     end
 end
 
+--- Night for a plant: its grow room's lights-off hours when the room runs a timer, else the clock's night.
+function PlantTemp.isNight(plant, hour)
+    local Rooms = CannabisMod.Rooms
+    if Rooms and Rooms.scheduleAt then
+        local ruled, schedule = Rooms.scheduleAt(plant.x, plant.y, plant.z)
+        if ruled and schedule then return not Config.Timer.isOn(schedule, hour) end
+    end
+    return Weather.isNight(hour)
+end
+
 --- One ten-minute step of night air in late flower: 5-15 C counts toward purple, under 5 C costs yield.
-function PlantTemp.coldNight(plant, temp, now, hour)
-    if temp == nil or plant.sex == Config.SEX.MALE or not Weather.isNight(hour) then return end
+function PlantTemp.coldNight(plant, temp, now, hour, outside)
+    if temp == nil or plant.sex == Config.SEX.MALE or not PlantTemp.isNight(plant, hour) then return end
     if not PlantTemp.lateFlower(plant, now) then return end
     if temp < W.PURPLE_LO then
-        if Config.sandbox("PlantTemperature") then
+        if Config.sandbox("PlantTemperature") and not frostForDazedClimate(temp, outside) then
             plant.coldYieldLoss = math.min(W.FREEZE_YIELD_MAX, (plant.coldYieldLoss or 0) + W.FREEZE_YIELD_PER_HOUR / 6)
         end
     elseif temp < W.PURPLE_HI and Config.sandbox("PurpleBuds") and not plant.purpleRolled then
@@ -90,13 +128,13 @@ end
 function PlantTemp.update(plant, now, stalled)
     local Rooms = CannabisMod.Rooms
     local inRoom = Rooms ~= nil and Rooms.keyAt(plant.x, plant.y, plant.z) ~= nil
-    local temp
+    local temp, outside = nil, false
     if inRoom then
         temp = Rooms.climateAt(plant.x, plant.y, plant.z)
         if plant.warnings then plant.warnings.outdoorTemp = nil end
     else
-        temp = PlantTemp.outdoorTempOf(plant)
-        PlantTemp.feel(plant, temp, stalled)
+        temp, outside = PlantTemp.outdoorTempOf(plant)
+        PlantTemp.feel(plant, temp, stalled, outside)
     end
-    PlantTemp.coldNight(plant, temp, now, getGameTime():getHour())
+    PlantTemp.coldNight(plant, temp, now, getGameTime():getHour(), outside)
 end

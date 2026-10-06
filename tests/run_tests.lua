@@ -3079,7 +3079,7 @@ do
     check("farming conditions read DazedCore's square", (CannabisMod.Farming.conditionsAt(wsq)) == 8)
     check("slowdown 0 at 15, half at 10, stalled at 5", Wx.slowdown(15) == 0 and near(Wx.slowdown(10), 0.5) and Wx.slowdown(5) == 1 and Wx.slowdown(-3) == 1)
     check("purple chance: sativa rarely, indica often", near(Wx.purpleChance({ ind = 0 }), 0.15) and near(Wx.purpleChance({ ind = 100 }), 0.75))
-    check("purple prefix falls back to English", Wx.purplePrefix({ purple = true }) == "Purple " and Wx.purplePrefix({}) == "")
+    check("purple prefix falls back to English", Wx.purplePrefix() == "Purple ")
 
     -- Lamp heat for Dazed Climate rooms.
     local lsq = fakeSquare(7100, 7100, 0, false, true)
@@ -3098,6 +3098,17 @@ do
     DazedClimate = { Rooms = { addObjectSource = function(src) sources[#sources + 1] = src end } }
     LH.register(); LH.register()
     check("lamp heat registers with Dazed Climate once", #sources == 1 and sources[1].heat == LH.heat)
+
+    -- Dank's own room model still adds a lamp's full radius per tile, as before lamp heat for Dazed Climate.
+    for x = 7600, 7602 do fakeSquare(x, 7600, 0, false, true) end
+    table.insert(fakeSquares["7600_7600_0"].objs, { sprite = "dazeddank_rooms_01_0", md = {} })
+    table.insert(fakeSquares["7601_7600_0"].objs, { sprite = "dazeddank_plants_01_222", md = {} })
+    table.insert(fakeSquares["7602_7600_0"].objs, { sprite = "dazeddank_plants_01_223", md = {} })
+    local Rooms = CannabisMod.Rooms
+    hourOfDay = 12
+    check("scan room registers", Rooms.register(fakeSquares["7600_7600_0"], newPlayer(7600, 7600, 5), function() return false end))
+    check("bar lamp tiles each heat Dank's room by their radius", near(Rooms.scan("7600_7600_0").lampHeat, 2 * 4 * C.Climate.LAMP_HEAT_PER_RADIUS))
+    Rooms.remove("7600_7600_0")
 
     -- Outdoor plants feel the air.
     fakeSquare(7200, 7200, 0, true, false)
@@ -3125,11 +3136,23 @@ do
     check("plant temperature option off: no effect", p.nextStageAt == 100 and p.stress == 0)
     SandboxVars = nil
     p = outPlant({ x = 7299 }); PT.update(p, 50, false)
-    check("unloaded square uses DazedCore's outdoor reading", near(p.nextStageAt, 100 + 1 / 6))
-    local savedCore = DazedCore; DazedCore = nil
-    p = outPlant({ x = 7299 }); PT.update(p, 50, false)
-    check("unloaded square without DazedCore is left alone", p.nextStageAt == 100 and p.stress == 0)
-    DazedCore = savedCore
+    check("unloaded square is left alone, even with DazedCore", p.nextStageAt == 100 and p.stress == 0)
+    -- Dazed Climate's crop frost owns 0 C and below for outdoor plants.
+    coreT = -2; p = outPlant(); PT.update(p, 50, false)
+    check("frost without Dazed Climate's crop frost: Dank stresses", p.stress > 0)
+    DazedClimate.Crops = { enabled = function() return true end }
+    p = outPlant(); PT.update(p, 50, false)
+    check("frost with Dazed Climate's crop frost: no double stress, growth still stalled", p.stress == 0 and near(p.nextStageAt, 100 + 1 / 6))
+    coreT = 3; p = outPlant(); PT.update(p, 50, false)
+    check("cool air above 0 C still stresses with crop frost on", p.stress > 0)
+    -- A frost cover keeps the plant warmer.
+    DazedClimate.Covers = { at = function() return "Base.Sheet" end }
+    coreT = 12; p = outPlant(); PT.update(p, 50, false)
+    check("a covered plant at 12 C feels 16 C", p.stress == 0 and p.nextStageAt == 100)
+    DazedClimate.Frost = { COVER_BONUS = 2 }
+    p = outPlant(); PT.update(p, 50, false)
+    check("cover bonus comes from Dazed Climate's Frost", p.stress > 0 and near(p.nextStageAt, 100 + (15 - 14) / 10 / 6))
+    DazedClimate.Covers, DazedClimate.Frost = nil, nil
     local Rm = CannabisMod.Rooms
     local oldKeyAt, oldClimateAt = Rm.keyAt, Rm.climateAt
     Rm.keyAt = function() return "room" end
@@ -3177,6 +3200,20 @@ do
     check("near freezing costs 2% yield an hour", near(p.coldYieldLoss, W.FREEZE_YIELD_PER_HOUR / 6) and p.coldNightHours == nil)
     for _ = 1, 200 do PT.update(p, 60, false) end
     check("freeze yield loss caps at 25%", near(p.coldYieldLoss, W.FREEZE_YIELD_MAX))
+    coreT = -1; p = flowering(); PT.update(p, 60, false)
+    check("frost nights cost no Dank yield while Dazed Climate's crop frost is on", p.coldYieldLoss == nil)
+    DazedClimate.Crops = nil
+    p = flowering(); PT.update(p, 60, false)
+    check("frost nights cost yield without it", near(p.coldYieldLoss, W.FREEZE_YIELD_PER_HOUR / 6))
+    -- In a timed grow room, night is the lights-off hours.
+    local oldSched = Rm.scheduleAt
+    Rm.scheduleAt = function() return true, "12/12" end
+    check("12/12 room: 7 PM is night", PT.isNight({ x = 0, y = 0, z = 0 }, 19))
+    Rm.scheduleAt = function() return true, "18/6" end
+    check("18/6 room: 10 PM is lights-on, not night", not PT.isNight({ x = 0, y = 0, z = 0 }, 22))
+    Rm.scheduleAt = function() return false, nil end
+    check("outside a room the clock decides", PT.isNight({ x = 0, y = 0, z = 0 }, 22) and not PT.isNight({ x = 0, y = 0, z = 0 }, 19))
+    Rm.scheduleAt = oldSched
     local function purpleRate(ind)
         local n = 0
         for _ = 1, 2000 do
@@ -3207,6 +3244,9 @@ do
     local plain = G.calcQuality(qp, 0, nil); qp.purple = true
     check("purple adds 5% quality", G.calcQuality(qp, 0, nil) == math.floor(plain * 1.05 + 0.5))
     check("purple quality is capped", G.calcQuality({ lightCap = 100, genetics = 100, care = 100, purple = true }, 0, nil) == 100)
+    check("no Purple Purple: names that already say purple keep their name",
+        Wx.purpleName({ purple = true }, "Muldraugh Purple") == "Muldraugh Purple" and Wx.purpleName({ purple = true }, "PURPLE Haze") == "PURPLE Haze"
+        and Wx.purpleName({ purple = true }, "Knox Kush") == "Purple Knox Kush" and Wx.purpleName({}, "Knox Kush") == "Knox Kush")
     check("status shows a purple plant's strain as Purple",
         CannabisMod.Info.buildVisible({ strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[1]), stage = 5, purple = true }, 3, 0).strain == "Purple Knox Kush")
 

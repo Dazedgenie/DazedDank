@@ -115,7 +115,7 @@ builders.strain = function(plant)
     local s = CannabisMod.Strains.of(plant)
     if not s then return nil end
     local Weather = CannabisMod.Weather
-    return (Weather and Weather.purplePrefix(plant) or "") .. s.name
+    return Weather and Weather.purpleName(plant, s.name) or s.name
 end
 
 -- How the strain looks: its body shape, and its bud colour when that isn't plain green.

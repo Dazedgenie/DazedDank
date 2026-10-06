@@ -73,7 +73,7 @@ end
 
 --- What a bud is called: its strain when it has one, else its type, with "Purple" in front for purple buds.
 local function strainWord(data)
-    return CannabisMod.Weather.purplePrefix(data) .. ((data.strain and data.strain.name) or tostring(data.type))
+    return CannabisMod.Weather.purpleName(data, (data.strain and data.strain.name) or tostring(data.type))
 end
 
 --- The data a bud item was made with, or nil for a plain bud (or one from before buds carried their data).

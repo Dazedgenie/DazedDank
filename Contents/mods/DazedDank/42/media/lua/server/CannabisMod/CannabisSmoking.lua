@@ -64,7 +64,7 @@ end
 
 --- What a bud or joint is called: its strain when it has one, else its type, with "Purple" in front for purple buds.
 local function strainWord(info)
-    return CannabisMod.Weather.purplePrefix(info) .. ((info.strain and info.strain.name) or tostring(info.type))
+    return CannabisMod.Weather.purpleName(info, (info.strain and info.strain.name) or tostring(info.type))
 end
 
 local function findById(player, id, fullType)

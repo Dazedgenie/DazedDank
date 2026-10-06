@@ -64,9 +64,15 @@ function Weather.purpleTint(r, g, b)
     return r + (t[1] - r) * k, g + (t[2] - g) * k, b + (t[3] - b) * k
 end
 
---- The word put before a purple plant's or bud's strain name, with its trailing space ("" when not purple).
-function Weather.purplePrefix(data)
-    if not (data and data.purple) then return "" end
+--- A purple plant's or bud's name with "Purple" in front; unchanged when not purple or the name already says purple.
+function Weather.purpleName(data, word)
+    word = tostring(word)
+    if not (data and data.purple) or string.find(string.lower(word), "purple", 1, true) then return word end
+    return Weather.purplePrefix() .. word
+end
+
+--- The word put before a purple strain name, with its trailing space.
+function Weather.purplePrefix()
     local key = "Tooltip_DD_PurplePrefix"
     if getText then
         local ok, text = pcall(getText, key)
