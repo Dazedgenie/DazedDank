@@ -240,7 +240,18 @@ function Layout.build(data, fontH, measure)
     if data.hermieSigns then row("Hermie signs", "Yes", COLORS.bad) end
     if data.generation then row("Generation", data.generation) end
     if data.traits then
-        text(data.traits, PAD, y, COLORS.muted)
+        -- Wrapped at commas, since the full trait line is wider than the window.
+        local line = ""
+        for part in (data.traits .. ","):gmatch("%s*(.-),") do
+            local next = line == "" and part or (line .. ", " .. part)
+            if line ~= "" and measure("Small", next) > W - 2 * PAD then
+                text(line .. ",", PAD, y, COLORS.muted)
+                y = y + small + 2
+                next = part
+            end
+            line = next
+        end
+        text(line, PAD, y, COLORS.muted)
         y = y + small + 4
     end
 

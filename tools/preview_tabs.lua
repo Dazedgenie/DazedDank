@@ -39,9 +39,9 @@ local info = {
         { key = "c", name = "Flood reservoir", x = 15, y = 13, z = 0, level = 0, cap = 40, strength = 0, rot = 0, pump = false, age = 10, plants = 6 },
     },
     plants = {
-        { x = 12, y = 12, z = 0, name = "Cannabis Plant", type = "Indica", stage = "Flowering", water = "60%", health = "Good", warnings = 0, strain = "Ekron Sour Diesel", sex = "Female" },
-        { x = 13, y = 12, z = 0, name = "Cannabis Plant", type = "Hybrid", stage = "Flowering", water = "40%", health = "Fair", warnings = 2, strain = "Shambler Bubba Kush", sex = "Male" },
-        { x = 14, y = 12, z = 0, name = "Cannabis Plant", type = "Sativa", stage = "Pre-flower", water = "75%", health = "Good", warnings = 1 },
+        { x = 12, y = 12, z = 0, name = "Cannabis Plant", type = "Indica", stage = "Flowering", water = "60%", health = "Good", warnings = 0, strain = "Ekron Sour Diesel", sex = "Female", looks = "Haze, Lime Gold" },
+        { x = 13, y = 12, z = 0, name = "Cannabis Plant", type = "Hybrid", stage = "Flowering", water = "40%", health = "Fair", warnings = 2, strain = "Shambler Bubba Kush", sex = "Male", looks = "Kush" },
+        { x = 14, y = 12, z = 0, name = "Cannabis Plant", type = "Sativa", stage = "Pre-flower", water = "75%", health = "Good", warnings = 1, strain = "West Point Lightning", sex = "Female", looks = "Landrace Sativa, Frosty White" },
     },
     equipment = {
         { x = 11, y = 9, z = 0, kind = "exhaust", name = "Exhaust fan", mount = "north wall", powered = true, running = true, mode = "auto" },
