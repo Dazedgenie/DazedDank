@@ -198,7 +198,9 @@ def main(out):
         for edge_name in ("N", "W"):
             name = f"{i:03d}_curtain_{kind}_{edge_name}.png"
             hang(face, edges[edge_name], lift).save(out / name)
-            cells.append({"file": name, "facing": "S", "x": 0, "y": 0, "props": {}})
+            # Attached to its wall edge so it draws with the wall, behind people and fittings on the square.
+            cells.append({"file": name, "facing": "S", "x": 0, "y": 0,
+                          "props": {"attached" + edge_name: "", "CustomName": "Blackout Curtain"}})
             i += 1
     # Climate equipment: fans hang on a wall in four facings (exhaust 8-11, intake 12-15), then three floor units (16-18).
     for kind, label, accent, item in (("exhaust", "Exhaust Fan", (222, 130, 40, 255), "ExhaustFan"), ("intake", "Intake Fan", (60, 150, 222, 255), "IntakeFan")):

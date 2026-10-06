@@ -15,7 +15,7 @@
 - Art: shapes and colours use stand-in art made from the original renders until their Blender renders are done.
 - Changed: strain colours (the Strain Tint option) now colour only the plant, not the pot.
 - Added: the Grow Room Panel's **Plants** tab shows each plant's strain and sex under its row once your Agriculture level can read them (level 3). Males and hermaphrodites are shown in orange.
-- Fixed: a blackout curtain no longer draws over pipes on the same wall.
+- Fixed: a blackout curtain drew over pipes on the same wall, and over people standing in front of it. It now draws with its wall, behind both.
 - Changed: hanging a blackout curtain takes down any vanilla sheet or curtain on that window or door and gives it back.
 
 ## dd53.1

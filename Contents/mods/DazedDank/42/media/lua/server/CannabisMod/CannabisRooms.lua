@@ -1015,19 +1015,8 @@ function Rooms.addCurtainObject(square, kind, dir)
     local sprite = Config.Rooms.CURTAIN_SPRITES[kind][dir]
     pcall(function()
         local obj = IsoObject.new(getCell(), square, sprite)
-        -- Slot it in just after the wall and its door or window, so pipes and other fittings on the square draw in front.
-        local at = nil
-        local objects = square:getObjects()
-        pcall(function() for i = 0, objects:size() - 1 do
-            local o = objects:get(i)
-            local isFrame = instanceof(o, "IsoDoor") or instanceof(o, "IsoWindow") or instanceof(o, "IsoWindowFrame")
-                or (instanceof(o, "IsoThumpable") and (o:isDoor() or o:isWindow()))
-            local props = o:getProperties()
-            local isWall = props and (props:Is(IsoFlagType.WallN) or props:Is(IsoFlagType.WallW) or props:Is(IsoFlagType.WallNW)
-                or props:Is(IsoFlagType.DoorWallN) or props:Is(IsoFlagType.DoorWallW) or props:Is(IsoFlagType.WindowN) or props:Is(IsoFlagType.WindowW))
-            if isFrame or isWall then at = i + 1 end
-        end end)
-        if not (at and at < objects:size() and pcall(square.AddTileObject, square, obj, at)) then square:AddTileObject(obj) end
+        -- Its tile is flagged as attached to the wall, so it draws with the wall: behind people and fittings on the square.
+        square:AddTileObject(obj)
         obj:transmitCompleteItemToClients()
     end)
 end
