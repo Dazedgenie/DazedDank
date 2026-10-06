@@ -33,8 +33,10 @@ function PlantPanel:render()
             Draw.card(self, op.x, op.y, op.w, op.h, c, op.border)
         elseif op.kind == "pill" then
             Draw.pill(self, op.x, op.y, op.w, op.h, c)
+        elseif op.kind == "tex" then
+            Draw.tex(self, op.name, op.x, op.y, op.w, op.h, op.a)
         elseif op.kind == "plant" then
-            pcall(Draw.plant, self, op.x, op.y, op.w, op.h, op.sprite, op.pot, op.lift)
+            pcall(Draw.plant, self, op.x, op.y, op.w, op.h, op.sprite, op.pot, op.lift, op.fit)
         else
             local font = FONTS[op.font] or UIFont.Small
             if op.align == "right" then

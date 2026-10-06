@@ -3417,6 +3417,18 @@ do
         traitBars = { ind = 80, pot = 60, yld = 40, flw = 50, potText = "+5%", yldText = "-2%", flwText = "+1%" } }, fh, ms)
     check("plant card draws the plant in its pot", find(lay, "plant", function(op) return op.sprite == "s" and op.pot == "p" and op.lift == 13 end) ~= nil)
     check("plant card fits its width", lay.width == Lay.WIDTH)
+    -- Every rendered image the two windows ask for ships with the mod.
+    local missing = {}
+    for _, model in ipairs({ m, far, lay }) do
+        for _, op in ipairs(model.ops) do
+            if op.kind == "tex" then
+                local fh = io.open(MOD .. "../ui/DazedDank/" .. op.name .. ".png", "rb")
+                if fh then fh:close() else missing[#missing + 1] = op.name end
+            end
+        end
+    end
+    check("every UI image exists (" .. table.concat(missing, ", ") .. ")", #missing == 0)
+    check("reservoir tanks draw glass over water", find(m, "tex", function(op) return op.name == "tank_front" end) ~= nil)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

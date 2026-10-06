@@ -66,6 +66,8 @@ function DashPanel:render()
             Draw.card(self, op.x, op.y, op.w, op.h, c, op.border)
         elseif op.kind == "pill" then
             Draw.pill(self, op.x, op.y, op.w, op.h, c)
+        elseif op.kind == "tex" then
+            Draw.tex(self, op.name, op.x, op.y, op.w, op.h, op.a)
         elseif op.kind == "plant" then
             pcall(Draw.plant, self, op.x, op.y, op.w, op.h, op.sprite, op.pot, op.lift, op.fit)
         elseif op.kind == "equip" then

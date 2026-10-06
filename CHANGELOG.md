@@ -9,6 +9,9 @@
 - Added: curing temperature. Jars and barrels cure at full speed at 15-21 C, slower outside that, and at half speed below 10 C or above 25 C. Above 25 C a missed burp molds 1.5x as often. Jars in a grow room use the room's air. Sandbox: **Curing Temperature**.
 - Changed: the **Grow Room Panel** is one dashboard instead of tabs: a 24-hour lights ring, temperature and humidity against their targets, room seal, a sideways-scrolling row of plant cards (each showing the plant in its pot), reservoir tanks, equipment tiles and the newest alert. Click the room name to rename it, the mode pill or lights card to change them, a plant to inspect it, a tank or equipment tile for its actions (right-click a plant for Show in room). The mouse wheel scrolls the plant row; **Log** opens the full log.
 - Changed: the plant **Inspect** window is a light card in the same style: the plant drawn in its pot, vitals, care facts, genetics as bars at Agriculture 9, and warnings as chips. Info your level can't read yet is left out.
+- Art: Blender renders for both windows: a grow-tent backdrop behind every plant photo, glass reservoir tanks with the water level showing through, and icons for each section (lights, temperature, humidity, room seal, plants, reservoirs, equipment, vitals, care and genetics).
+- Changed: plants in the Inspect window are sized to fit their photo, so tall sativas no longer poke out of the top.
+- Fixed: the climate features (purple buds, outdoor plant temperature, lamp heat, curing temperature) lost their settings when the UI update was installed over them, which would have thrown an error at harvest. Both are now in one build.
 
 ## dd53.2
 - Changed: the **Heater**, **Dehumidifier** and **Humidifier** now hang on a wall up high, like an overhead cupboard or a poster, in all four facings. The art is a placeholder until the Blender pass. Units already standing on the floor keep working.

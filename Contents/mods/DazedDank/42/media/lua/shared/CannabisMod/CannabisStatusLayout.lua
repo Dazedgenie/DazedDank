@@ -101,7 +101,14 @@ function Layout.build(data, fontH, measure)
     local function text(str, x, y, color, font, align)
         ops[#ops + 1] = { kind = "text", x = x, y = y, text = tostring(str), color = color, font = font or "Small", align = align or "left" }
     end
-    local function label(str, x, y) text(string.upper(str), x, y, COLORS.muted) end
+    -- A section label, with its rendered icon in front when it has one.
+    local function label(str, x, y, icon)
+        if icon then
+            ops[#ops + 1] = { kind = "tex", name = icon, x = x, y = y + (small - 16) / 2, w = 16, h = 16, a = 1 }
+            x = x + 20
+        end
+        text(string.upper(str), x, y, COLORS.muted)
+    end
 
     -- Cards are laid out top to bottom; each is opened, filled, then closed once its height is known.
     local y = HEAD_H + M
@@ -136,9 +143,9 @@ function Layout.build(data, fontH, measure)
     -- Plant card: the plant itself, its looks, where it grows and how far along it is.
     local top = openCard()
     local photoW, photoH = 118, 150
-    ops[#ops + 1] = { kind = "rect", x = L, y = top, w = photoW, h = photoH, color = COLORS.photo, a = 1 }
+    ops[#ops + 1] = { kind = "tex", name = "photo_tent", x = L, y = top, w = photoW, h = photoH, a = 1 }
     if data.sprite then
-        ops[#ops + 1] = { kind = "plant", x = L, y = top, w = photoW, h = photoH, sprite = data.sprite, pot = data.potSprite, lift = data.lift or 0 }
+        ops[#ops + 1] = { kind = "plant", x = L, y = top, w = photoW, h = photoH, sprite = data.sprite, pot = data.potSprite, lift = data.lift or 0, fit = true }
     end
     local cx = L + photoW + 12
     local cw = R - cx
@@ -180,7 +187,7 @@ function Layout.build(data, fontH, measure)
     local hasBands = data.healthBand or data.stressBand or data.geneticsBand or data.qualityEstimate
     if data.water or data.waterRough or data.reservoir or data.roots or hasBands then
         local vy = openCard()
-        label("Vitals", L, vy); vy = vy + small + 6
+        label("Vitals", L, vy, "icon_vitals"); vy = vy + small + 6
         local function bar(frac, color, marks)
             rect(L, vy, IW, 8, COLORS.track)
             rect(L, vy, IW * Config.clamp(frac, 0, 1), 8, color)
@@ -277,7 +284,7 @@ function Layout.build(data, fontH, measure)
     if data.hermieSigns then fact("Hermie signs", "Yes", COLORS.bad) end
     if #facts > 0 then
         local fy = openCard()
-        label("Care", L, fy); fy = fy + small + 6
+        label("Care", L, fy, "icon_care"); fy = fy + small + 6
         local colW = (IW - 16) / 2
         for i, f in ipairs(facts) do
             local x = L + ((i - 1) % 2) * (colW + 16)
@@ -291,7 +298,7 @@ function Layout.build(data, fontH, measure)
     -- Genetics: the four traits as short bars, with the trait line from CannabisInfo below them.
     if data.traitBars or data.traits then
         local gy = openCard()
-        label("Genetics", L, gy)
+        label("Genetics", L, gy, "icon_genetics")
         gy = gy + small + 6
         if data.traitBars then
             local t = data.traitBars

@@ -45,7 +45,15 @@ function Dash.build(info, scroll, fontH, measure)
         while #str > 1 and measure(font, str .. "..") > w do str = str:sub(1, -2) end
         return str .. ".."
     end
-    local function label(str, x, y) text(string.upper(str), x, y, C.muted) end
+    local function tex(name, x, y, w, h, a) ops[#ops + 1] = { kind = "tex", name = name, x = x, y = y, w = w, h = h, a = a or 1 } end
+    -- A section label, with its rendered icon in front when it has one.
+    local function label(str, x, y, icon)
+        if icon then
+            tex(icon, x, y + (small - 16) / 2, 16, 16)
+            x = x + 20
+        end
+        text(string.upper(str), x, y, C.muted)
+    end
     local function hit(x, y, w, h, id) hits[#hits + 1] = { x = x, y = y, w = w, h = h, id = id } end
     local function button(x, y, w, h, str, id, filled)
         pill(x, y, w, h, filled and C.purple or C.photo)
@@ -82,7 +90,7 @@ function Dash.build(info, scroll, fontH, measure)
     text("00", cx, cy - r + 8, C.muted, "Small", "center")
     text("12", cx, cy + r - 8 - small, C.muted, "Small", "center")
     local lx = M + 104
-    label("Lights", lx, y1 + 14)
+    label("Lights", lx, y1 + 14, "icon_lights")
     text(info.schedule or "24/0", lx, y1 + 14 + small + 4, C.text, "Medium")
     local onH = Config.Timer.SCHEDULES[info.schedule or ""]
     local on = onH and string.format("on %02d to %02d", Config.Timer.ON_HOUR, (Config.Timer.ON_HOUR + onH) % 24) or "always on"
@@ -91,9 +99,9 @@ function Dash.build(info, scroll, fontH, measure)
     hit(M, y1, 176, h1, "schedule")
 
     -- Temperature and humidity: the reading, the target band, a marker on it.
-    local function meter(x, w, title, value, unit, lo, hi, mn, mx, note)
+    local function meter(x, w, title, icon, value, unit, lo, hi, mn, mx, note)
         card(x, y1, w, h1)
-        label(title, x + 14, y1 + 14)
+        label(title, x + 14, y1 + 14, icon)
         if not climate.enabled then
             text("Room climate is off", x + 14, y1 + 40, C.muted)
             return
@@ -116,16 +124,16 @@ function Dash.build(info, scroll, fontH, measure)
         if note then text(note, x + 14, by + 16 + small + 2, ok and C.muted or C.warn) end
     end
     local t = climate.targets or {}
-    meter(M + 186, 180, "Temperature", climate.temp, "C", t.tLo or 20, t.tHi or 26, 5, 40,
+    meter(M + 186, 180, "Temperature", "icon_temp", climate.temp, "C", t.tLo or 20, t.tHi or 26, 5, 40,
         climate.outT and string.format("outdoors %d C", math.floor(climate.outT + 0.5)))
     local humNote = climate.outH and string.format("outdoors %d%%", math.floor(climate.outH + 0.5))
     if climate.hum and t.hHi and climate.hum > t.hHi then humNote = "too humid" elseif climate.hum and t.hLo and climate.hum < t.hLo then humNote = "too dry" end
-    meter(M + 376, 180, "Humidity", climate.hum, "%", t.hLo or 40, t.hHi or 60, 10, 90, humNote)
+    meter(M + 376, 180, "Humidity", "icon_humid", climate.hum, "%", t.hLo or 40, t.hHi or 60, 10, 90, humNote)
 
     -- Room seal: power and every door or window, with the uncovered ones in amber.
     local sx = M + 566
     card(sx, y1, W - M - sx, h1)
-    label("Room seal", sx + 14, y1 + 14)
+    label("Room seal", sx + 14, y1 + 14, "icon_seal")
     local sy = y1 + 14 + small + 8
     local function dot(ok, str)
         pill(sx + 14, sy + (small - 9) / 2, 9, 9, ok and C.good or C.warn)
@@ -144,7 +152,7 @@ function Dash.build(info, scroll, fontH, measure)
 
     -- Plants: cards in a row that scrolls sideways; click a card to inspect the plant.
     local A = Dash.PLANT_AREA
-    label("Plants", M + 2, A.y - small - 6)
+    label("Plants", M + 2, A.y - small - 6, "icon_plants")
     local plants = info.plants or {}
     if #plants == 0 then
         card(A.x, A.y, A.w, A.h)
@@ -159,7 +167,7 @@ function Dash.build(info, scroll, fontH, measure)
                 local title = p.strain or p.name or "Cannabis Plant"
                 local tc = TYPE_COLOR[p.type] or C.text
                 text(fit(title, "Medium", cw - 24), x + 12, A.y + 10, tc, "Medium")
-                ops[#ops + 1] = { kind = "rect", x = x + 8, y = A.y + 34, w = 84, h = A.h - 42, color = C.photo, a = 1 }
+                tex("photo_tent", x + 8, A.y + 34, 84, A.h - 42)
                 if p.sprite then
                     ops[#ops + 1] = { kind = "plant", x = x + 8, y = A.y + 34, w = 84, h = A.h - 42, sprite = p.sprite, pot = p.pot, lift = p.lift or 0, fit = true }
                 end
@@ -205,7 +213,7 @@ function Dash.build(info, scroll, fontH, measure)
     local y3, h3 = PLANT_Y + PLANT_H + 12, 126
     local rw = 300
     card(M, y3, rw, h3)
-    label("Reservoirs", M + 14, y3 + 12)
+    label("Reservoirs", M + 14, y3 + 12, "icon_tank")
     local res = info.reservoirs or {}
     if #res > 0 then
         button(M + rw - 158, y3 + 8, 78, small + 6, "Top up all", "topUpAll", true)
@@ -216,8 +224,10 @@ function Dash.build(info, scroll, fontH, measure)
         if i > 3 then text("+" .. (#res - 3) .. " more", M + rw - 14, y3 + h3 - small - 8, C.muted, "Small", "right") break end
         local x, y = M + 14 + (i - 1) * 94, y3 + 34
         local frac = Config.clamp((r.level or 0) / math.max(1, r.cap or 1), 0, 1)
-        card(x + 22, y, 40, 40, { 0.93, 0.95, 0.97 }, { 0.62, 0.71, 0.78 })
-        if frac > 0 then rect(x + 25, y + 3 + 34 * (1 - frac), 34, 34 * frac, C.water, 0.85) end
+        -- The tank is two renders with the water drawn between them, so the glass sits over the water.
+        tex("tank_back", x + 22, y - 6, 40, 48)
+        if frac > 0 then rect(x + 25, y + 1 + 37 * (1 - frac), 34, 37 * frac, C.water, 0.8) end
+        tex("tank_front", x + 22, y - 6, 40, 48)
         local short = (r.name or "Reservoir"):gsub(" control", ""):gsub(" bucket", ""):gsub(" reservoir", "")
         text(short .. " " .. math.floor((r.level or 0) + 0.5) .. "/" .. (r.cap or 0) .. " L", x + 42, y + 44, C.text, "Small", "center")
         local food = r.nutrient and (r.nutrient .. " " .. math.floor((r.strength or 0) * 100 + 0.5) .. "%") or "no food"
@@ -234,7 +244,7 @@ function Dash.build(info, scroll, fontH, measure)
     local ex = M + rw + 10
     local ew = W - M - ex
     card(ex, y3, ew, h3)
-    label("Equipment", ex + 14, y3 + 12)
+    label("Equipment", ex + 14, y3 + 12, "icon_fan")
     local kinds, rows = {}, {}
     for _, e in ipairs(info.equipment or {}) do
         if not rows[e.kind] then rows[e.kind] = {}; kinds[#kinds + 1] = e.kind end

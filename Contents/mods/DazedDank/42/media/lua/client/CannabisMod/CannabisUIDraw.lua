@@ -38,6 +38,12 @@ function Draw.card(el, x, y, w, h, fill, border)
     end
 end
 
+--- One of the rendered UI images in media/ui/DazedDank, by name, stretched to the box.
+function Draw.tex(el, name, x, y, w, h, a)
+    local t = tex("media/ui/DazedDank/" .. name .. ".png")
+    if t then el:drawTextureScaled(t, x, y, w, h, a or 1, 1, 1, 1) end
+end
+
 --- A pill: a bar with round ends.
 function Draw.pill(el, x, y, w, h, color)
     local c = color
