@@ -37,7 +37,7 @@ FEMALE_STAGES = ["Vegetative", "PreFlower", "Flowering", "Ripe"]
 
 # Colour phenotypes: what changes on the leaves, buds, sugar leaves and pistils late in flower.
 COLOURS = {
-    "purple": dict(leaf_mix=((84, 52, 96), 0.35), bud=(118, 62, 146), sugar=(92, 48, 112), pist=(232, 140, 70), frost=0.3),
+    "purple": dict(leaf_mix=((84, 52, 96), 0.35), bud=(96, 46, 124), sugar=(76, 40, 96), pist=(232, 140, 70), frost=0.3),
     "frosty": dict(leaf_mix=((190, 205, 180), 0.12), bud=(206, 220, 196), sugar=(186, 204, 176), pist=(240, 236, 220), frost=0.9),
     "gold":   dict(leaf_mix=((168, 200, 60), 0.45), bud=(206, 192, 92), sugar=(186, 196, 80), pist=(236, 150, 40), frost=0.25),
     "dark":   dict(leaf_mix=((26, 52, 28), 0.6), bud=(64, 94, 52), sugar=(42, 70, 38), pist=(190, 110, 60), frost=0.2),
