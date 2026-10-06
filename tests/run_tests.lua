@@ -173,6 +173,8 @@ require "CannabisMod/CannabisTimers"
 require "CannabisMod/CannabisHydro"
 SPlantGlobalObject = SPlantGlobalObject or { setSpriteName = function(self, n) self.spriteName = n end }
 require "CannabisMod/CannabisPotPlants"
+require "CannabisMod/CannabisPlantTemp"
+require "CannabisMod/CannabisLampHeat"
 --- The plant layer a plot shows (plots themselves show the furrow or container).
 local function plantSprite(plot) return (CannabisMod.PotPlants.wanted(plot)) end
 --- The shape index of the plant on a plot's tile, from its strain.
@@ -3056,6 +3058,250 @@ for gen = 1, 10 do
     line = best
 end
 check("selecting for speed reaches the top (" .. line.flw .. ")", line.flw >= 95 and STN.flowerMult(line) <= 0.81)
+
+-- ---- Climate: DazedCore temperatures, lamp heat, outdoor plants, purple buds, curing -----------
+do
+    local Wx, PT, LH = CannabisMod.Weather, CannabisMod.PlantTemp, CannabisMod.LampHeat
+    local W = C.Weather
+    local near = function(a, b) return a and b and math.abs(a - b) < 1e-6 end
+    local oldVars, oldHour = SandboxVars, hourOfDay
+    SandboxVars = nil
+    -- Without DazedCore the game's climate manager answers.
+    getClimateManager = function() return { getTemperature = function() return 11 end,
+        getAirTemperatureForSquare = function() return 13 end, getHumidity = function() return 0.5 end } end
+    local wsq = fakeSquare(7000, 7000, 0, true, false)
+    check("weather: vanilla outdoor and square reads", Wx.outdoor() == 11 and Wx.tempAt(wsq) == 13 and Wx.tempAt(nil, 4) == 4)
+    -- With DazedCore the shared lookup wins.
+    local coreT = 8
+    DazedCore = { Climate = { outdoor = function() return 2 end, temperatureAt = function() return coreT end } }
+    check("weather: DazedCore outdoor and square reads", Wx.outdoor() == 2 and Wx.tempAt(wsq) == 8)
+    check("room climate reads DazedCore's outdoor", CannabisMod.Rooms.outdoor().t == 2)
+    check("farming conditions read DazedCore's square", (CannabisMod.Farming.conditionsAt(wsq)) == 8)
+    check("slowdown 0 at 15, half at 10, stalled at 5", Wx.slowdown(15) == 0 and near(Wx.slowdown(10), 0.5) and Wx.slowdown(5) == 1 and Wx.slowdown(-3) == 1)
+    check("purple chance: sativa rarely, indica often", near(Wx.purpleChance({ ind = 0 }), 0.15) and near(Wx.purpleChance({ ind = 100 }), 0.75))
+    check("purple prefix falls back to English", Wx.purplePrefix() == "Purple ")
+
+    -- Lamp heat for Dazed Climate rooms.
+    local lsq = fakeSquare(7100, 7100, 0, false, true)
+    local function lampObj(sq, sprite) return { getSprite = function() return { getName = function() return sprite end } end, getSquare = function() return sq end } end
+    local big, bar, chair = lampObj(lsq, "dazeddank_plants_01_200"), lampObj(lsq, "dazeddank_plants_01_222"), lampObj(lsq, "furniture_01_1")
+    check("lamp heat: only grow lamps match", LH.match(big) and LH.match(bar) and not LH.match(chair))
+    check("lamp heat: a lit 4-radius lamp gives 12, a 1x3 bar 4 per tile", near(LH.heat(big), 12) and near(LH.heat(bar), 4))
+    local dark = lampObj(fakeSquare(7101, 7100, 0, false, false), "dazeddank_plants_01_200")
+    check("lamp heat: unpowered lamp gives none", LH.heat(dark) == 0)
+    SandboxVars = { CannabisMod = { LampsNeedPower = false } }
+    check("lamp heat: lamps that need no power stay lit", near(LH.heat(dark), 12))
+    SandboxVars = { CannabisMod = { LampHeat = false } }
+    check("lamp heat: option off gives none", LH.heat(big) == 0)
+    SandboxVars = nil
+    local sources = {}
+    DazedClimate = { Rooms = { addObjectSource = function(src) sources[#sources + 1] = src end } }
+    LH.register(); LH.register()
+    check("lamp heat registers with Dazed Climate once", #sources == 1 and sources[1].heat == LH.heat)
+
+    -- Dank's own room model still adds a lamp's full radius per tile, as before lamp heat for Dazed Climate.
+    for x = 7600, 7602 do fakeSquare(x, 7600, 0, false, true) end
+    table.insert(fakeSquares["7600_7600_0"].objs, { sprite = "dazeddank_rooms_01_0", md = {} })
+    table.insert(fakeSquares["7601_7600_0"].objs, { sprite = "dazeddank_plants_01_222", md = {} })
+    table.insert(fakeSquares["7602_7600_0"].objs, { sprite = "dazeddank_plants_01_223", md = {} })
+    local Rooms = CannabisMod.Rooms
+    hourOfDay = 12
+    check("scan room registers", Rooms.register(fakeSquares["7600_7600_0"], newPlayer(7600, 7600, 5), function() return false end))
+    check("bar lamp tiles each heat Dank's room by their radius", near(Rooms.scan("7600_7600_0").lampHeat, 2 * 4 * C.Climate.LAMP_HEAT_PER_RADIUS))
+    Rooms.remove("7600_7600_0")
+
+    -- Outdoor plants feel the air.
+    fakeSquare(7200, 7200, 0, true, false)
+    local function outPlant(extra)
+        local p = { x = 7200, y = 7200, z = 0, stage = 3, nextStageAt = 100, stress = 0, care = 100, warnings = {}, sex = C.SEX.FEMALE,
+                    strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[2]) }
+        for k, v in pairs(extra or {}) do p[k] = v end
+        return p
+    end
+    hourOfDay = 12
+    coreT = 10
+    local p = outPlant()
+    PT.update(p, 50, false)
+    check("10 C: stressed, warned, growth half speed", near(p.nextStageAt, 100 + 0.5 / 6) and near(p.stress, C.Climate.TEMP_STRESS_PER_HOUR / 6) and p.warnings.outdoorTemp == true)
+    p = outPlant(); PT.update(p, 50, true)
+    check("light-stalled plants aren't slowed twice", p.nextStageAt == 100 and p.stress > 0)
+    coreT = 3; p = outPlant(); PT.update(p, 50, false)
+    check("5 C and below stalls growth", near(p.nextStageAt, 100 + 1 / 6))
+    coreT = 22; p = outPlant({ warnings = { outdoorTemp = true } }); PT.update(p, 50, false)
+    check("22 C: no stress, warning clears", p.nextStageAt == 100 and p.stress == 0 and p.warnings.outdoorTemp == nil)
+    coreT = 35; p = outPlant(); PT.update(p, 50, false)
+    check("35 C: heat stress without slowing", p.nextStageAt == 100 and p.stress > 0 and p.warnings.outdoorTemp)
+    SandboxVars = { CannabisMod = { PlantTemperature = false } }
+    coreT = 3; p = outPlant(); PT.update(p, 50, false)
+    check("plant temperature option off: no effect", p.nextStageAt == 100 and p.stress == 0)
+    SandboxVars = nil
+    p = outPlant({ x = 7299 }); PT.update(p, 50, false)
+    check("unloaded square is left alone, even with DazedCore", p.nextStageAt == 100 and p.stress == 0)
+    -- Dazed Climate's crop frost owns 0 C and below for outdoor plants.
+    coreT = -2; p = outPlant(); PT.update(p, 50, false)
+    check("frost without Dazed Climate's crop frost: Dank stresses", p.stress > 0)
+    DazedClimate.Crops = { enabled = function() return true end }
+    p = outPlant(); PT.update(p, 50, false)
+    check("frost with Dazed Climate's crop frost: no double stress, growth still stalled", p.stress == 0 and near(p.nextStageAt, 100 + 1 / 6))
+    coreT = 3; p = outPlant(); PT.update(p, 50, false)
+    check("cool air above 0 C still stresses with crop frost on", p.stress > 0)
+    -- A frost cover keeps the plant warmer.
+    DazedClimate.Covers = { at = function() return "Base.Sheet" end }
+    coreT = 12; p = outPlant(); PT.update(p, 50, false)
+    check("a covered plant at 12 C feels 16 C", p.stress == 0 and p.nextStageAt == 100)
+    DazedClimate.Frost = { COVER_BONUS = 2 }
+    p = outPlant(); PT.update(p, 50, false)
+    check("cover bonus comes from Dazed Climate's Frost", p.stress > 0 and near(p.nextStageAt, 100 + (15 - 14) / 10 / 6))
+    DazedClimate.Covers, DazedClimate.Frost = nil, nil
+    local Rm = CannabisMod.Rooms
+    local oldKeyAt, oldClimateAt = Rm.keyAt, Rm.climateAt
+    Rm.keyAt = function() return "room" end
+    Rm.climateAt = function() return 10 end
+    p = outPlant({ warnings = { outdoorTemp = true } }); PT.update(p, 50, false)
+    check("grow room plants are left to the room", p.nextStageAt == 100 and p.stress == 0 and p.warnings.outdoorTemp == nil)
+    Rm.keyAt, Rm.climateAt = oldKeyAt, oldClimateAt
+
+    -- Cold nights in late flower.
+    local plotObj = setmetatable({}, { __index = function() return nil end })
+    check("advanceStage marks the start of flower", (function()
+        local fp = R.addPlant(7300, 7300, 0, G.newSeed(T.INDICA))
+        fp.stage = C.STAGE.PreFlower; worldHours = 9000
+        R.advanceStage(fp)
+        local ok = fp.flowerStartAt == 9000
+        R.removePlant(7300, 7300, 0)
+        return ok
+    end)())
+    local function flowering(extra)
+        return outPlant(extra or { stage = C.STAGE.Flowering, flowerStartAt = 0, nextStageAt = 100 })
+    end
+    hourOfDay = 23; coreT = 10
+    p = flowering()
+    for _ = 1, 71 do PT.update(p, 60, false) end
+    check("cold night hours add up in late flower", near(p.coldNightHours, 71 / 6) and not p.purpleRolled)
+    PT.update(p, 60, false)
+    check("12 cold night hours roll purple once", p.purpleRolled == true)
+    p = flowering(); PT.update(p, 30, false)
+    check("first half of flower doesn't count", p.coldNightHours == nil)
+    hourOfDay = 14; p = flowering(); PT.update(p, 60, false)
+    check("daytime cold doesn't count", p.coldNightHours == nil)
+    hourOfDay = 2; p = flowering({ stage = C.STAGE.Ripe, nextStageAt = 200 }); PT.update(p, 150, false)
+    check("ripe plants count cold nights", near(p.coldNightHours, 1 / 6))
+    p = flowering({ stage = C.STAGE.Flowering, nextStageAt = 100 })
+    PT.update(p, 99, false)
+    check("old flowering plants get an estimated flower start", p.flowerStartAt ~= nil and p.flowerStartAt < 99)
+    p = flowering({ stage = C.STAGE.Flowering, flowerStartAt = 0, nextStageAt = 100, sex = C.SEX.MALE }); PT.update(p, 60, false)
+    check("males don't count cold nights", p.coldNightHours == nil)
+    SandboxVars = { CannabisMod = { PurpleBuds = false } }
+    p = flowering(); PT.update(p, 60, false)
+    check("purple buds option off: no cold night count", p.coldNightHours == nil)
+    SandboxVars = nil
+    coreT = 3; p = flowering()
+    PT.update(p, 60, false)
+    check("near freezing costs 2% yield an hour", near(p.coldYieldLoss, W.FREEZE_YIELD_PER_HOUR / 6) and p.coldNightHours == nil)
+    for _ = 1, 200 do PT.update(p, 60, false) end
+    check("freeze yield loss caps at 25%", near(p.coldYieldLoss, W.FREEZE_YIELD_MAX))
+    coreT = -1; p = flowering(); PT.update(p, 60, false)
+    check("frost nights cost no Dank yield while Dazed Climate's crop frost is on", p.coldYieldLoss == nil)
+    DazedClimate.Crops = nil
+    p = flowering(); PT.update(p, 60, false)
+    check("frost nights cost yield without it", near(p.coldYieldLoss, W.FREEZE_YIELD_PER_HOUR / 6))
+    -- In a timed grow room, night is the lights-off hours.
+    local oldSched = Rm.scheduleAt
+    Rm.scheduleAt = function() return true, "12/12" end
+    check("12/12 room: 7 PM is night", PT.isNight({ x = 0, y = 0, z = 0 }, 19))
+    Rm.scheduleAt = function() return true, "18/6" end
+    check("18/6 room: 10 PM is lights-on, not night", not PT.isNight({ x = 0, y = 0, z = 0 }, 22))
+    Rm.scheduleAt = function() return false, nil end
+    check("outside a room the clock decides", PT.isNight({ x = 0, y = 0, z = 0 }, 22) and not PT.isNight({ x = 0, y = 0, z = 0 }, 19))
+    Rm.scheduleAt = oldSched
+    local function purpleRate(ind)
+        local n = 0
+        for _ = 1, 2000 do
+            local q = { strain = { name = "x", ind = ind, pot = 50, yld = 50, flw = 50 }, x = 0, y = 0, z = 0 }
+            PT.rollPurple(q)
+            if q.purple then n = n + 1 end
+        end
+        return n / 2000
+    end
+    local sat, ind = purpleRate(0), purpleRate(100)
+    check("sativa purples rarely (" .. sat .. "), indica often (" .. ind .. ")", sat > 0.1 and sat < 0.2 and ind > 0.7 and ind < 0.8)
+
+    -- Purple plants: tint, quality, name.
+    local r, g, b = Wx.purpleTint(1, 1, 1)
+    check("purple tint blends toward violet", near(r, 0.76) and near(g, 0.61) and near(b, 0.88))
+    local painted
+    local isoObj = { setCustomColor = function(_, cr, cg, cb) painted = { cr, cg, cb } end, getSquare = function() return nil end }
+    local lo = { getIsoObject = function() return isoObj end }
+    local purplePlant = { strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[1]), purple = true }
+    CannabisMod.Farming.applyTint(purplePlant, lo)
+    local sr, sg = CannabisMod.Strains.tint(purplePlant.strain)
+    check("purple plants are painted purple", painted and painted[2] < sg - 0.1 and painted[1] < sr)
+    SandboxVars = { CannabisMod = { StrainTint = false } }
+    CannabisMod.Farming.applyTint(purplePlant, lo)
+    check("strain tint off: no purple either", painted[1] == 1 and painted[2] == 1 and painted[3] == 1)
+    SandboxVars = nil
+    local qp = { lightCap = 80, genetics = 80, care = 100 }
+    local plain = G.calcQuality(qp, 0, nil); qp.purple = true
+    check("purple adds 5% quality", G.calcQuality(qp, 0, nil) == math.floor(plain * 1.05 + 0.5))
+    check("purple quality is capped", G.calcQuality({ lightCap = 100, genetics = 100, care = 100, purple = true }, 0, nil) == 100)
+    check("no Purple Purple: names that already say purple keep their name",
+        Wx.purpleName({ purple = true }, "Muldraugh Purple") == "Muldraugh Purple" and Wx.purpleName({ purple = true }, "PURPLE Haze") == "PURPLE Haze"
+        and Wx.purpleName({ purple = true }, "Knox Kush") == "Purple Knox Kush" and Wx.purpleName({}, "Knox Kush") == "Knox Kush")
+    check("status shows a purple plant's strain as Purple",
+        CannabisMod.Info.buildVisible({ strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[1]), stage = 5, purple = true }, 3, 0).strain == "Purple Knox Kush")
+
+    -- Harvest carries purple, and freezing nights cut the yield.
+    local function harvestOne(x, extra)
+        local plot = newPlot(x, 7500, 0); plot.state, plot.typeOfSeed, plot.nbOfGrow = "seeded", "Cannabis", 7
+        local rec = R.addPlant(x, 7500, 0, G.newSeed(T.INDICA))
+        rec.sex, rec.stage, rec.nextStageAt, rec.lightCap = C.SEX.FEMALE, C.STAGE.Ripe, worldHours + 10, 80
+        for k, v in pairs(extra) do rec[k] = v end
+        local who = newPlayer(x, 7500, 5)
+        math.randomseed(7)
+        SFarmingSystem.harvest(SFarmingSystem.instance, plot, who)
+        return who.inv.items[1]:getModData().CannabisHarvest
+    end
+    local hPlain = harvestOne(7500, {})
+    local hCold = harvestOne(7501, { purple = true, coldYieldLoss = 0.25 })
+    check("harvest carries purple (" .. hPlain.budYield .. " vs " .. hCold.budYield .. " buds)", hCold.purple == true and hPlain.purple == nil
+        and hCold.budYield < hPlain.budYield and hCold.quality > hPlain.quality)
+
+    -- Purple carries from the dried plant into buds and joints.
+    local pp = newPlayer(0, 0, 8)
+    local sc = newItem("Base.Scissors"); sc.tags[ItemTag.SCISSORS] = true
+    local dried = newItem(C.DRIED_PLANT_ITEMS.Indica)
+    dried:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 1, purple = true,
+        strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[1]) }
+    pp.inv:addExisting(sc); pp.inv:addExisting(dried)
+    fire("OnClientCommand", "CannabisMod", "trimPlant", pp, { id = dried:getID() })
+    local pb
+    for _, it in ipairs(pp.inv.items) do if it.fullType == C.Drying.BUD_ITEM then pb = it end end
+    check("trimmed purple buds keep purple and say so", pb and pb:getModData().DDBud.purple == true and pb.name:find("Purple Knox Kush Bud") ~= nil)
+    pp.inv:addExisting(newItem(C.Smoking.PAPER_ITEM))
+    fire("OnClientCommand", "CannabisMod", "rollJoint", pp, { id = pb:getID() })
+    local pj
+    for _, it in ipairs(pp.inv.items) do if it.fullType == C.Smoking.JOINT_ITEM then pj = it end end
+    check("a purple bud rolls a purple joint", pj and pj.name:find("Purple Knox Kush Joint") ~= nil)
+
+    -- Curing temperature.
+    check("cure speed: full 15-21, easing to half at 10 and 25", Wx.cureSpeed(18) == 1 and near(Wx.cureSpeed(12.5), 0.75)
+        and near(Wx.cureSpeed(5), 0.5) and near(Wx.cureSpeed(23), 0.75) and near(Wx.cureSpeed(30), 0.5) and Wx.cureSpeed(nil) == 1)
+    check("hot jars mold 1.5x on missed burps", Wx.cureMoldFactor(26) == 1.5 and Wx.cureMoldFactor(20) == 1)
+    local jar = { lastBurp = 0 }
+    local warm, cold, unknown = { { cureHours = 0 } }, { { cureHours = 0 } }, { { cureHours = 0 } }
+    CannabisMod.Drying.advanceJar(jar, warm, 10, 10, 18)
+    CannabisMod.Drying.advanceJar(jar, cold, 10, 10, 5)
+    CannabisMod.Drying.advanceJar(jar, unknown, 10, 10, nil)
+    check("jars cure slower in the cold", warm[1].cureHours == 10 and near(cold[1].cureHours, 5) and unknown[1].cureHours == 10)
+    SandboxVars = { CannabisMod = { CuringTemperature = false } }
+    check("curing temperature option off: full speed", Wx.cureSpeed(5) == 1 and Wx.cureMoldFactor(30) == 1)
+    SandboxVars = nil
+    coreT = 9; fakeSquare(7400, 7400, 0, false, false)
+    check("a jar's station reads the square's temperature", CannabisMod.Drying.cureTemp("7400_7400_0") == 9)
+
+    DazedCore, DazedClimate, getClimateManager = nil, nil, nil
+    SandboxVars, hourOfDay = oldVars, oldHour
+end
 
 end)()
 

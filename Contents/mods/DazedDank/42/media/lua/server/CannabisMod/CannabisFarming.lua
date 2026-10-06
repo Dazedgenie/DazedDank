@@ -13,6 +13,7 @@ require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisCrop"
 require "CannabisMod/CannabisStrains"
+require "CannabisMod/CannabisWeather"
 
 local Config   = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
@@ -70,6 +71,8 @@ local function applyTint(plant, luaObject)
     if not ok or not obj or not obj.setCustomColor then return end
     local r, g, b = 1, 1, 1
     if plant then r, g, b = Strains.tint(Strains.of(plant)) end
+    -- Cold nights in late flower can bring out purple.
+    if plant and plant.purple then r, g, b = CannabisMod.Weather.purpleTint(r, g, b) end
     -- In a container the colour goes on the raised plant, and the container itself stays plain.
     local overlay = Config.overlayOn(obj:getSquare())
     local function paint(target, cr, cg, cb)
@@ -208,10 +211,7 @@ end
 function Farming.conditionsAt(square)
     local tempC, hasLight = nil, true
     if square then
-        pcall(function()
-            local climate = getClimateManager()
-            tempC = climate:getAirTemperatureForSquare(square)
-        end)
+        tempC = CannabisMod.Weather.tempAt(square, nil)
         pcall(function()
             if square:isOutside() then
                 -- outdoors: daylight between 6am and 8pm
@@ -359,6 +359,8 @@ local function harvestCannabis(luaObject, player)
             buds = buds * (1 + (plant.vegBonus or Config.Timer.vegBonus(plant.extraVegHours)))
             -- Topping in veg split the main cola into several.
             if plant.topped then buds = buds * (1 + Config.Topping.YIELD_BONUS) end
+            -- Nights near freezing in late flower cost yield.
+            buds = buds * (1 - Config.clamp(plant.coldYieldLoss or 0, 0, Config.Weather.FREEZE_YIELD_MAX))
             buds = math.max(1, math.floor(buds + 0.5))
 
             -- Everything later steps need, stored on the harvested plant.
@@ -372,6 +374,7 @@ local function harvestCannabis(luaObject, player)
                     quality       = quality,
                     budYield      = buds,
                     seeded        = plant.seeded == true,
+                    purple        = plant.purple == true or nil,
                     genetics      = plant.genetics,
                     generation    = plant.generation,
                     hermieLineage = plant.hermieLineage == true,

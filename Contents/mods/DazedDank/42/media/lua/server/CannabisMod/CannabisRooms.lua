@@ -11,6 +11,7 @@ require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisInfo"
 require "CannabisMod/CannabisClimate"
+require "CannabisMod/CannabisWeather"
 require "CannabisMod/CannabisDrying"
 require "Moveables/ISMoveableSpriteProps"
 
@@ -794,13 +795,10 @@ end
 -- Climate
 -- --------------------------------------------------------------------------
 
---- Outdoor temperature (C) and humidity (%): the climate manager's readings, with plain fallbacks when the game API differs.
+--- Outdoor temperature (C) and humidity (%): DazedCore's or the climate manager's readings, with plain fallbacks when the game API differs.
 function Rooms.outdoor()
-    local t, h = 15, 60
-    pcall(function()
-        local v = getClimateManager():getTemperature()
-        if type(v) == "number" then t = v end
-    end)
+    local h = 60
+    local t = CannabisMod.Weather.outdoor() or 15
     local found = false
     pcall(function()
         local v = getClimateManager():getHumidity()

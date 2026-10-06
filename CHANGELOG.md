@@ -1,6 +1,12 @@
 # Dazed Dank patch notes
 
-## dd54 (UI redesign, ui-redesign branch)
+## dd54 (Climate and UI redesign, in testing)
+- Added: works with **DazedCore 1.3.0** and **Dazed Climate**. Outdoor plants, rooting cuttings, drying racks and grow room outdoor air now read temperatures from DazedCore when it's loaded (real room temperatures with Dazed Climate). Without them, the game's own temperatures are used as before.
+- Added: lit grow lamps warm the room they hang in under Dazed Climate (about 3 C·squares per hour per tile of reach, so a large pro lamp is about 12). Sandbox: **Lamp Heat**.
+- Added: plants outside a grow room feel the weather. Below 15 C or above 32 C they take the same stress as in a bad grow room (warning: "Outdoor temperature"). Cold slows growth: half speed at 10 C, stopped at 5 C. A Dazed Climate frost cover keeps the plant 4 C warmer. Plants nobody is near are left alone. With Dazed Climate's crop frost on, frost (0 C and below) is left to Dazed Climate, so it isn't counted twice. Sandbox: **Plant Temperature**.
+- Added: **purple buds.** In the second half of flower and while ripe, nights (8 PM to 6 AM, or the lights-off hours in a grow room on a timer) at 5-15 C add up. After 12 cold night hours the plant gets one roll to turn purple: about 15% for a pure sativa up to 75% for a pure indica. Purple plants show purple, and their buds and joints are named "Purple ..." (unless the strain name already says Purple) and are worth 5% more quality. Clones and seeds don't inherit it. Sandbox: **Purple Buds**.
+- Added: nights under 5 C in late flower cost 2% yield per hour, up to 25% (frost itself is Dazed Climate's job). Part of **Plant Temperature**.
+- Added: curing temperature. Jars and barrels cure at full speed at 15-21 C, slower outside that, and at half speed below 10 C or above 25 C. Above 25 C a missed burp molds 1.5x as often. Jars in a grow room use the room's air. Sandbox: **Curing Temperature**.
 - Changed: the **Grow Room Panel** is one dashboard instead of tabs: a 24-hour lights ring, temperature and humidity against their targets, room seal, a sideways-scrolling row of plant cards (each showing the plant in its pot), reservoir tanks, equipment tiles and the newest alert. Click the room name to rename it, the mode pill or lights card to change them, a plant to inspect it, a tank or equipment tile for its actions (right-click a plant for Show in room). The mouse wheel scrolls the plant row; **Log** opens the full log.
 - Changed: the plant **Inspect** window is a light card in the same style: the plant drawn in its pot, vitals, care facts, genetics as bars at Agriculture 9, and warnings as chips. Info your level can't read yet is left out.
 

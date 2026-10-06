@@ -7,5 +7,6 @@
     "Tooltip_DD_IntakeFan": "Mount on a wall inside a grow room. Brings outside air in; pair it with an exhaust fan. Full effect on an outside wall. Needs panel power.",
     "Tooltip_DD_Heater": "Stand in a grow room. The panel switches it on when the room is too cold. Needs panel power.",
     "Tooltip_DD_Dehumidifier": "Stand in a grow room. The panel switches it on when the air is too humid. Needs panel power.",
-    "Tooltip_DD_Humidifier": "Stand in a grow room. The panel switches it on when the air is too dry. Needs panel power."
+    "Tooltip_DD_Humidifier": "Stand in a grow room. The panel switches it on when the air is too dry. Needs panel power.",
+    "Tooltip_DD_PurplePrefix": "Purple"
 }
