@@ -171,6 +171,15 @@ require "CannabisMod/CannabisUse"
 require "CannabisMod/CannabisSmoking"
 require "CannabisMod/CannabisTimers"
 require "CannabisMod/CannabisHydro"
+SPlantGlobalObject = SPlantGlobalObject or { setSpriteName = function(self, n) self.spriteName = n end }
+require "CannabisMod/CannabisPotPlants"
+--- The plant layer a plot shows (plots themselves show the furrow or container).
+local function plantSprite(plot) return (CannabisMod.PotPlants.wanted(plot)) end
+--- The shape index of the plant on a plot's tile, from its strain.
+local function shapeAt(x, y, z)
+    local St = CannabisMod.Strains
+    return St.shapeIndex(St.shapeOf(St.of(CannabisMod.Registry.getPlant(x, y, z))))
+end
 fire("OnInitGlobalModData", true)
 
 local C, G, I, R = CannabisMod.Config, CannabisMod.Genetics, CannabisMod.Info, CannabisMod.Registry
@@ -454,7 +463,8 @@ ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = seedItem, plant = { x
 local recA = R.getPlant(400, 400, 0)
 check("sowing creates record from seed data", recA and recA.type == T.SATIVA and recA.genetics == 90 and recA.generation == 2)
 check("vanilla clock frozen", plotA.nextGrowing > SFarmingSystem.instance.hoursElapsed + 1000)
-check("seedling sprite is our shared seedling", plotA.spriteName == "dazeddank_plants_01_0")
+check("a ground plant's plot shows the furrow", plotA.spriteName == C.FURROW_SPRITE)
+check("seedling layer is the shared seedling", plantSprite(plotA) == "dazeddank_overlay_01_0")
 
 -- Other crops are left alone.
 local plotT = newPlot(401, 400, 0)
@@ -463,10 +473,11 @@ check("tomato gets no cannabis record", R.getPlant(401, 400, 0) == nil)
 
 -- Growth: our stage drives the sprite, ripe enables harvest.
 R.advanceStage(recA)
-check("sativa veg sprite (slot 5)", plotA.nbOfGrow == 3 and plotA.spriteName == "dazeddank_plants_01_5" and not plotA.hasVegetable)
+check("veg layer follows the strain's shape", plotA.nbOfGrow == 3 and not plotA.hasVegetable
+    and plantSprite(plotA) == C.overlaySprite(shapeAt(400, 400, 0), 1, 2, "sprite"))
 R.advanceStage(recA); R.advanceStage(recA); R.advanceStage(recA)
-check("ripe sprite + harvest option", plotA.nbOfGrow == 7 and plotA.hasVegetable == true
-    and plotA.spriteName == "dazeddank_plants_01_8")
+check("ripe layer + harvest option", plotA.nbOfGrow == 7 and plotA.hasVegetable == true
+    and plantSprite(plotA) == C.overlaySprite(shapeAt(400, 400, 0), CannabisMod.Strains.colourIndex(CannabisMod.Strains.colourOf(CannabisMod.Strains.of(recA))), 5, "sprite"))
 
 -- Sync: water copies over; a vanilla plot without a record gets one.
 plotA.waterLvl = 42
@@ -477,9 +488,7 @@ check("orphan plot gets a record", R.getPlant(402, 400, 0) ~= nil)
 plotB.state = "dead"
 F.syncWithVanilla()
 check("dead plot keeps record, marked dead", R.getPlant(402, 400, 0) and R.getPlant(402, 400, 0).dead)
-local deadType = R.getPlant(402, 400, 0).type
-check("dead sprite keeps type", farming_vegetableconf.getSpriteName(plotB)
-    == C.spriteName(deadType, R.getPlant(402, 400, 0).stage, "deadSprite"))
+check("dead layer keeps the shape", plantSprite(plotB) == C.overlaySprite(shapeAt(402, 400, 0), 1, R.getPlant(402, 400, 0).stage, "deadSprite"))
 plotB.state, plotB.typeOfSeed = "plow", "none"  -- replowed for a new crop
 F.syncWithVanilla()
 check("replowed plot's record removed", R.getPlant(402, 400, 0) == nil)
@@ -532,25 +541,33 @@ SFarmingSystem.harvest(SFarmingSystem.instance, plotT, farmer)
 check("tomato uses vanilla harvest", vanillaHarvested == plotT)
 
 -- ---- Sprite selection ----------------------------------------------------
-check("sprite: healthy ripe hybrid = 12", C.spriteName("Hybrid", 5, "sprite") == "dazeddank_plants_01_12")
-check("sprite: indica veg = 1", C.spriteName("Indica", 2, "sprite") == "dazeddank_plants_01_1")
-check("sprite: seedling shared", C.spriteName("Indica", 1, "sprite") == C.spriteName("Sativa", 1, "sprite"))
-check("sprite: dead seedling = 39", C.spriteName("Sativa", 1, "deadSprite") == "dazeddank_plants_01_39")
-check("sprite: last one = 64", C.spriteName("Hybrid", 5, "trampledSprite") == "dazeddank_plants_01_64")
+check("sprite: seedling shared by every shape", C.overlaySprite(1, 1, 1, "sprite") == C.overlaySprite(7, 4, 1, "sprite")
+    and C.overlaySprite(2, 1, 1, "sprite") == "dazeddank_overlay_01_0")
+check("sprite: first shape veg = 1", C.overlaySprite(1, 1, 2, "sprite") == "dazeddank_overlay_01_1")
+check("sprite: dead seedling = 3 x 29", C.overlaySprite(4, 1, 1, "deadSprite") == "dazeddank_overlay_01_87")
+check("sprite: green only before flowering", C.overlaySprite(4, 2, 3, "sprite") == C.overlaySprite(4, 1, 3, "sprite")
+    and C.overlaySprite(4, 2, 4, "sprite") ~= C.overlaySprite(4, 1, 4, "sprite")
+    and C.overlaySprite(4, 2, 4, "dyingSprite") == C.overlaySprite(4, 1, 4, "dyingSprite"))
+check("sprite: XL pots use the second sheet", C.overlaySprite(3, 1, 4, "sprite", "xldwc") == "dazeddank_overlay_02_" .. (1 + 2 * 4 + 2))
 local seen = {}
 for _, cond in ipairs({ "sprite", "unhealthySprite", "dyingSprite", "deadSprite", "trampledSprite" }) do
-    for _, ty in ipairs({ "Indica", "Sativa", "Hybrid" }) do
-        for st = 1, 5 do seen[C.spriteName(ty, st, cond)] = true end
+    for shape = 1, 7 do
+        for colour = 1, 5 do
+            for st = 1, 5 do
+                for _, male in ipairs({ false, true }) do seen[C.overlaySprite(shape, colour, st, cond, nil, male)] = true end
+            end
+        end
     end
 end
-local nSeen = 0; for _ in pairs(seen) do nSeen = nSeen + 1 end
-check("all 65 sprites reachable, no extras (" .. nSeen .. ")", nSeen == 65)
+local nSeen, maxN = 0, -1
+for name in pairs(seen) do nSeen = nSeen + 1; maxN = math.max(maxN, tonumber(name:match("_(%d+)$"))) end
+check("all " .. C.OVERLAY_COUNT .. " layer sprites reachable, no extras (" .. nSeen .. ")", nSeen == C.OVERLAY_COUNT and maxN == C.OVERLAY_COUNT - 1)
 local sick = newPlot(500, 500, 0); sick.state, sick.typeOfSeed, sick.nbOfGrow = "seeded", "Cannabis", 6
 sick.health, sick.mildewLvl = 40, 0
--- no registry record -> Hybrid art; nbOfGrow 6 = Flowering = slot 11
-check("unhealthy at health 40", tonumber(farming_vegetableconf.getSpriteName(sick):match("_(%d+)$")) == 1 * 13 + 11)
+-- no registry record -> a Hybrid-shaped green plant; nbOfGrow 6 = Flowering
+check("unhealthy at health 40", plantSprite(sick) == C.overlaySprite(3, 1, 4, "unhealthySprite"))
 sick.mildewLvl = 35
-check("dying at mildew 35", tonumber(farming_vegetableconf.getSpriteName(sick):match("_(%d+)$")) == 2 * 13 + 11)
+check("dying at mildew 35", plantSprite(sick) == C.overlaySprite(3, 1, 4, "dyingSprite"))
 local tomatoPlot = newPlot(501, 500, 0); tomatoPlot.state, tomatoPlot.typeOfSeed, tomatoPlot.nbOfGrow = "seeded", "Hemp", 3
 check("other crops use vanilla sprites", farming_vegetableconf.getSpriteName(tomatoPlot) == "h3")
 
@@ -680,7 +697,7 @@ S.setCuttingData(rcItem, { type = T.SATIVA, sex = C.SEX.FEMALE, genetics = 80, g
 ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = rcItem, plant = { x = 610, y = 600, z = 0 }, character = gardener })
 local rc = R.getPlant(610, 600, 0)
 check("rooted cutting planted in veg", rc.stage == C.STAGE.Vegetative and rc.generation == 4
-    and rc.stress == 6 and not rc.rooting and rcPlot.spriteName == C.spriteName(T.SATIVA, 2, "sprite"))
+    and rc.stress == 6 and not rc.rooting and plantSprite(rcPlot) == C.overlaySprite(shapeAt(610, 600, 0), 1, 2, "sprite"))
 
 -- sticking a fresh cutting in soil: growth waits for rooting
 local scPlot = newPlot(620, 600, 0)
@@ -955,8 +972,8 @@ fire("OnClientCommand", "CannabisMod", "fillGrowBag", bagger, { x = 50, y = 50, 
 check("can't fill twice", bagger.inv:count("CannabisMod.SoilSack") == 1 and sent[#sent].data.text:find("already"))
 check("vanilla dirt bag counts as soil", C.isSoilItem("Base.Dirtbag") and not C.isSoilItem("Base.Dirt"))
 check("client can tell it's a bag from its sprite", C.bagFromSprite(bagPlot.spriteName) == "small"
-    and C.bagFromSprite("dazeddank_plants_01_196") == "large" and C.bagFromSprite("dazeddank_plants_01_70") == "small"
-    and C.bagFromSprite("dazeddank_plants_01_140") == "large" and C.bagFromSprite("dazeddank_plants_01_12") == nil
+    and C.bagFromSprite("dazeddank_plants_01_196") == "large" and C.bagFromSprite(C.FURROW_SPRITE) == nil
+    and C.bagFromSprite("dazeddank_overlay_01_12") == nil
     and C.bagFromSprite("vegetation_farming_01_1") == nil)
 
 -- sow into the bag: sprite is the bag version, plant remembers its bag
@@ -979,7 +996,7 @@ check("large bag with 1 sack refused", not R.isBagSoiled(55, 55, 0) and lg.inv:c
 lg.inv:addExisting(newItem("CannabisMod.SoilSack"))
 fire("OnClientCommand", "CannabisMod", "fillGrowBag", lg, { x = 55, y = 55, z = 0 })
 check("large bag takes 2 sacks", R.isBagSoiled(55, 55, 0) and lg.inv:count("CannabisMod.SoilSack") == 0)
-check("large bag sprites sit in blocks 10-14", C.spriteName(T.INDICA, 4, "sprite", "large") == "dazeddank_plants_01_" .. (10 * 13 + 3))
+check("large bag plants use the standard layers", C.overlaySprite(4, 1, 4, "sprite", "large") == C.overlaySprite(4, 1, 4, "sprite"))
 -- breathing: overwater hurts less in a bag
 local wetG = { stage = 3, water = 100, care = 100, stress = 0, warnings = {}, bag = nil }
 local wetB = { stage = 3, water = 100, care = 100, stress = 0, warnings = {}, bag = "large" }
@@ -1586,14 +1603,12 @@ end
 
 -- Male plant sprites
 do
-    local base = C.MALE_SPRITE_BASE
-    check("males look female until pre-flower", C.spriteName(T.INDICA, 2, "sprite", nil, true) == C.spriteName(T.INDICA, 2, "sprite"))
-    check("first male sprite: ground, healthy Indica pre-flower", C.spriteName(T.INDICA, 3, "sprite", nil, true) == "dazeddank_plants_01_" .. base)
-    check("last male sprite: large bag, trampled Hybrid ripe", C.spriteName(T.HYBRID, 5, "trampledSprite", "large", true) == "dazeddank_plants_01_" .. (base + 134))
-    check("male sprites stay below the sheet end", base + 134 == 371)
-    check("male bag sprites still read as bags", C.bagFromSprite(C.spriteName(T.SATIVA, 4, "sprite", "small", true)) == "small"
-        and C.bagFromSprite(C.spriteName(T.SATIVA, 4, "dyingSprite", "large", true)) == "large"
-        and C.bagFromSprite(C.spriteName(T.SATIVA, 4, "sprite", nil, true)) == nil)
+    check("males look female until pre-flower", C.overlaySprite(4, 1, 2, "sprite", nil, true) == C.overlaySprite(4, 1, 2, "sprite"))
+    check("first male sprite: healthy first shape pre-flower", C.overlaySprite(1, 1, 3, "sprite", nil, true) == "dazeddank_overlay_01_145")
+    check("last male sprite: trampled last shape ripe", C.overlaySprite(7, 1, 5, "trampledSprite", "large", true) == "dazeddank_overlay_01_249")
+    check("males ignore colour", C.overlaySprite(2, 3, 5, "sprite", nil, true) == C.overlaySprite(2, 1, 5, "sprite", nil, true))
+    check("male layers read as male, female and coloured ones don't", C.isMaleSprite(C.overlaySprite(5, 1, 4, "dyingSprite", "xlbag", true))
+        and not C.isMaleSprite(C.overlaySprite(5, 1, 4, "sprite")) and not C.isMaleSprite(C.overlaySprite(5, 2, 4, "sprite")))
 end
 
 -- Hydroponics: DWC buckets
@@ -1610,9 +1625,7 @@ do
         return it, fc
     end
     -- sprites and container rules
-    check("DWC plants use their own sprite range", C.spriteName(T.INDICA, 4, "sprite", "dwc") == "dazeddank_plants_01_" .. (375 + 3)
-        and C.spriteName(T.HYBRID, 5, "trampledSprite", "dwc", true) == "dazeddank_plants_01_484")
-    check("DWC sprites read as a DWC bucket", C.bagFromSprite("dazeddank_plants_01_400") == "dwc" and C.bagFromSprite("dazeddank_plants_01_373") == "dwc"
+    check("DWC sprites read as a DWC bucket", C.bagFromSprite("dazeddank_plants_01_374") == "dwc" and C.bagFromSprite("dazeddank_plants_01_373") == "dwc"
         and C.bagFromSprite("dazeddank_plants_01_372") == nil and C.bagFromFurnSprite("dazeddank_plants_01_372") == "dwc")
     check("a DWC bucket with no medium needs one", C.bagIsUnfilled("dazeddank_plants_01_373") and C.isHydro("dwc") and not C.isHydro("small"))
 
@@ -1799,18 +1812,16 @@ end
 do
     local HY, HC, GB = CannabisMod.Hydro, C.Hydro, CannabisMod.GrowBags
     HY._reset({})
-    check("RDWC sites have their own sprites on the hydro sheet", C.spriteName(T.SATIVA, 4, "sprite", "rdwc") == "dazeddank_hydro_01_" .. (3 + 7)
-        and C.spriteName(T.HYBRID, 5, "trampledSprite", "rdwc", true) == "dazeddank_hydro_01_112"
-        and C.bagFromSprite("dazeddank_hydro_01_35") == "rdwc" and C.bagFromFurnSprite("dazeddank_hydro_01_0") == "rdwc"
+    check("RDWC sites have their sprites on the hydro sheet", C.bagFromSprite("dazeddank_hydro_01_2") == "rdwc" and C.bagFromFurnSprite("dazeddank_hydro_01_0") == "rdwc"
         and C.bagEmptySprite("rdwc", true) == "dazeddank_hydro_01_2" and C.bagIsUnfilled("dazeddank_hydro_01_1"))
-    check("hydro sheet numbers don't leak onto the main sheet", C.bagFromSprite("dazeddank_hydro_01_10") == "rdwc"
-        and C.bagFromSprite("dazeddank_plants_01_10") == nil and C.bagFromFurnSprite("dazeddank_plants_01_0") == nil
+    check("hydro sheet numbers don't leak onto the main sheet", C.bagFromSprite("dazeddank_hydro_01_1") == "rdwc"
+        and C.bagFromSprite("dazeddank_plants_01_2") == nil and C.bagFromFurnSprite("dazeddank_plants_01_0") == nil
         and not C.bagIsUnfilled("dazeddank_plants_01_1") and C.bagFromSprite("othermod_01_201") == nil)
     -- The game refuses a whole tile sheet over 512 tiles, which hides every placed object from the mod.
     local highest = { [C.SPRITE_SHEET] = 0, [C.HYDRO_SHEET] = 0 }
     for kind, def in pairs(C.GrowBag) do
         local sheet = C.sheetOf(kind)
-        for _, n in ipairs({ def.furnSprite, def.emptySprite, def.drySprite, def.plantBase + 64, def.maleBase + 44 }) do
+        for _, n in ipairs({ def.furnSprite, def.emptySprite, def.drySprite }) do
             highest[sheet] = math.max(highest[sheet], n)
         end
     end
@@ -1891,10 +1902,9 @@ do
     ctrl.objs[1] = HC.CONTROL_SPRITE
 
     -- Pulling males: recognised by sprite on the client, checked against the real record on the server.
-    check("male sprites are recognised in every container", C.isMaleSprite(C.spriteName(T.HYBRID, 4, "sprite", "rdwc", true))
-        and C.isMaleSprite(C.spriteName(T.INDICA, 3, "sprite", nil, true)) and C.isMaleSprite(C.spriteName(T.SATIVA, 5, "dyingSprite", "small", true))
-        and not C.isMaleSprite(C.spriteName(T.HYBRID, 4, "sprite", "rdwc")) and not C.isMaleSprite(C.spriteName(T.HYBRID, 4, "sprite", "dwc"))
-        and not C.isMaleSprite("dazeddank_plants_01_205"))
+    check("male layers are recognised in every container", C.isMaleSprite(C.overlaySprite(3, 1, 4, "sprite", "rdwc", true))
+        and C.isMaleSprite(C.overlaySprite(1, 1, 3, "sprite", nil, true)) and C.isMaleSprite(C.overlaySprite(2, 1, 5, "dyingSprite", "xldwc", true))
+        and not C.isMaleSprite(C.overlaySprite(3, 1, 4, "sprite", "rdwc")) and not C.isMaleSprite("dazeddank_plants_01_205"))
     a.sex, a.stage = C.SEX.FEMALE, C.STAGE.PreFlower
     fire("OnClientCommand", "CannabisMod", "pullMalePlant", pl, { x = 801, y = 800, z = 0 })
     check("a female can't be pulled as a male", R.getPlant(801, 800, 0) ~= nil and sent[#sent].data.text:find("isn't a male"))
@@ -1942,8 +1952,8 @@ do
         and #HY.ebbSitesOf("999_1000_0") == 4 and HY.capacity(r) == HC.EBB_RESERVOIR_L)
     tableAt(1010, 1000)
     check("a table not touching the row isn't fed", HY.reservoirOf(1010, 1000, 0) == nil)
-    check("flood table sprites read as Ebb and Flow", C.bagFromSprite(C.spriteName(T.HYBRID, 4, "sprite", "ebb")) == "ebb"
-        and C.bagFromFurnSprite("dazeddank_hydro_01_119") == "ebb" and C.isMaleSprite(C.spriteName(T.HYBRID, 4, "sprite", "ebb", true)))
+    check("flood table sprites read as Ebb and Flow", C.bagFromSprite(C.bagEmptySprite("ebb", true)) == "ebb"
+        and C.bagFromFurnSprite("dazeddank_hydro_01_119") == "ebb")
 
     -- rockwool only, and water before sowing
     local grower = newPlayer(1001, 1000, 6)
@@ -2102,7 +2112,7 @@ do
     sq.objs[1] = entry
     local obj = PL.objectAt(sq)
     check("the control bucket matches the adapter", obj and registered.match(obj) and PL.kindOf(obj) == "rdwc"
-        and PL.kindOf({ getSprite = function() return { getName = function() return "dazeddank_plants_01_380" end } end }) == "dwc")
+        and PL.kindOf({ getSprite = function() return { getName = function() return "dazeddank_plants_01_374" end } end }) == "dwc")
     local r = HY.reservoirAt(900, 900, 0, "rdwc")
     r.level, r.strength = 30, 0.5
     local pl = newPlayer(900, 900, 6)
@@ -2949,8 +2959,6 @@ local claimed, clash = {}, nil
 for kind, def in pairs(GB) do
     local sheet = C.sheetOf(kind)
     local nums = { def.emptySprite, def.drySprite, def.furnSprite }
-    for i = 0, 64 do nums[#nums + 1] = def.plantBase + i end
-    for i = 0, 44 do nums[#nums + 1] = def.maleBase + i end
     for _, n in ipairs(def.furnSprites or {}) do nums[#nums + 1] = n end
     for _, n in ipairs(nums) do
         local key = sheet .. "_" .. n
@@ -2959,12 +2967,11 @@ for kind, def in pairs(GB) do
     end
 end
 check("no sprite clashes between containers (" .. tostring(clash) .. ")", clash == nil)
-check("XL sprites stay inside one sheet", GB.xldwc.maleBase + 44 < C.MAX_SHEET_TILES)
-check("XL bag sprites recognised", C.bagFromSprite("dazeddank_hydro_01_238") == "xlbag" and C.bagFromSprite("dazeddank_hydro_01_236") == "xlbag"
+check("plant layer sheets stay inside the 512-tile limit", C.OVERLAY_COUNT <= C.MAX_SHEET_TILES)
+check("XL bag sprites recognised", C.bagFromSprite("dazeddank_hydro_01_237") == "xlbag" and C.bagFromSprite("dazeddank_hydro_01_236") == "xlbag"
     and C.bagFromFurnSprite("dazeddank_hydro_01_235") == "xlbag")
-check("XL DWC sprites recognised", C.bagFromSprite("dazeddank_hydro_01_351") == "xldwc" and C.bagFromFurnSprite("dazeddank_hydro_01_348") == "xldwc"
-    and C.isMaleSprite("dazeddank_hydro_01_416"))
-check("XL plant sprite name", C.spriteName(T.INDICA, 3, "sprite", "xlbag") == "dazeddank_hydro_01_" .. (238 + 1 + 1))
+check("XL DWC sprites recognised", C.bagFromSprite("dazeddank_hydro_01_350") == "xldwc" and C.bagFromFurnSprite("dazeddank_hydro_01_348") == "xldwc")
+check("XL plant layer name", C.overlaySprite(4, 1, 3, "sprite", "xlbag") == "dazeddank_overlay_02_" .. (1 + 3 * 4 + 1))
 
 -- cutting budget
 local bp = { stage = 2, bag = nil }
@@ -3054,7 +3061,6 @@ end)()
 
 -- ---- Cannabis in pots: the pot stays, the plant is a raised layer ------------
 do
-    SPlantGlobalObject = { setSpriteName = function(self, n) self.spriteName = n end }
     loaded["CannabisMod/CannabisCrop"] = nil
     require "CannabisMod/CannabisCrop"
     require "CannabisMod/CannabisPotPlants"
@@ -3086,14 +3092,10 @@ do
     SPlantGlobalObject.setSpriteName(plot, farming_vegetableconf.getSpriteName(plot))
     local ov = placed[#placed]
     check("the plant is its own object, raised onto the soil",
-        ov and ov.sprite == C.overlaySprite(T.HYBRID, 1, "sprite", "large") and ov.yOff == C.PLANT_LIFT.large)
+        ov and ov.sprite == C.overlaySprite(3, 1, 1, "sprite", "large") and ov.yOff == C.PLANT_LIFT.large)
     plot.nbOfGrow = 3
     SPlantGlobalObject.setSpriteName(plot, farming_vegetableconf.getSpriteName(plot))
     check("growing swaps the layer instead of stacking another", overlays() == 1 and placed[#placed].sprite ~= ov.sprite)
-    check("XL pots use the bigger plants, males their own sprites",
-        C.overlaySprite(T.INDICA, 4, "sprite", "xlbag") == "dazeddank_overlay_01_" .. (110 + 3)
-        and C.isMaleSprite(C.overlaySprite(T.INDICA, 4, "sprite", "small", true))
-        and not C.isMaleSprite(C.overlaySprite(T.INDICA, 4, "sprite", "small")))
     plot.state = "plow"
     SPlantGlobalObject.setSpriteName(plot, farming_vegetableconf.getSpriteName(plot))
     check("an emptied bag drops the plant layer", overlays() == 0)
@@ -3101,6 +3103,30 @@ do
     SPlantGlobalObject.setSpriteName(plot, "vegetation_farming_01_2")
     check("other crops get no layer", overlays() == 0)
     CannabisMod.Registry.clearBag(1200, 1200, 0)
+end
+
+-- ---- Looks genes: shape and colour --------------------------------------------
+do
+    local St = CannabisMod.Strains
+    local kush, haze = St.copy(St.STARTERS[1]), St.copy(St.STARTERS[4])
+    check("starters carry a shape and colour", kush.shp == "kush" and kush.col == "green" and St.STARTERS[2].col == "purple")
+    local shapes, colours, surprise = {}, {}, 0
+    for _ = 1, 2000 do
+        local c = St.crossTraits(kush, haze)
+        shapes[c.shp] = (shapes[c.shp] or 0) + 1
+        colours[c.col] = (colours[c.col] or 0) + 1
+        if c.shp ~= "kush" and c.shp ~= "haze" then surprise = surprise + 1 end
+    end
+    check("crosses take one parent's shape about half the time each", (shapes.kush or 0) > 800 and (shapes.haze or 0) > 800)
+    check("a few crosses show a surprise shape (" .. surprise .. ")", surprise > 10 and surprise < 120)
+    check("green x green is nearly always green", (colours.green or 0) > 1900)
+    local self = St.crossTraits(St.copy(St.STARTERS[2]), St.copy(St.STARTERS[2]))
+    check("a strain bred with itself keeps its looks", self.shp == "afghan" and self.col == "purple")
+    check("looks survive the network check", St.sanitize(St.copy(St.STARTERS[5])).col == "frosty"
+        and St.sanitize({ name = "x", ind = 1, pot = 1, yld = 1, flw = 1, shp = "bogus" }).shp == nil)
+    check("older strains get looks from their traits and name", St.shapeOf({ ind = 10 }) == "landrace"
+        and St.colourOf({ name = "Cave City Purple" }) == "purple" and St.colourOf({ name = "Plain" }) == "green")
+    check("inspect shows the looks", CannabisMod.Info.buildVisible({ strain = St.copy(St.STARTERS[2]), stage = 3 }, 3, 0).looks == "Afghan, Purple")
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

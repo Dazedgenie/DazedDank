@@ -16,13 +16,56 @@ Strains.TRAITS = { "ind", "pot", "yld", "flw" }
 -- The six starters: three indica-leaning, three sativa-leaning. Every seed in the world is one of these until players breed.
 -- Indicas finish fast and sativas slow, so crossing and selecting can push flowering time either way.
 Strains.STARTERS = {
-    { name = "Knox Kush",           ind = 85, pot = 60, yld = 65, flw = 72 },
-    { name = "Muldraugh Purple",    ind = 90, pot = 70, yld = 45, flw = 80 },
-    { name = "Rosewood Stone",      ind = 75, pot = 50, yld = 80, flw = 64 },
-    { name = "Riverside Haze",      ind = 15, pot = 70, yld = 50, flw = 30 },
-    { name = "West Point Lightning", ind = 10, pot = 80, yld = 35, flw = 22 },
-    { name = "March Ridge Gold",    ind = 25, pot = 55, yld = 70, flw = 42 },
+    { name = "Knox Kush",           ind = 85, pot = 60, yld = 65, flw = 72, shp = "kush",     col = "green" },
+    { name = "Muldraugh Purple",    ind = 90, pot = 70, yld = 45, flw = 80, shp = "afghan",   col = "purple" },
+    { name = "Rosewood Stone",      ind = 75, pot = 50, yld = 80, flw = 64, shp = "tree",     col = "dark" },
+    { name = "Riverside Haze",      ind = 15, pot = 70, yld = 50, flw = 30, shp = "haze",     col = "green" },
+    { name = "West Point Lightning", ind = 10, pot = 80, yld = 35, flw = 22, shp = "landrace", col = "frosty" },
+    { name = "March Ridge Gold",    ind = 25, pot = 55, yld = 70, flw = 42, shp = "hybrid",   col = "gold" },
 }
+
+-- Looks genes: a body shape and a bud colour, each passed down whole from one parent. They change only how the plant looks.
+Strains.SHAPES = { "landrace", "haze", "hybrid", "kush", "afghan", "auto", "tree" }
+Strains.SHAPE_NAMES = { landrace = "Landrace Sativa", haze = "Haze", hybrid = "Hybrid", kush = "Kush", afghan = "Afghan",
+    auto = "Autoflower", tree = "Christmas Tree" }
+Strains.COLOURS = { "green", "purple", "frosty", "gold", "dark" }
+Strains.COLOUR_NAMES = { green = "Green", purple = "Purple", frosty = "Frosty White", gold = "Lime Gold", dark = "Dark" }
+Strains.SURPRISE_PERCENT = 3     -- chance a crossed seed shows a shape or colour neither parent has
+local SHAPE_INDEX, COLOUR_INDEX = {}, {}
+for i, k in ipairs(Strains.SHAPES) do SHAPE_INDEX[k] = i end
+for i, k in ipairs(Strains.COLOURS) do COLOUR_INDEX[k] = i end
+
+--- A strain's shape gene; strains from before the gene existed get one from their indica share.
+function Strains.shapeOf(strain)
+    if strain and SHAPE_INDEX[strain.shp] then return strain.shp end
+    local ind = strain and strain.ind or 50
+    if ind >= 80 then return ((strain.pot or 0) % 2 == 0) and "afghan" or "kush" end
+    if ind >= 60 then return ((strain.pot or 0) % 2 == 0) and "kush" or "tree" end
+    if ind > 40 then return "hybrid" end
+    if ind > 20 then return "haze" end
+    return "landrace"
+end
+
+--- A strain's colour gene; older strains take one from their name, else green.
+function Strains.colourOf(strain)
+    if strain and COLOUR_INDEX[strain.col] then return strain.col end
+    local name = strain and strain.name or ""
+    if name:find("Purple") then return "purple" end
+    if name:find("Gold") or name:find("Lemon") then return "gold" end
+    if name:find("White") or name:find("Frost") then return "frosty" end
+    if name:find("Black") or name:find("Dark") then return "dark" end
+    return "green"
+end
+
+Strains.shapeIndex = function(key) return SHAPE_INDEX[key] end
+Strains.colourIndex = function(key) return COLOUR_INDEX[key] end
+
+--- One parent's gene, or now and then a surprise from the whole list.
+local function inheritLook(list, a, b, noisy)
+    if noisy and Config.rollPercent(Strains.SURPRISE_PERCENT) then return list[Config.randInt(1, #list)] end
+    if noisy and Config.rollPercent(50) then return b end
+    return a
+end
 
 -- The server's list of strain names already given out (global ModData). Nil offline, where names are never numbered.
 Strains.registry = nil
@@ -133,7 +176,8 @@ end
 --- A fresh copy of a strain record (strains are shared by value, never by reference).
 function Strains.copy(strain)
     if not strain then return nil end
-    return { name = strain.name, ind = strain.ind, pot = strain.pot, yld = strain.yld, flw = strain.flw }
+    return { name = strain.name, ind = strain.ind, pot = strain.pot, yld = strain.yld, flw = strain.flw,
+        shp = Strains.shapeOf(strain), col = Strains.colourOf(strain) }
 end
 
 --- A starter strain picked by a stable number (an item ID, a tile key hash). Same number, same strain.
@@ -165,7 +209,7 @@ function Strains.fromType(plantType, n)
         local a = Strains.starterFor(n or 0, T.INDICA)
         local b = Strains.starterFor(n or 0, T.SATIVA)
         local s = Strains.blend(a, b, false)
-        s.name = "Hybrid"
+        s.name, s.shp, s.col = "Hybrid", "hybrid", "green"
         return s
     end
     return Strains.starterFor(n or 0, plantType)
@@ -192,6 +236,8 @@ function Strains.blend(a, b, noisy)
         end
         out[k] = clamp100(v)
     end
+    out.shp = inheritLook(Strains.SHAPES, Strains.shapeOf(a), Strains.shapeOf(b), noisy)
+    out.col = inheritLook(Strains.COLOURS, Strains.colourOf(a), Strains.colourOf(b), noisy)
     return out
 end
 
@@ -230,7 +276,10 @@ end
 function Strains.crossTraits(a, b)
     a, b = a or Strains.STARTERS[1], b or Strains.STARTERS[1]
     local s = Strains.blend(a, b, true)
-    if sameStrain(a, b) then s.name = a.name end
+    if sameStrain(a, b) then
+        -- A strain bred with itself breeds true in looks too.
+        s.name, s.shp, s.col = a.name, Strains.shapeOf(a), Strains.colourOf(a)
+    end
     return s
 end
 
@@ -312,5 +361,7 @@ function Strains.sanitize(data)
         if type(data[k]) ~= "number" then return nil end
         out[k] = clamp100(data[k])
     end
+    if SHAPE_INDEX[data.shp] then out.shp = data.shp end
+    if COLOUR_INDEX[data.col] then out.col = data.col end
     return out
 end

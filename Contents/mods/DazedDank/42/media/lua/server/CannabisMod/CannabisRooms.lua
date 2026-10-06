@@ -683,7 +683,7 @@ function Rooms.plantRows(panelKey, level)
                 x = plant.x, y = plant.y, z = plant.z, name = d.name or "Cannabis Plant",
                 stage = d.stage or d.stageRough or "?", water = water or d.waterRough or "?",
                 health = d.healthBand, type = d.type, warnings = d.warnings and #d.warnings or 0,
-                strain = d.strain, sex = d.sex,
+                strain = d.strain, sex = d.sex, looks = d.looks,
             }
         end
     end

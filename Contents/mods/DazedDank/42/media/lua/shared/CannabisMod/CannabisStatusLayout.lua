@@ -105,6 +105,7 @@ function Layout.build(data, fontH, measure)
     end
     y = y + medium + 2
     text(data.container and ("Planted in: " .. data.container) or "", PAD, y, COLORS.muted)
+    if data.looks then text(data.looks, W - PAD, y, COLORS.muted, "Small", "right") end
     y = y + small + 18
 
     -- Growth: five-step track when the stage is known, a rough word otherwise.

@@ -196,6 +196,8 @@ function SFarmingSystem:removePlant(luaObject)
         GrowBags.reset(luaObject)
         return
     end
+    local square = luaObject and luaObject.getSquare and luaObject:getSquare()
+    if square and CannabisMod.PotPlants then CannabisMod.PotPlants.clear(square) end
     return originalRemovePlant(self, luaObject)
 end
 

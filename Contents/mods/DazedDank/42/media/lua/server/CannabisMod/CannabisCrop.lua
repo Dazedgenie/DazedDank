@@ -15,7 +15,7 @@ local ALL_MONTHS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }
 
 farming_vegetableconf.props[CROP] = {
     icon        = "Item_CannabisSeed",
-    texture     = Config.spriteName("Hybrid", 5, "sprite"),  -- tooltip picture
+    texture     = Config.overlaySprite(3, 1, 5, "sprite"),  -- tooltip picture: a ripe hybrid
     waterLvl    = Config.Water.LOW,  -- vanilla's minimum water
     waterNeeded = 70,
 
@@ -87,14 +87,16 @@ end
 local originalGetSpriteName = farming_vegetableconf.getSpriteName
 CannabisMod.vanillaSpriteName = originalGetSpriteName
 
---- What a cannabis plot looks like: type, stage index, vanilla condition and whether it shows as male.
+--- What a cannabis plot looks like: shape and colour indices from its strain, stage index, vanilla condition, and male.
 function CannabisMod.plantLook(plot)
-    local Registry = CannabisMod.Registry
-    -- Type and stage come from the server registry; clients receive the resulting sprites.
+    local Registry, Strains = CannabisMod.Registry, CannabisMod.Strains
+    -- Everything comes from the server registry; clients receive the resulting sprites.
     local record = Registry and Registry.getPlant(plot.x, plot.y, plot.z)
-    local plantType = record and record.type or Config.TYPES.HYBRID
     local stage = record and record.stage or NBOFGROW_TO_STAGE[plot.nbOfGrow] or Config.STAGE.Seedling
-    return plantType, stage, vanillaCondition(plot), record and record.sex == Config.SEX.MALE
+    local strain = Strains and Strains.of(record or { type = Config.TYPES.HYBRID })
+    local shape = strain and Strains.shapeIndex(Strains.shapeOf(strain)) or 3
+    local colour = strain and Strains.colourIndex(Strains.colourOf(strain)) or 1
+    return shape, colour, stage, vanillaCondition(plot), record ~= nil and record.sex == Config.SEX.MALE
 end
 
 farming_vegetableconf.getSpriteName = function(plot)
@@ -110,10 +112,9 @@ farming_vegetableconf.getSpriteName = function(plot)
         return Config.bagEmptySprite(bag, Registry.isBagSoiled(plot.x, plot.y, plot.z))
     end
     if plowed then return originalGetSpriteName(plot) end
-    -- A plant in a container keeps the container's sprite; the plant is a raised layer on top (CannabisPotPlants).
+    -- The plot shows its container (or a bare furrow); the plant is a layer drawn on top (CannabisPotPlants).
     if bag and Config.GrowBag[bag] then return Config.bagEmptySprite(bag, true) end
-    local plantType, stage, condition, male = CannabisMod.plantLook(plot)
-    return Config.spriteName(plantType, stage, condition, nil, male)
+    return Config.FURROW_SPRITE
 end
 
 -- Name shown over a plot: an empty bag is a "Small Grow Bag", not "Plowed

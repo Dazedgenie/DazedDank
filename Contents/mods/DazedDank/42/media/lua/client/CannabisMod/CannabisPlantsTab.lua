@@ -44,6 +44,7 @@ function PlantsTab:render()
         if p.warnings and p.warnings > 0 then self:drawText("! " .. p.warnings, 450, y, 1, 0.75, 0.35, 1, font) end
         local second = {}
         if p.strain then second[#second + 1] = p.strain end
+        if p.looks then second[#second + 1] = p.looks end
         if p.sex then second[#second + 1] = p.sex end
         if #second > 0 then
             local male = p.sex == "Male" or p.sex == "Hermaphrodite"

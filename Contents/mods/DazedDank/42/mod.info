@@ -11,3 +11,5 @@ tiledef=dazeddank_rooms_01 7422
 pack=dazeddank_rooms_01
 tiledef=dazeddank_overlay_01 7423
 pack=dazeddank_overlay_01
+tiledef=dazeddank_overlay_02 7424
+pack=dazeddank_overlay_02

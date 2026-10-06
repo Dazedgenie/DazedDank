@@ -1,5 +1,5 @@
--- Cannabis in grow bags, buckets and flood tables: the plot keeps the container's sprite and the plant is a separate
--- object raised onto the soil, so one set of plant sprites serves every container.
+-- Every cannabis plant is a separate object drawn over its plot (a furrow, bag, bucket or flood table), raised onto
+-- the soil, so one set of plant sprites serves the ground and every container.
 
 if isClient() then return end
 
@@ -20,13 +20,12 @@ local function lift(square, obj)
     pcall(function() square:RemoveTileObject(obj) end)
 end
 
---- The plant sprite a plot should show above its container and the container kind, or nil when there is no plant to draw.
+--- The plant sprite a plot should show and its container kind (nil on the ground), or nil when there is no plant to draw.
 function PotPlants.wanted(luaObject)
     if not luaObject or luaObject.state == "plow" or luaObject.typeOfSeed ~= CROP then return nil end
     local bag = Registry.getBag(luaObject.x, luaObject.y, luaObject.z)
-    if not (bag and Config.PLANT_LIFT[bag]) then return nil end
-    local plantType, stage, condition, male = CannabisMod.plantLook(luaObject)
-    return Config.overlaySprite(plantType, stage, condition, bag, male), bag
+    local shape, colour, stage, condition, male = CannabisMod.plantLook(luaObject)
+    return Config.overlaySprite(shape, colour, stage, condition, bag, male), bag
 end
 
 --- Make the raised plant object on a plot's square match the plot: add, swap or remove it.
@@ -41,13 +40,13 @@ function PotPlants.sync(luaObject)
     if not want then return end
     -- A fresh object per change (rather than a re-sprite) so the client always draws the new stage.
     local obj = IsoObject.new(getCell(), square, want)
-    obj:setRenderYOffset(Config.PLANT_LIFT[bag])
+    obj:setRenderYOffset(bag and Config.PLANT_LIFT[bag] or 0)
     if color then pcall(function() obj:setCustomColor(color) end) end
     square:AddTileObject(obj)
     pcall(function() obj:transmitCompleteItemToClients() end)
 end
 
---- Take the raised plant object off a square (the container is being picked up).
+--- Take the plant object off a square (the container is being picked up).
 function PotPlants.clear(square)
     local current = square and Config.overlayOn(square)
     if current then lift(square, current) end
@@ -60,5 +59,26 @@ function SPlantGlobalObject:setSpriteName(spriteName)
     local ok, err = pcall(PotPlants.sync, self)
     if not ok then print("[DazedDank] plant-in-pot layer failed: " .. tostring(err)) end
 end
+
+-- A plant layer left on a square whose plot is gone (removed some way we don't hook) is cleared a little after the
+-- square loads, once the farming system has its plots.
+local orphanCheck = {}
+Events.LoadGridsquare.Add(function(square)
+    if Config.overlayOn(square) then orphanCheck[#orphanCheck + 1] = { square = square, at = getTimestampMs() + 5000 } end
+end)
+Events.OnTick.Add(function()
+    if #orphanCheck == 0 or getTimestampMs() < orphanCheck[1].at then return end
+    local now, due = getTimestampMs(), {}
+    while orphanCheck[1] and orphanCheck[1].at <= now do due[#due + 1] = table.remove(orphanCheck, 1) end
+    local system = SFarmingSystem and SFarmingSystem.instance
+    for _, e in ipairs(due) do
+        local current = Config.overlayOn(e.square)
+        local plot = system and system.getLuaObjectOnSquare and system:getLuaObjectOnSquare(e.square)
+        if current and system and not (plot and plot.typeOfSeed == CROP and plot.state ~= "plow") then
+            print("[DazedDank] removed a plant layer with no plant under it at " .. e.square:getX() .. "," .. e.square:getY())
+            lift(e.square, current)
+        end
+    end
+end)
 
 return PotPlants

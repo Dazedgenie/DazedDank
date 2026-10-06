@@ -115,6 +115,17 @@ builders.strain = function(plant)
     return s and s.name or nil
 end
 
+-- How the strain looks: its body shape, and its bud colour when that isn't plain green.
+builders.looks = function(plant)
+    local Strains = CannabisMod.Strains
+    local s = Strains.of(plant)
+    if not s then return nil end
+    local shape, colour = Strains.shapeOf(s), Strains.colourOf(s)
+    local out = Strains.SHAPE_NAMES[shape] or shape
+    if colour ~= "green" then out = out .. ", " .. (Strains.COLOUR_NAMES[colour] or colour) end
+    return out
+end
+
 -- The strain's traits in words, for growers who can read genetics.
 builders.traits = function(plant)
     local s = CannabisMod.Strains.of(plant)
