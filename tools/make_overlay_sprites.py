@@ -4,7 +4,7 @@ make_overlay_sprites.py -- build the plant layer sheets: dazeddank_overlay_01 (s
 Each sheet: per condition a seedling plus 4 stages for each of the 7 shapes (145), males 3 stages per shape per condition
 (105), then the coloured flowering and ripe plants, healthy and unhealthy (112). The game raises each layer onto its
 plot (furrow, bag, bucket or table). Also writes the bare furrow a ground plant stands in (dazeddank_plants_01_65) and
-drops the old ground plant sprites. Uses Blender renders from tools/blender/plants when present:
+drops the old ground plant sprites. Uses Blender renders from tools/blender/shapes when present:
     shape_<shape>_<Stage>.png, male_<shape>_<Stage>.png, colour_<colour>_<shape>_<Stage>.png
 and otherwise stands in a reshaped, recoloured copy of the three original type renders. Run from the repo root:
 
@@ -25,6 +25,7 @@ COLOURS = ["purple", "frosty", "gold", "dark"]          # green is the plain set
 STAGES = ["Vegetative", "PreFlower", "Flowering", "Ripe"]
 MALE_STAGES = ["PreFlower", "Flowering", "Ripe"]
 RENDERS = Path(__file__).parent / "blender" / "plants"
+SHAPE_RENDERS = Path(__file__).parent / "blender" / "shapes"     # output of tools/blender/render_shapes.py
 # Stand-ins until the Blender pass: which original type render a shape borrows, and how it is stretched (width, height).
 STAND_IN = {"landrace": ("Sativa", 0.85, 1.10), "haze": ("Sativa", 1.0, 1.0), "hybrid": ("Hybrid", 1.0, 1.0),
             "kush": ("Indica", 1.0, 1.0), "afghan": ("Indica", 1.2, 0.85), "auto": ("Hybrid", 0.65, 0.65),
@@ -34,7 +35,7 @@ OLD_GROUND = list(range(0, 65)) + list(range(237, 282))
 
 
 def load(name):
-    path = RENDERS / name
+    path = SHAPE_RENDERS / name
     if path.exists():
         return Image.open(path).convert("RGBA").resize((dp.CELL_W * dp.S, dp.CELL_H * dp.S), Image.LANCZOS)
     return None
