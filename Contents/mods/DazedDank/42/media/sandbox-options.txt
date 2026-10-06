@@ -203,3 +203,45 @@ option CannabisMod.StrainTint
     page = CannabisMod,
     translation = CannabisMod_StrainTint,
 }
+
+option CannabisMod.LampHeat
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_LampHeat,
+}
+
+option CannabisMod.PlantTemperature
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_PlantTemperature,
+}
+
+option CannabisMod.PurpleBuds
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_PurpleBuds,
+}
+
+option CannabisMod.CuringTemperature
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_CuringTemperature,
+}
+
+option CannabisMod.StrainWords
+{
+    type = enum,
+    numValues = 3,
+    default = 1,
+    page = CannabisMod,
+    translation = CannabisMod_StrainWords,
+    valueTranslation = CannabisMod_StrainWords,
+}

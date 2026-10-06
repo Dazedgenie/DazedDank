@@ -6,7 +6,9 @@ local PlantsTab = CannabisMod.RowsTab:derive("CannabisPlantsTab")
 CannabisMod.PlantsTab = PlantsTab
 
 function PlantsTab:new(x, y, w, h, info, actions)
-    return CannabisMod.RowsTab.new(self, x, y, w, h, info, actions, 58, 28)
+    local o = CannabisMod.RowsTab.new(self, x, y, w, h, info, actions, 58, 28)
+    o.rowH = 36   -- two lines: status, then strain and sex once Agriculture 3 can read them
+    return o
 end
 
 function PlantsTab:rows() return self.info.plants or {} end
@@ -40,6 +42,14 @@ function PlantsTab:render()
         self:drawText("Water " .. tostring(p.water), 290, y, 0.6, 0.85, 1, 1, font)
         if p.health then self:drawText(tostring(p.health), 390, y, 0.5, 0.95, 0.5, 1, font) end
         if p.warnings and p.warnings > 0 then self:drawText("! " .. p.warnings, 450, y, 1, 0.75, 0.35, 1, font) end
+        local second = {}
+        if p.strain then second[#second + 1] = p.strain end
+        if p.looks then second[#second + 1] = p.looks end
+        if p.sex then second[#second + 1] = p.sex end
+        if #second > 0 then
+            local male = p.sex == "Male" or p.sex == "Hermaphrodite"
+            self:drawText(table.concat(second, "  -  "), 80, y + 15, male and 1 or 0.8, male and 0.65 or 0.7, male and 0.5 or 1, 1, font)
+        end
     end
     self:drawScrollNote()
 end

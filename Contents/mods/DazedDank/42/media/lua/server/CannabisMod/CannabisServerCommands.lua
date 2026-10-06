@@ -54,6 +54,16 @@ local function sendPlantInfo(player, x, y, z)
 
     local data = Info.buildVisible(plant, agricultureLevel(player), Registry.nowHours())
     data.x, data.y, data.z = x, y, z
+    -- The plant's own sprites, so the window can show it as it stands: the pot (or furrow) and the plant layer raised onto it.
+    pcall(function()
+        local plot = SFarmingSystem.instance:getLuaObjectAt(x, y, z)
+        local PotPlants = CannabisMod.PotPlants
+        if plot and PotPlants then
+            local sprite, bag = PotPlants.wanted(plot)
+            data.sprite, data.potSprite = sprite, plot.spriteName
+            data.lift = bag and Config.PLANT_LIFT[bag] or 0
+        end
+    end)
     -- Timer diagnostics for debug games (shown in console.txt only).
     if isDebugEnabled() then
         data.debugNow  = Registry.nowHours()

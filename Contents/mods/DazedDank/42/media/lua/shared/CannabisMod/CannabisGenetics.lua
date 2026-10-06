@@ -301,5 +301,7 @@ function Genetics.calcQuality(plant, hoursOutsideWindow, hoursDried)
     local seeded = plant.seeded and Config.Quality.SEEDED_MULT or 1.0
     local dry = Genetics.dryMultiplier(hoursDried or Config.dryHours())
     local q = cap * care * Genetics.harvestMultiplier(hoursOutsideWindow) * seeded * dry
+    -- Purple buds from cold nights have extra bag appeal.
+    if plant.purple then q = q * Config.Weather.PURPLE_QUALITY end
     return math.floor(Config.clamp(q, 0, Config.maxQuality(topShelf)) + 0.5)
 end

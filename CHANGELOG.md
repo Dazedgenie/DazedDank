@@ -1,5 +1,35 @@
 # Dazed Dank patch notes
 
+## dd54 (UI redesign, ui-redesign branch)
+- Changed: the **Grow Room Panel** is one dashboard instead of tabs: a 24-hour lights ring, temperature and humidity against their targets, room seal, a sideways-scrolling row of plant cards (each showing the plant in its pot), reservoir tanks, equipment tiles and the newest alert. Click the room name to rename it, the mode pill or lights card to change them, a plant to inspect it, a tank or equipment tile for its actions (right-click a plant for Show in room). The mouse wheel scrolls the plant row; **Log** opens the full log.
+- Changed: the plant **Inspect** window is a light card in the same style: the plant drawn in its pot, vitals, care facts, genetics as bars at Agriculture 9, and warnings as chips. Info your level can't read yet is left out.
+
+## dd53.2
+- Changed: the **Heater**, **Dehumidifier** and **Humidifier** now hang on a wall up high, like an overhead cupboard or a poster, in all four facings. The art is a placeholder until the Blender pass. Units already standing on the floor keep working.
+- Added: an **Equipment** tab on the Grow Room Panel listing every fan, heater, dehumidifier and humidifier in the room, with where it is, which wall it hangs on, whether it's running, and a Show button.
+- The panel also refreshes when equipment is placed or picked up near it.
+- Changed: basic (purple) grow lamps glow twice as strongly.
+- Added: more strain name variety. New crosses can be named after about 80 more Kentucky towns (Bardstown to Monkeys Eyebrow, Rabbit Hash and Possum Trot), and about 4 in 10 get a zombie-style name, like "Shambler Rush", "Patient Zero Kush" or "Frankfort Fever".
+- Added: real strain names as strain words: 14 each for indica (Northern Lights, Bubba Kush, Granddaddy Purple...), sativa (Sour Diesel, Durban Poison, Jack Herer...) and hybrid (Blue Dream, Gelato, Wedding Cake...), giving names like "Ekron Sour Diesel" or "Shambler Bubba Kush". New sandbox option **Strain Name Words**: original and real strains (default), original words only, or real strains only.
+- Art: the wall-mounted Heater, Dehumidifier and Humidifier are now Blender renders in the same style as the panel and fans, with new inventory icons.
+- Changed: grow bags, DWC and RDWC buckets and flood tables only take cannabis. The **Sow** menu there lists only the cannabis seeds you're carrying.
+- Changed: every cannabis plant, in the ground or in a container, is now drawn as its own layer over its plot (a furrow, bag, bucket or flood table), so one set of plant art serves them all (a bigger set for the XL mother pots). Plants already growing in an old save may show the wrong art; replant them.
+- Added: **plant shapes and colours.** Every strain now carries two looks genes, passed down whole from one parent when you breed: a body shape (Landrace Sativa, Haze, Hybrid, Kush, Afghan, Autoflower or Christmas Tree) and a bud colour that shows in flower (Green, Purple, Frosty White, Lime Gold or Dark). About 3 in 100 crossed seeds show a shape or colour neither parent had, so there are phenos to hunt. A strain bred with itself keeps its looks. Looks only; traits still do the work. The starters: Knox Kush (Kush), Muldraugh Purple (Afghan, Purple), Rosewood Stone (Christmas Tree, Dark), Riverside Haze (Haze), West Point Lightning (Landrace, Frosty), March Ridge Gold (Hybrid, Lime Gold). Older strains get looks from their indica share and name.
+- Added: Inspect and the Plants tab show a plant's shape and colour from Agriculture 3.
+- Fixed: the strain's traits line at Agriculture 9 ran off the edge of the Inspect window; it now wraps.
+- Art: all 7 shapes (4 stages each, plus males) and the 4 bud colours are new Blender renders in the mod's style.
+- Changed: strain colours (the Strain Tint option) now colour only the plant, not the pot.
+- Added: the Grow Room Panel's **Plants** tab shows each plant's strain and sex under its row once your Agriculture level can read them (level 3). Males and hermaphrodites are shown in orange.
+- Fixed: a blackout curtain drew over pipes on the same wall, and over people standing in front of it. It now draws with its wall, behind both.
+- Changed: hanging a blackout curtain takes down any vanilla sheet or curtain on that window or door and gives it back.
+
+## dd53.1
+- Fixed: the Exhaust Fan, Intake Fan, Dehumidifier and Humidifier recipes used items that don't exist in 42.21 (Motor, Empty Water Bottle), so the game threw those recipes out. They now take a Blower Fan and a Water Bottle.
+- Fixed: the Grow Room Panel updates by itself when a lamp is hung or taken down while the window is open.
+- Fixed: a bar lamp (large basic or large pro) shows as one lamp in the panel, not one row per tile.
+- Fixed: a reservoir on a Dazed Plumbing water line takes its first fill from the line, and **Top Up** on a piped reservoir now fills it from the line instead of asking for carried water.
+- Fixed: **Hang Blackout Curtain** shows up when you right-click near a door or window, the way vanilla sheets do, and works on player-built windows and doors too.
+
 ## dd53 (Grow Rooms, in testing)
 - Added: **Grow Rooms.** Seal a room with walls, doors and windows, place a **Grow Room Panel** on a wall, and right-click it to open the room window (Lights, Hydro, Plants, Climate, Log tabs).
 - Added: one shared lamp schedule per room, bulk hydro actions (Top Up, Change, Dose, Bleach) and a plant overview from the panel.

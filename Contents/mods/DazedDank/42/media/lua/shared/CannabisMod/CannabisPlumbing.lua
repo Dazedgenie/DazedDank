@@ -1,5 +1,5 @@
 -- Optional Dazed Plumbing hookup: DWC buckets, RDWC control buckets and flood reservoirs take a water line from a tank.
--- After "Change Reservoir" the line refills the emptied reservoir; it does not top up a reservoir otherwise.
+-- The line fills a brand-new reservoir, refills one after "Change Reservoir", and fills one on "Top Up"; it never tops up on its own.
 
 require "CannabisMod/CannabisConfig"
 
@@ -63,6 +63,11 @@ end
 
 --- Litres a reservoir still takes from the line after a change, clearing its wait once it's full.
 local function waiting(r)
+    -- A reservoir that has never held water takes its first fill from the line.
+    if not r.everFilled and not r.fillPending and (r.level or 0) <= Plumb.FULL_MARGIN then
+        r.fillPending, r.everFilled = true, true
+        if CannabisMod.Registry then r.changedAt = CannabisMod.Registry.nowHours() end
+    end
     if not r.fillPending then return 0 end
     local room = CannabisMod.Hydro.capacity(r) - r.level
     if room <= Plumb.FULL_MARGIN then
@@ -82,7 +87,7 @@ local function fedBy(r)
     return list
 end
 
---- Litres the line may pour in this minute: only while a changed reservoir is waiting to be refilled.
+--- Litres the line may pour in this minute: while a new, changed or topped-up reservoir is waiting to be filled.
 function Plumb.room(obj)
     local r = reservoir(obj)
     if not r then return 0 end

@@ -656,6 +656,18 @@ function Hydro.topUp(player, r, say)
         say("The reservoir is full")
         return
     end
+    -- On a water line (its own or the room's), Top Up asks the line to fill it instead of pouring by hand.
+    local Rooms = CannabisMod.Rooms
+    local own = CannabisMod.Plumbing.isPlumbedAt(r.x, r.y, r.z)
+    local roomLine = not own and Rooms ~= nil and Rooms.lineFeeder(r) ~= nil
+    if own or roomLine then
+        if not r.everFilled then r.changedAt = Registry.nowHours() end
+        r.everFilled = true
+        r.fillPending = true
+        if roomLine then Rooms.waitOnLine(r) end
+        say("The water line is topping up the reservoir")
+        return
+    end
     local poured, tainted = pourWater(player, room)
     if poured <= 0 then
         say("You have no water to pour")

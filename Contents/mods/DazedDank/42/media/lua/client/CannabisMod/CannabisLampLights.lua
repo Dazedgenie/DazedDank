@@ -13,8 +13,8 @@ LampLights.COLORS = {
     basic = { 0.85, 0.25, 1.00 },
     pro   = { 1.00, 0.62, 0.12 },
 }
--- How many light sources each tier stacks on its tile: pro gets a third so its yellow-orange reads as strongly as the purple.
-LampLights.LAYERS = { basic = 2, pro = 3 }
+-- How many light sources each tier stacks on its tile: the purple stacks four so it reads strongly in a lit room.
+LampLights.LAYERS = { basic = 4, pro = 3 }
 LampLights.SCAN_RADIUS = 30   -- tiles around the player that get lamp lights
 LampLights.ROWS_PER_TICK = 1  -- rows of the scan area read each tick, so a full pass takes about a second
 

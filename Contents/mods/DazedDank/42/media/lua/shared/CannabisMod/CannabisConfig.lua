@@ -151,6 +151,11 @@ Config.SPRITE_SHEET = "dazeddank_plants_01"
 Config.HYDRO_SHEET = "dazeddank_hydro_01"
 -- Third sheet for the grow room panel and its fittings.
 Config.ROOMS_SHEET = "dazeddank_rooms_01"
+-- Plants with no pot or soil, drawn as a layer on top of the plot: standard size, and a bigger set for the XL pots.
+Config.OVERLAY_SHEET = "dazeddank_overlay_01"
+Config.OVERLAY_SHEET_XL = "dazeddank_overlay_02"
+-- Bare furrow a ground plant stands in.
+Config.FURROW_SPRITE = "dazeddank_plants_01_65"
 Config.MAX_SHEET_TILES = 512
 
 -- Vanilla's names for plant conditions -> our block number.
@@ -162,44 +167,39 @@ Config.SPRITE_CONDITION = {
     trampledSprite  = 4,
 }
 
-local SPRITE_TYPE_OFFSET = { Indica = 1, Sativa = 5, Hybrid = 9 }
-
 -- --------------------------------------------------------------------------
 -- Grow bags
 -- --------------------------------------------------------------------------
 -- Optional fabric pots. A bag is a placeable plot that works indoors and out.
 Config.GrowBag = {
     small = { name = "Small Grow Bag",
-              drain = 0.6, yield = 1.0,  spriteBlock = 1, emptySprite = 195,
-              drySprite = 201, soil = 1, plantBase = 65, maleBase = 282,
+              drain = 0.6, yield = 1.0,  emptySprite = 195,
+              drySprite = 201, soil = 1,
               furnItem = "CannabisMod.GrowBagSmallPlaceable", furnSprite = 203 },
     large = { name = "Large Grow Bag",
-              drain = 0.5, yield = 1.25, spriteBlock = 2, emptySprite = 196,
-              drySprite = 202, soil = 2, plantBase = 130, maleBase = 327,
+              drain = 0.5, yield = 1.25, emptySprite = 196,
+              drySprite = 202, soil = 2,
               furnItem = "CannabisMod.GrowBagLargePlaceable", furnSprite = 204 },
     -- Deep water culture bucket: a hydro container. It needs a medium (rockwool or clay pebbles) instead of soil.
     dwc   = { name = "DWC Bucket", hydro = "dwc",
               drain = 1, yield = 1.3, careMult = 0.75, emptySprite = 374,
-              drySprite = 373, soil = 0, plantBase = 375, maleBase = 440, lastSprite = 484,
+              drySprite = 373, soil = 0,
               furnItem = "CannabisMod.DWCBucket", furnSprite = 372 },
     -- Recirculating DWC site bucket: shares the reservoir of a control bucket nearby; its buds can reach Top Shelf.
     rdwc  = { name = "RDWC Site Bucket", hydro = "rdwc", topShelf = true,
               drain = 1, yield = 1.4, careMult = 0.6, emptySprite = 2, sheet = "dazeddank_hydro_01",
-              drySprite = 1, soil = 0, plantBase = 3, maleBase = 68, lastSprite = 112,
+              drySprite = 1, soil = 0,
               furnItem = "CannabisMod.RDWCSite", furnSprite = 0 },
     -- Ebb and Flow table: a 1x2 bench placed like the drying rack, each tile a site. Flooded from a flood reservoir beside the tables.
     ebb   = { name = "Flood Table", hydro = "ebb", rockwoolOnly = true, sheet = "dazeddank_hydro_01",
               drain = 1, yield = 1.2, careMult = 0.85, emptySprite = 123, drySprite = 122, soil = 0,
-              plantBase = 124, maleBase = 189, lastSprite = 233,
               furnItem = "CannabisMod.FloodTable", furnSprite = 114, furnSprites = { 114, 115, 116, 117, 118, 119, 120, 121 } },
     -- Mother pots: room for a big root ball, so they give more cuttings and keep a line healthy. Same yield as large.
     xlbag = { name = "XL Grow Bag", mother = true, sheet = "dazeddank_hydro_01",
-              drain = 0.45, yield = 1.25, spriteBlock = 3, emptySprite = 236, drySprite = 237, soil = 3,
-              plantBase = 238, maleBase = 303, lastSprite = 347,
+              drain = 0.45, yield = 1.25, emptySprite = 236, drySprite = 237, soil = 3,
               furnItem = "CannabisMod.GrowBagXLPlaceable", furnSprite = 235 },
     xldwc = { name = "XL DWC Bucket", hydro = "dwc", mother = true, sheet = "dazeddank_hydro_01", reservoirL = 30,
               drain = 1, yield = 1.3, careMult = 0.75, emptySprite = 350, drySprite = 349, soil = 0,
-              plantBase = 351, maleBase = 416, lastSprite = 460,
               furnItem = "CannabisMod.DWCBucketXL", furnSprite = 348 },
 }
 
@@ -235,8 +235,6 @@ Config.Mother = {
     FEED_EVERY_HOURS = 96,            -- held-veg feeding interval (normal pots: 48)
     CUT_STRESS_RECOVERY_PER_HOUR = 1, -- stress from cuttings fades this fast while held in veg
 }
--- Ground plants: the first 65 sprites, and males from MALE_SPRITE_BASE.
-Config.GROUND_SPRITES = { plantBase = 0, maleBase = 237 }
 
 -- Items that count as a sack of soil (our own, plus vanilla's bag of dirt if
 -- this build has it; an unknown type simply never matches).
@@ -258,7 +256,8 @@ end
 function Config.splitSprite(spriteName)
     if type(spriteName) ~= "string" then return nil end
     local sheet, n = spriteName:match("^(.-)_(%d+)$")
-    if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET and sheet ~= Config.ROOMS_SHEET then return nil end
+    if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET and sheet ~= Config.ROOMS_SHEET
+        and sheet ~= Config.OVERLAY_SHEET and sheet ~= Config.OVERLAY_SHEET_XL then return nil end
     return sheet, tonumber(n)
 end
 
@@ -293,38 +292,53 @@ local function memoBySprite(fn, miss)
     end
 end
 
--- Male plants from pre-flower on have their own sprites: per container, 5 conditions x 3 types x 3 stages.
-Config.MALE_SPRITE_BASE = 237
-local MALE_TYPE_INDEX = { Indica = 0, Sativa = 1, Hybrid = 2 }
-
---- The sprite ranges of a container kind (nil or unknown means the ground).
-local function spriteBases(bag)
-    return (bag and Config.GrowBag[bag]) or Config.GROUND_SPRITES
-end
-
---- Sprite name for a plant type, stage index (1-5) and vanilla condition.
---- `bag` is nil for ground, or a Config.GrowBag key; `male` picks the male sprites once the sex shows.
-function Config.spriteName(plantType, stage, condition, bag, male)
-    local bases = spriteBases(bag)
-    local sheet = Config.sheetOf(bag)
-    local cond = Config.SPRITE_CONDITION[condition] or 0
-    if male and stage and stage >= 3 then
-        local t = MALE_TYPE_INDEX[plantType] or MALE_TYPE_INDEX.Hybrid
-        return sheet .. "_" .. tostring(bases.maleBase + cond * 9 + t * 3 + (math.min(stage, 5) - 3))
-    end
-    local slot = 0  -- seedling
-    if stage and stage > 1 then
-        local offset = SPRITE_TYPE_OFFSET[plantType] or SPRITE_TYPE_OFFSET.Hybrid
-        slot = offset + math.min(stage, 5) - 2
-    end
-    return sheet .. "_" .. tostring(bases.plantBase + cond * 13 + slot)
-end
-
 --- Sprite of an empty bag. `soiled` false/nil = the new, unfilled bag.
 function Config.bagEmptySprite(bag, soiled)
     local def = Config.GrowBag[bag]
     if not def then return nil end
     return Config.sheetOf(bag) .. "_" .. (soiled and def.emptySprite or def.drySprite)
+end
+
+-- A plant in a container is drawn on top of it, raised this many pixels (1x) so its stem starts on the soil or medium.
+Config.PLANT_LIFT = { small = 13, large = 20, dwc = 20, rdwc = 20, ebb = 20.5, xlbag = 28, xldwc = 27 }
+-- Overlay sheet layout, the same on both sizes. Female: per condition, a seedling then 4 stages for each of the 7 shapes.
+-- Males: per condition, 3 stages per shape. Colours: flowering and ripe, healthy and unhealthy, per colour and shape.
+Config.SHAPE_COUNT, Config.COLOUR_COUNT = 7, 5
+local FEMALE_PER_COND = 1 + Config.SHAPE_COUNT * 4
+local MALE_BASE = FEMALE_PER_COND * 5
+local MALE_PER_COND = Config.SHAPE_COUNT * 3
+local COLOUR_BASE = MALE_BASE + MALE_PER_COND * 5
+Config.OVERLAY_COUNT = COLOUR_BASE + (Config.COLOUR_COUNT - 1) * Config.SHAPE_COUNT * 4
+
+--- Overlay sprite for a plant: shape (1-7) and colour (1-5, 1 = green) from its strain, stage index 1-5, vanilla condition.
+--- The XL mother pots use the bigger set; males show their own sprites once the sex shows.
+function Config.overlaySprite(shape, colour, stage, condition, bag, male)
+    local sheet = Config.isMotherPot(bag) and Config.OVERLAY_SHEET_XL or Config.OVERLAY_SHEET
+    local cond = Config.SPRITE_CONDITION[condition] or 0
+    shape = math.max(1, math.min(Config.SHAPE_COUNT, shape or 3))
+    stage = math.min(stage or 1, 5)
+    if male and stage >= 3 then
+        return sheet .. "_" .. (MALE_BASE + cond * MALE_PER_COND + (shape - 1) * 3 + (stage - 3))
+    end
+    if stage <= 1 then return sheet .. "_" .. (cond * FEMALE_PER_COND) end
+    if colour and colour > 1 and colour <= Config.COLOUR_COUNT and stage >= 4 and cond <= 1 then
+        return sheet .. "_" .. (COLOUR_BASE + (((colour - 2) * Config.SHAPE_COUNT + shape - 1) * 2 + cond) * 2 + (stage - 4))
+    end
+    return sheet .. "_" .. (cond * FEMALE_PER_COND + 1 + (shape - 1) * 4 + (stage - 2))
+end
+
+--- The raised plant object on a square (any object showing an overlay sprite), or nil.
+function Config.overlayOn(square)
+    if not square then return nil end
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        local name = sprite and sprite:getName()
+        local sheet = name and Config.splitSprite(name)
+        if sheet == Config.OVERLAY_SHEET or sheet == Config.OVERLAY_SHEET_XL then return obj, name end
+    end
+    return nil
 end
 
 --- True if this sprite is an unfilled (no soil yet) bag.
@@ -345,9 +359,7 @@ function Config.bagFromSprite(spriteName)
     for kind, def in pairs(Config.GrowBag) do
         if sheet ~= Config.sheetOf(kind) then
             -- Kinds on another sheet reuse the same numbers, so skip them.
-        elseif n == def.emptySprite or n == def.drySprite then return kind
-        elseif n >= def.plantBase and n < def.plantBase + 65 then return kind
-        elseif n >= def.maleBase and n < def.maleBase + 45 then return kind end
+        elseif n == def.emptySprite or n == def.drySprite then return kind end
     end
     return nil
 end
@@ -355,14 +367,7 @@ end
 --- True if a sprite shows a male plant (in the ground or any container), which is only once its sex shows.
 function Config.isMaleSprite(spriteName)
     local sheet, n = Config.splitSprite(spriteName)
-    if not sheet then return false end
-    if sheet == Config.SPRITE_SHEET and n >= Config.GROUND_SPRITES.maleBase and n < Config.GROUND_SPRITES.maleBase + 45 then
-        return true
-    end
-    for kind, def in pairs(Config.GrowBag) do
-        if sheet == Config.sheetOf(kind) and n >= def.maleBase and n < def.maleBase + 45 then return true end
-    end
-    return false
+    return (sheet == Config.OVERLAY_SHEET or sheet == Config.OVERLAY_SHEET_XL) and n >= MALE_BASE and n < COLOUR_BASE
 end
 
 -- Sprite names are parsed once each: these run per object in menus, placement and the plant tick.
@@ -604,6 +609,12 @@ Config.Rooms = {
         dazeddank_rooms_01_0 = "S", dazeddank_rooms_01_1 = "E", dazeddank_rooms_01_2 = "N", dazeddank_rooms_01_3 = "W",
     },
 }
+-- Wall-mounted heater, dehumidifier and humidifier hang up high in four facings (20-23, 24-27, 28-31); the floor units stay for old saves.
+for i, unit in ipairs({ { "heater", "Heater" }, { "dehumidifier", "Dehumidifier" }, { "humidifier", "Humidifier" } }) do
+    for j, facing in ipairs({ "S", "E", "N", "W" }) do
+        Config.Rooms.EQUIPMENT["dazeddank_rooms_01_" .. (16 + i * 4 + j - 1)] = { kind = unit[1], name = unit[2], wall = facing }
+    end
+end
 
 --- True if a lamp on this schedule is lit at this hour of the day (0-23); nil means no timer (24/0).
 function Config.Timer.isOn(schedule, hour)
@@ -749,10 +760,10 @@ end
 Config.InfoTiers = {
     { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container", "topped" } },
     { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir", "cuttings" } },
-    { level = 3,  fields = { "type", "strain", "sex", "light", "lightCycle", "roots", "rootRot" } },
+    { level = 3,  fields = { "type", "strain", "looks", "sex", "light", "lightCycle", "roots", "rootRot" } },
     { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg", "rootRotTrend" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },
-    { level = 9,  fields = { "generation", "geneticsBand", "traits" } },
+    { level = 9,  fields = { "generation", "geneticsBand", "traits", "traitBars" } },
     { level = 10, fields = { "qualityEstimate" } },
 }
 
@@ -783,6 +794,7 @@ Config.SandboxDefaults = {
     ReservoirUseRate  = 1.0,  -- multiplier on how fast reservoirs drain and go stale
     HydroQualityBonus = 0.15, -- extra quality ceiling RDWC can reach (0.15 = up to 115)
     PumpsNeedPower    = true, -- hydro pumps only run with power
+    StrainWords       = 1,    -- strain name words: 1 original and real strains, 2 original only, 3 real strains only
     RoomClimate       = true, -- grow rooms simulate temperature and humidity (off = rooms sit at their targets)
     LightLeaks        = true, -- light from outside a grow room's own lamps counts as a leak in its dark hours
     RoomPowerPenalty  = true, -- a power cut in a grow room adds stress for the lit hours lost (off = only the per-plant penalty)

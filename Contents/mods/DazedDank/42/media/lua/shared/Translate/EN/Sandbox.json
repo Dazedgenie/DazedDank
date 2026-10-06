@@ -43,5 +43,18 @@
     "Sandbox_CannabisMod_RoomPowerPenalty": "Room Power Penalty",
     "Sandbox_CannabisMod_RoomPowerPenalty_tooltip": "If enabled, a power cut in a grow room adds stress to flowering plants for every lit hour lost. If off, only the normal per-plant penalty applies.",
     "Sandbox_CannabisMod_StrainTint": "Strain Tint",
-    "Sandbox_CannabisMod_StrainTint_tooltip": "If enabled, each strain tints its plants a little: indica leans violet, sativa leans gold."
+    "Sandbox_CannabisMod_StrainTint_tooltip": "If enabled, each strain tints its plants a little: indica leans violet, sativa leans gold.",
+    "Sandbox_CannabisMod_LampHeat": "Lamp Heat",
+    "Sandbox_CannabisMod_LampHeat_tooltip": "With the Dazed Climate mod, a lit grow lamp warms the room it hangs in. Has no effect without Dazed Climate.",
+    "Sandbox_CannabisMod_PlantTemperature": "Plant Temperature",
+    "Sandbox_CannabisMod_PlantTemperature_tooltip": "If enabled, plants outside a grow room are stressed below 15 C or above 32 C, grow slower in the cold and stop at 5 C. Nights under 5 C in late flower cost yield.",
+    "Sandbox_CannabisMod_PurpleBuds": "Purple Buds",
+    "Sandbox_CannabisMod_PurpleBuds_tooltip": "If enabled, cool nights (5-15 C) in late flower can turn a plant purple. Indica-leaning strains purple far more often. Purple buds are worth a little more.",
+    "Sandbox_CannabisMod_CuringTemperature": "Curing Temperature",
+    "Sandbox_CannabisMod_CuringTemperature_tooltip": "If enabled, jars cure at full speed at 15-21 C and down to half speed when colder or warmer. Above 25 C a missed burp is more likely to mold.",
+    "Sandbox_CannabisMod_StrainWords": "Strain Name Words",
+    "Sandbox_CannabisMod_StrainWords_tooltip": "The words new crosses are named with after their town or zombie lead. Real strains uses pieces of well-known strain names, like Northern Lights, Sour Diesel and Blue Dream.",
+    "Sandbox_CannabisMod_StrainWords_option1": "Original and real strains",
+    "Sandbox_CannabisMod_StrainWords_option2": "Original words only",
+    "Sandbox_CannabisMod_StrainWords_option3": "Real strains only"
 }

@@ -16,13 +16,56 @@ Strains.TRAITS = { "ind", "pot", "yld", "flw" }
 -- The six starters: three indica-leaning, three sativa-leaning. Every seed in the world is one of these until players breed.
 -- Indicas finish fast and sativas slow, so crossing and selecting can push flowering time either way.
 Strains.STARTERS = {
-    { name = "Knox Kush",           ind = 85, pot = 60, yld = 65, flw = 72 },
-    { name = "Muldraugh Purple",    ind = 90, pot = 70, yld = 45, flw = 80 },
-    { name = "Rosewood Stone",      ind = 75, pot = 50, yld = 80, flw = 64 },
-    { name = "Riverside Haze",      ind = 15, pot = 70, yld = 50, flw = 30 },
-    { name = "West Point Lightning", ind = 10, pot = 80, yld = 35, flw = 22 },
-    { name = "March Ridge Gold",    ind = 25, pot = 55, yld = 70, flw = 42 },
+    { name = "Knox Kush",           ind = 85, pot = 60, yld = 65, flw = 72, shp = "kush",     col = "green" },
+    { name = "Muldraugh Purple",    ind = 90, pot = 70, yld = 45, flw = 80, shp = "afghan",   col = "purple" },
+    { name = "Rosewood Stone",      ind = 75, pot = 50, yld = 80, flw = 64, shp = "tree",     col = "dark" },
+    { name = "Riverside Haze",      ind = 15, pot = 70, yld = 50, flw = 30, shp = "haze",     col = "green" },
+    { name = "West Point Lightning", ind = 10, pot = 80, yld = 35, flw = 22, shp = "landrace", col = "frosty" },
+    { name = "March Ridge Gold",    ind = 25, pot = 55, yld = 70, flw = 42, shp = "hybrid",   col = "gold" },
 }
+
+-- Looks genes: a body shape and a bud colour, each passed down whole from one parent. They change only how the plant looks.
+Strains.SHAPES = { "landrace", "haze", "hybrid", "kush", "afghan", "auto", "tree" }
+Strains.SHAPE_NAMES = { landrace = "Landrace Sativa", haze = "Haze", hybrid = "Hybrid", kush = "Kush", afghan = "Afghan",
+    auto = "Autoflower", tree = "Christmas Tree" }
+Strains.COLOURS = { "green", "purple", "frosty", "gold", "dark" }
+Strains.COLOUR_NAMES = { green = "Green", purple = "Purple", frosty = "Frosty White", gold = "Lime Gold", dark = "Dark" }
+Strains.SURPRISE_PERCENT = 3     -- chance a crossed seed shows a shape or colour neither parent has
+local SHAPE_INDEX, COLOUR_INDEX = {}, {}
+for i, k in ipairs(Strains.SHAPES) do SHAPE_INDEX[k] = i end
+for i, k in ipairs(Strains.COLOURS) do COLOUR_INDEX[k] = i end
+
+--- A strain's shape gene; strains from before the gene existed get one from their indica share.
+function Strains.shapeOf(strain)
+    if strain and SHAPE_INDEX[strain.shp] then return strain.shp end
+    local ind = strain and strain.ind or 50
+    if ind >= 80 then return ((strain.pot or 0) % 2 == 0) and "afghan" or "kush" end
+    if ind >= 60 then return ((strain.pot or 0) % 2 == 0) and "kush" or "tree" end
+    if ind > 40 then return "hybrid" end
+    if ind > 20 then return "haze" end
+    return "landrace"
+end
+
+--- A strain's colour gene; older strains take one from their name, else green.
+function Strains.colourOf(strain)
+    if strain and COLOUR_INDEX[strain.col] then return strain.col end
+    local name = strain and strain.name or ""
+    if name:find("Purple") then return "purple" end
+    if name:find("Gold") or name:find("Lemon") then return "gold" end
+    if name:find("White") or name:find("Frost") then return "frosty" end
+    if name:find("Black") or name:find("Dark") then return "dark" end
+    return "green"
+end
+
+Strains.shapeIndex = function(key) return SHAPE_INDEX[key] end
+Strains.colourIndex = function(key) return COLOUR_INDEX[key] end
+
+--- One parent's gene, or now and then a surprise from the whole list.
+local function inheritLook(list, a, b, noisy)
+    if noisy and Config.rollPercent(Strains.SURPRISE_PERCENT) then return list[Config.randInt(1, #list)] end
+    if noisy and Config.rollPercent(50) then return b end
+    return a
+end
 
 -- The server's list of strain names already given out (global ModData). Nil offline, where names are never numbered.
 Strains.registry = nil
@@ -67,13 +110,58 @@ Strains.Effect = {
 }
 
 -- Name parts for new crosses: a place, then a word that fits the indica share.
+-- The game's own towns come first, then real Kentucky towns and the state's odder little communities.
 local PLACES = { "Knox", "Muldraugh", "Rosewood", "West Point", "Riverside", "March Ridge", "Louisville",
-                 "Valley Station", "Ekron", "Brandenburg", "Dixie", "Kentucky", "Fallas Lake", "Irvington" }
+                 "Valley Station", "Ekron", "Brandenburg", "Dixie", "Kentucky", "Fallas Lake", "Irvington",
+                 "Bardstown", "Shepherdsville", "Elizabethtown", "Radcliff", "Vine Grove", "Fort Knox", "Frankfort",
+                 "Lexington", "Bowling Green", "Paducah", "Owensboro", "Hazard", "Harlan", "Pikeville", "Paintsville",
+                 "Corbin", "Somerset", "Berea", "Winchester", "Georgetown", "Versailles", "Lawrenceburg", "Shelbyville",
+                 "La Grange", "Taylorsville", "Hodgenville", "Leitchfield", "Hardinsburg", "Cloverport", "Hawesville",
+                 "Morehead", "Ashland", "Maysville", "Murray", "Hopkinsville", "Glasgow", "Cave City", "Horse Cave",
+                 "Russellville", "Henderson", "Middlesboro", "Prestonsburg", "Whitesburg", "Harrodsburg", "Midway",
+                 "Beattyville", "Salyersville", "Vanceburg", "West Liberty", "Irvine", "Hyden", "Cumberland",
+                 "Lynch", "Rineyville", "Sonora", "Cecilia", "Bloomfield", "Campbellsville", "Stanford",
+                 "Rabbit Hash", "Monkeys Eyebrow", "Possum Trot", "Bugtussle", "Paint Lick", "Big Bone Lick",
+                 "Black Gnat", "Kingdom Come", "Quicksand", "Viper", "Hippo", "Dwarf", "Ordinary", "Mousie", "Wild Cat" }
 local WORDS = {
     indica = { "Kush", "Purple", "Stone", "Couch", "Dream", "Nightfall", "Blanket", "Lullaby" },
     sativa = { "Haze", "Lightning", "Gold", "Sunrise", "Rush", "Spark", "Jolt", "Daybreak" },
     hybrid = { "Mist", "Fog", "Cross", "Blend", "Twist", "Drift", "Smoke", "Shuffle" },
 }
+-- The alternate word lists: pieces of real, well-known strains of each lean ("Knox Northern Lights", "Ekron Sour Diesel").
+local REAL_WORDS = {
+    indica = { "Northern Lights", "Bubba Kush", "Granddaddy Purple", "Hindu Kush", "Afghan", "Purple Kush", "Blueberry",
+               "Grape Ape", "Purple Urkle", "Ice Cream Cake", "Do-Si-Dos", "Mendo Breath", "Kosher Kush", "Master Kush" },
+    sativa = { "Sour Diesel", "Durban Poison", "Jack Herer", "Green Crack", "Super Lemon Haze", "Strawberry Cough",
+               "Maui Wowie", "Tangie", "Super Silver Haze", "Ghost Train Haze", "Acapulco Gold", "Trainwreck",
+               "Amnesia Haze", "Panama Red" },
+    hybrid = { "Blue Dream", "Girl Scout Cookies", "Gelato", "Wedding Cake", "Gorilla Glue", "White Widow",
+               "Pineapple Express", "Zkittlez", "Runtz", "OG Kush", "Chemdawg", "Cherry Pie", "Sherbert", "Skywalker OG" },
+}
+Strains.WORDS, Strains.REAL_WORDS = WORDS, REAL_WORDS
+
+--- The strain words a lean draws from, by the Strain Words sandbox option: 1 both lists, 2 the original words, 3 real strains.
+local function wordsFor(key)
+    local style = tonumber(Config.sandbox and Config.sandbox("StrainWords")) or 1
+    if style == 2 then return WORDS[key] end
+    if style == 3 then return REAL_WORDS[key] end
+    local both = {}
+    for _, w in ipairs(WORDS[key]) do both[#both + 1] = w end
+    for _, w in ipairs(REAL_WORDS[key]) do both[#both + 1] = w end
+    return both
+end
+
+-- Zombie-style names: some crosses lead with the apocalypse instead of a town, or end on a zombie word.
+local ZOMBIE_LEADS = { "Undead", "Shambler", "Walker", "Rotter", "Bloodmoon", "Outbreak", "Quarantine", "Patient Zero",
+                       "Day One", "Exclusion Zone", "Knox Event", "Infected", "Horde", "Sprinter", "Crawler",
+                       "Deadhead", "Bitten", "Last Stand", "Helicopter", "Safehouse", "Barricade", "Ground Zero" }
+local ZOMBIE_TAILS = {
+    indica = { "Coma", "Graveyard", "Tombstone", "Dead Sleep", "Corpse Kush", "Rigor" },
+    sativa = { "Sprinter", "Fever", "Adrenaline", "Panic", "Siren", "Outbreak Haze" },
+    hybrid = { "Plague", "Groan", "Brains", "Bite", "Rot", "Horde Mix" },
+}
+-- Out of every 10 crosses by trait roll: 6 town + word, 2 zombie lead + word, 2 town + zombie tail.
+local ZOMBIE_LEAD_ROLLS, ZOMBIE_TAIL_ROLLS = 2, 2
 
 local function clamp100(v) return Config.clamp(math.floor(v + 0.5), 0, 100) end
 
@@ -88,7 +176,8 @@ end
 --- A fresh copy of a strain record (strains are shared by value, never by reference).
 function Strains.copy(strain)
     if not strain then return nil end
-    return { name = strain.name, ind = strain.ind, pot = strain.pot, yld = strain.yld, flw = strain.flw }
+    return { name = strain.name, ind = strain.ind, pot = strain.pot, yld = strain.yld, flw = strain.flw,
+        shp = Strains.shapeOf(strain), col = Strains.colourOf(strain) }
 end
 
 --- A starter strain picked by a stable number (an item ID, a tile key hash). Same number, same strain.
@@ -120,7 +209,7 @@ function Strains.fromType(plantType, n)
         local a = Strains.starterFor(n or 0, T.INDICA)
         local b = Strains.starterFor(n or 0, T.SATIVA)
         local s = Strains.blend(a, b, false)
-        s.name = "Hybrid"
+        s.name, s.shp, s.col = "Hybrid", "hybrid", "green"
         return s
     end
     return Strains.starterFor(n or 0, plantType)
@@ -147,6 +236,8 @@ function Strains.blend(a, b, noisy)
         end
         out[k] = clamp100(v)
     end
+    out.shp = inheritLook(Strains.SHAPES, Strains.shapeOf(a), Strains.shapeOf(b), noisy)
+    out.col = inheritLook(Strains.COLOURS, Strains.colourOf(a), Strains.colourOf(b), noisy)
     return out
 end
 
@@ -159,15 +250,21 @@ end
 --- A name for a new cross: a place and a word for its lean. Parents' names steer the place when they share one.
 function Strains.nameFor(strain, parentA, parentB)
     local kind = Strains.typeOf(strain)
-    local words = kind == T.INDICA and WORDS.indica or kind == T.SATIVA and WORDS.sativa or WORDS.hybrid
-    local place = pick(PLACES, strain, 1)
-    -- Two parents from the same place keep it: "Knox Kush" x "Knox Haze" gives "Knox <word>".
+    local key = kind == T.INDICA and "indica" or kind == T.SATIVA and "sativa" or "hybrid"
+    local roll = (strain.ind * 3 + strain.pot * 5 + strain.yld * 11 + strain.flw * 29) % 10
+    local lead = pick(PLACES, strain, 1)
+    if roll < ZOMBIE_LEAD_ROLLS then lead = pick(ZOMBIE_LEADS, strain, 3) end
+    -- Two parents that open the same way keep it: "Knox Kush" x "Knox Haze" gives "Knox <word>".
     if parentA and parentB and parentA.name and parentB.name then
-        for _, p in ipairs(PLACES) do
-            if parentA.name:sub(1, #p) == p and parentB.name:sub(1, #p) == p then place = p; break end
+        for _, list in ipairs({ PLACES, ZOMBIE_LEADS }) do
+            for _, p in ipairs(list) do
+                if parentA.name:sub(1, #p + 1) == p .. " " and parentB.name:sub(1, #p + 1) == p .. " " then lead = p; break end
+            end
         end
     end
-    return place .. " " .. pick(words, strain, 2)
+    local tail = pick(wordsFor(key), strain, 2)
+    if roll >= 10 - ZOMBIE_TAIL_ROLLS then tail = pick(ZOMBIE_TAILS[key], strain, 4) end
+    return lead .. " " .. tail
 end
 
 --- True when two parents are the same strain, which breeds true and keeps its name.
@@ -179,7 +276,10 @@ end
 function Strains.crossTraits(a, b)
     a, b = a or Strains.STARTERS[1], b or Strains.STARTERS[1]
     local s = Strains.blend(a, b, true)
-    if sameStrain(a, b) then s.name = a.name end
+    if sameStrain(a, b) then
+        -- A strain bred with itself breeds true in looks too.
+        s.name, s.shp, s.col = a.name, Strains.shapeOf(a), Strains.colourOf(a)
+    end
     return s
 end
 
@@ -243,6 +343,7 @@ local function pct(mult)
     local v = math.floor((mult - 1) * 100 + (mult >= 1 and 0.5 or -0.5))
     return (v > 0 and "+" or "") .. v .. "%"
 end
+Strains.pct = pct
 
 --- Exact summary so growers can select for a trait: "85% indica, potency +4%, yield +6%, flowers 9% faster".
 function Strains.describe(strain)
@@ -261,5 +362,7 @@ function Strains.sanitize(data)
         if type(data[k]) ~= "number" then return nil end
         out[k] = clamp100(data[k])
     end
+    if SHAPE_INDEX[data.shp] then out.shp = data.shp end
+    if COLOUR_INDEX[data.col] then out.col = data.col end
     return out
 end

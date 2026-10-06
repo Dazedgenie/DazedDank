@@ -420,6 +420,8 @@ function Registry.advanceStage(plant)
     end
     plant.stage = plant.stage + 1
     plant.nextStageAt = nowHours() + rollStageHours(plant.stage, plant)
+    -- Late flower (cold nights, purple) is measured from here.
+    if plant.stage == Config.STAGE.Flowering then plant.flowerStartAt = nowHours() end
     plant.fedThisStage = 0
     plant.warnings.nutrientBurn = nil
     plant.warnings.overcut = nil
@@ -488,6 +490,10 @@ local function tickPlants(now)
         local stalled = false
         if not plant.dead and not plant.rooting and CannabisMod.Light then
             stalled = CannabisMod.Light.update(plant)
+        end
+        -- Outdoor heat and cold, and cold nights in late flower.
+        if not plant.dead and not plant.rooting and CannabisMod.PlantTemp then
+            CannabisMod.PlantTemp.update(plant, now, stalled)
         end
         if not plant.dead and not plant.rooting then
             -- Stage timer ran out: move on (Ripe stays Ripe; overripe is

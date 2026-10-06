@@ -12,6 +12,7 @@ require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisInfo"
 require "CannabisMod/CannabisClimate"
 require "CannabisMod/CannabisDrying"
+require "Moveables/ISMoveableSpriteProps"
 
 local Config = CannabisMod.Config
 local Net = CannabisMod.Net
@@ -450,6 +451,38 @@ Events.OnObjectAdded.Add(function(obj)
     if ok and isPanel then Rooms.onPlaced(obj) end
 end)
 
+--- Every square of the lamp on `square`: all tiles of a bar lamp, or just this one.
+local function lampTiles(square, obj)
+    local out = { square }
+    pcall(function()
+        local props = ISMoveableSpriteProps.fromObject(obj)
+        if props and props.isMultiSprite then
+            local grid = props:getSpriteGridInfo(square, true)
+            if grid and #grid > 0 then
+                out = {}
+                for _, member in ipairs(grid) do out[#out + 1] = member.square end
+            end
+        end
+    end)
+    if #out > 1 then return out end
+    -- A dedicated server has no moveable props (client code), so read the sprite's own grid instead.
+    pcall(function()
+        local sprite = obj:getSprite()
+        local grid = sprite and sprite:getSpriteGrid()
+        if not grid then return end
+        local gx, gy = grid:getSpriteGridPosX(sprite), grid:getSpriteGridPosY(sprite)
+        local cell, found = getCell(), {}
+        for dx = 0, grid:getWidth() - 1 do
+            for dy = 0, grid:getHeight() - 1 do
+                local sq = cell:getGridSquare(square:getX() - gx + dx, square:getY() - gy + dy, square:getZ())
+                if sq then found[#found + 1] = sq end
+            end
+        end
+        if #found > 0 then out = found end
+    end)
+    return out
+end
+
 --- What the panel window shows: the room's settings, its size and every lamp in it.
 function Rooms.info(panelKey, player)
     local room, set = panels[panelKey], tiles[panelKey]
@@ -458,7 +491,7 @@ function Rooms.info(panelKey, player)
     local hour = getGameTime():getHour()
     local schedule = nil
     if room.schedule ~= "24/0" then schedule = room.schedule end
-    local lamps, count = {}, 0
+    local lamps, count, counted = {}, 0, {}
     for key in pairs(set) do
         count = count + 1
         local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
@@ -466,8 +499,16 @@ function Rooms.info(panelKey, player)
         if square then
             local objects = square:getObjects()
             for i = 0, objects:size() - 1 do
-                local sprite = objects:get(i):getSprite()
+                local obj = objects:get(i)
+                local sprite = obj:getSprite()
                 local def = sprite and Config.Light.SPRITES[sprite:getName()]
+                -- A bar lamp spans several tiles; list it once, at the first tile we reach.
+                if def and counted[key] then def = nil end
+                if def then
+                    for _, member in ipairs(lampTiles(square, obj)) do
+                        counted[Config.tileKey(member:getX(), member:getY(), member:getZ())] = true
+                    end
+                end
                 if def then
                     local powered = CannabisMod.Light.isPowered(square)
                     lamps[#lamps + 1] = {
@@ -486,7 +527,7 @@ function Rooms.info(panelKey, player)
     return {
         x = room.x, y = room.y, z = room.z, name = room.name, schedule = room.schedule, mode = room.mode,
         tiles = count, lamps = lamps, hour = hour, openings = Rooms.openingsOf(panelKey),
-        reservoirs = Rooms.reservoirRows(panelKey), floodTimer = room.floodTimer == true,
+        reservoirs = Rooms.reservoirRows(panelKey), equipment = Rooms.equipmentRows(panelKey), floodTimer = room.floodTimer == true,
         plants = Rooms.plantRows(panelKey, player and CannabisMod.ServerCommands.agricultureLevel(player) or 0),
         log = room.log or {}, now = getGameTime():getWorldAgeHours(),
         powered = panelSquare ~= nil and CannabisMod.Light.isPowered(panelSquare),
@@ -586,6 +627,46 @@ function Rooms.reservoirRows(panelKey)
     return rows
 end
 
+--- The rows of the Equipment tab: every fan, heater, dehumidifier and humidifier in the room, nearest the panel first.
+function Rooms.equipmentRows(panelKey)
+    local room, set = panels[panelKey], tiles[panelKey]
+    local rows = {}
+    if not (room and set) then return rows end
+    local cell, Light = getCell(), CannabisMod.Light
+    local running, override = room.running or {}, room.override or {}
+    local panelPowered = room.powered ~= false
+    local WALLS = { S = "north wall", E = "west wall", N = "south wall", W = "east wall" }
+    for key in pairs(set) do
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local square = cell:getGridSquare(x, y, z)
+        if square then
+            local objects = square:getObjects()
+            for i = 0, objects:size() - 1 do
+                local sprite = objects:get(i):getSprite()
+                local gear = sprite and Config.Rooms.EQUIPMENT[sprite:getName()]
+                if gear then
+                    local side = gear.facing or gear.wall
+                    local powered = panelPowered and Light.isPowered(square)
+                    rows[#rows + 1] = {
+                        x = x, y = y, z = z, kind = gear.kind, name = gear.name,
+                        mount = side and WALLS[side] or "floor", powered = powered,
+                        running = powered and running[gear.kind] == true, mode = override[gear.kind] or "auto",
+                    }
+                end
+            end
+        end
+    end
+    table.sort(rows, function(a, b)
+        local da = math.abs(a.x - room.x) + math.abs(a.y - room.y)
+        local db = math.abs(b.x - room.x) + math.abs(b.y - room.y)
+        if da ~= db then return da < db end
+        if a.x ~= b.x then return a.x < b.x end
+        return a.y < b.y
+    end)
+    return rows
+end
+
 --- The rows of the Plants tab: each plant in the room, with only what the viewer's Agriculture level lets them read.
 function Rooms.plantRows(panelKey, level)
     local Registry, Info = CannabisMod.Registry, CannabisMod.Info
@@ -602,7 +683,17 @@ function Rooms.plantRows(panelKey, level)
                 x = plant.x, y = plant.y, z = plant.z, name = d.name or "Cannabis Plant",
                 stage = d.stage or d.stageRough or "?", water = water or d.waterRough or "?",
                 health = d.healthBand, type = d.type, warnings = d.warnings and #d.warnings or 0,
+                strain = d.strain, sex = d.sex, looks = d.looks, stageKey = d.stage,
             }
+            -- The plant's sprites, so the dashboard card can show it as it stands.
+            pcall(function()
+                local plot = SFarmingSystem.instance:getLuaObjectAt(plant.x, plant.y, plant.z)
+                if plot and CannabisMod.PotPlants then
+                    local sprite, bag = CannabisMod.PotPlants.wanted(plot)
+                    local row = rows[#rows]
+                    row.sprite, row.pot, row.lift = sprite, plot.spriteName, bag and Config.PLANT_LIFT[bag] or 0
+                end
+            end)
         end
     end
     table.sort(rows, function(a, b)
@@ -933,6 +1024,7 @@ function Rooms.addCurtainObject(square, kind, dir)
     local sprite = Config.Rooms.CURTAIN_SPRITES[kind][dir]
     pcall(function()
         local obj = IsoObject.new(getCell(), square, sprite)
+        -- Its tile is flagged as attached to the wall, so it draws with the wall: behind people and fittings on the square.
         square:AddTileObject(obj)
         obj:transmitCompleteItemToClients()
     end)
@@ -959,20 +1051,75 @@ local function edgeSquares(x, y, z, dir)
     return near, far
 end
 
+--- Take down vanilla sheets and curtains on the frame between two squares, handing them back the way vanilla does.
+local function stripVanillaCurtains(player, square, other, dir)
+    local north = dir == "N"
+    local removed = 0
+    local function takeDown(obj)
+        if obj and obj.removeSheet and pcall(obj.removeSheet, obj, player) then removed = removed + 1 end
+    end
+    local function facesEdge(obj)
+        for _, m in ipairs({ "getNorth", "isNorth" }) do
+            if obj[m] then
+                local ok, v = pcall(obj[m], obj)
+                if ok and type(v) == "boolean" then return v == north end
+            end
+        end
+        return true
+    end
+    for _, sq in ipairs({ square, other }) do
+        local list = {}
+        local objects = sq:getObjects()
+        for i = 0, objects:size() - 1 do list[#list + 1] = objects:get(i) end
+        for _, obj in ipairs(list) do
+            pcall(function()
+                if instanceof(obj, "IsoCurtain") then
+                    if facesEdge(obj) then takeDown(obj) end
+                elseif (instanceof(obj, "IsoWindow") or instanceof(obj, "IsoDoor") or instanceof(obj, "IsoThumpable")) and facesEdge(obj) then
+                    -- A window points at its curtain object; a door wears a hung sheet itself.
+                    local c = obj.HasCurtains and obj:HasCurtains()
+                    if c and c ~= true and instanceof(c, "IsoCurtain") then takeDown(c)
+                    elseif c and instanceof(obj, "IsoDoor") then takeDown(obj) end
+                end
+            end)
+        end
+    end
+    if removed > 0 then print("[DazedDank] hangCurtain: took down " .. removed .. " vanilla curtain(s)") end
+end
+
 commands.hangCurtain = function(player, args)
     local x, y, z, dir = tonumber(args.x), tonumber(args.y), tonumber(args.z), args.dir
-    if not (x and y and z) or (dir ~= "N" and dir ~= "W") or not curtains or not isNear(player, x, y, z) then return end
+    -- Each refusal is logged to console.txt so a curtain that "does nothing" can be traced.
+    print(string.format("[DazedDank] hangCurtain at %s,%s,%s dir %s", tostring(x), tostring(y), tostring(z), tostring(dir)))
+    if not (x and y and z) or (dir ~= "N" and dir ~= "W") then print("[DazedDank] hangCurtain: bad args") return end
+    if not curtains then print("[DazedDank] hangCurtain: curtain table not loaded") return end
+    if not isNear(player, x, y, z) then
+        print("[DazedDank] hangCurtain: player too far")
+        Net.notify(player, "Stand closer to the frame")
+        return
+    end
     local square, other = edgeSquares(x, y, z, dir)
     local kind = square and other and Rooms.edgeKind(square, other)
-    if not kind then Net.notify(player, "A curtain only hangs on a door or window frame") return end
+    if not kind then
+        print("[DazedDank] hangCurtain: no door or window on that edge (square " .. tostring(square) .. ", other " .. tostring(other) .. ")")
+        Net.notify(player, "A curtain only hangs on a door or window frame")
+        return
+    end
     local edge = Rooms.edgeKey(x, y, z, dir)
     if curtains[edge] then Net.notify(player, "That frame already has a curtain") return end
-    local item = player:getInventory():getFirstTypeRecurse(Config.Rooms.CURTAIN_ITEM)
-    if not item then Net.notify(player, "You need a blackout curtain") return end
+    local inv = player:getInventory()
+    local item = inv:getFirstTypeRecurse(Config.Rooms.CURTAIN_ITEM)
+    if not item then
+        local short = Config.Rooms.CURTAIN_ITEM:match("%.(.+)$")
+        item = short and inv:getFirstTypeRecurse(short)
+    end
+    if not item then print("[DazedDank] hangCurtain: no curtain item found") Net.notify(player, "You need a blackout curtain") return end
     local container = item:getContainer()
     container:Remove(item)
     sendRemoveItemFromContainer(container, item)
+    stripVanillaCurtains(player, square, other, dir)
     curtains[edge] = true
+    print("[DazedDank] hangCurtain: hung a " .. kind .. " curtain on " .. edge)
     Rooms.addCurtainObject(square, kind, dir)
     Rooms.rebuild()
     Net.notify(player, "Blackout curtain hung")
