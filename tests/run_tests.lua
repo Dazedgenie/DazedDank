@@ -3129,5 +3129,49 @@ do
     check("inspect shows the looks", CannabisMod.Info.buildVisible({ strain = St.copy(St.STARTERS[2]), stage = 3 }, 3, 0).looks == "Afghan, Purple")
 end
 
+-- ---- UI redesign: plant card and grow room dashboard ---------------------------
+do
+    require "CannabisMod/CannabisStatusLayout"
+    require "CannabisMod/CannabisDashboardLayout"
+    local Dash, Lay = CannabisMod.DashboardLayout, CannabisMod.StatusLayout
+    local fh, ms = function() return 12 end, function(_, t) return #tostring(t) * 6 end
+    local function find(m, kind, pred)
+        for _, op in ipairs(m.ops) do if op.kind == kind and (not pred or pred(op)) then return op end end
+    end
+    local function hitIds(m) local out = {} for _, h in ipairs(m.hits) do out[h.id] = h end return out end
+    local plants = {}
+    for i = 1, 5 do plants[i] = { x = i, y = 1, z = 0, strain = "Strain " .. i, type = "Indica", stage = "Flowering", stageKey = "Flowering",
+        water = "50%", health = "Good", warnings = i == 2 and 2 or 0, sprite = "dazeddank_overlay_01_1", pot = "dazeddank_plants_01_196", lift = 20 } end
+    local info = { name = "Shed", mode = "Veg", schedule = "18/6", hour = 3, tiles = 9, lamps = {}, plants = plants,
+        reservoirs = { { key = "k", name = "DWC bucket", level = 5, cap = 20, strength = 0.2, nutrient = "Veg", rot = 0, pump = true } },
+        equipment = { { kind = "heater", running = true, powered = true } }, openings = {}, log = {}, climate = { enabled = false } }
+    local m = Dash.build(info, 0, fh, ms)
+    local ids = hitIds(m)
+    check("dashboard has its fixed size", m.width == Dash.WIDTH and m.height == Dash.HEIGHT)
+    check("dashboard offers the room actions", ids.rename and ids.mode and ids.schedule and ids.topUpAll and ids.doseAll and ids["res:1"]
+        and ids["equip:heater"] and ids.log and ids["plant:1"])
+    check("five plants scroll sideways", Dash.maxScroll(info) > 0 and ids.scrollRight ~= nil and ids.scrollLeft == nil)
+    check("plant cards draw the plant fitted to its box", find(m, "plant", function(op) return op.fit end) ~= nil)
+    check("plant row is clipped", find(m, "clip") ~= nil and find(m, "unclip") ~= nil)
+    local far = Dash.build(info, Dash.maxScroll(info), fh, ms)
+    local fids = hitIds(far)
+    check("scrolled to the end shows the last plant", fids["plant:5"] ~= nil and fids["plant:1"] == nil and fids.scrollLeft ~= nil and fids.scrollRight == nil)
+    for _, h in ipairs(far.hits) do
+        if h.id:sub(1, 6) == "plant:" then
+            check("plant click regions stay inside the row (" .. h.id .. ")", h.x >= Dash.PLANT_AREA.x and h.x + h.w <= Dash.PLANT_AREA.x + Dash.PLANT_AREA.w + 0.01)
+        end
+    end
+    check("room climate off says so", find(m, "text", function(op) return op.text == "Room climate is off" end) ~= nil)
+    check("heater tile shows its mode", find(m, "equip", function(op) return op.equipKind == "heater" end) ~= nil
+        and find(m, "text", function(op) return op.text == "Auto" end) ~= nil)
+    check("long names are shortened to fit the card", find(Dash.build({ plants = { { strain = string.rep("Long", 20) } } }, 0, fh, ms), "text",
+        function(op) return op.text:sub(-2) == ".." end) ~= nil)
+    check("an empty room still builds", #Dash.build({}, 0, fh, ms).ops > 0)
+    local lay = Lay.build({ level = 10, name = "Cannabis Plant", stage = "Flowering", sprite = "s", potSprite = "p", lift = 13,
+        traitBars = { ind = 80, pot = 60, yld = 40, flw = 50, potText = "+5%", yldText = "-2%", flwText = "+1%" } }, fh, ms)
+    check("plant card draws the plant in its pot", find(lay, "plant", function(op) return op.sprite == "s" and op.pot == "p" and op.lift == 13 end) ~= nil)
+    check("plant card fits its width", lay.width == Lay.WIDTH)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

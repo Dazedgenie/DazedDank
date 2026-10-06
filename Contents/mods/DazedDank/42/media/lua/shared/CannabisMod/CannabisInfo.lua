@@ -132,6 +132,16 @@ builders.traits = function(plant)
     return s and CannabisMod.Strains.describe(s) or nil
 end
 
+-- The four traits as numbers for the window's bars, with the effect each has in words.
+builders.traitBars = function(plant)
+    local St = CannabisMod.Strains
+    local s = St.of(plant)
+    if not s then return nil end
+    -- Flowering speed reads as "+15%" for 15% faster, so the sign follows the player's sense of better.
+    return { ind = s.ind or 50, pot = s.pot or 50, yld = s.yld or 50, flw = s.flw or 50,
+             potText = St.pct(St.potencyMult(s)), yldText = St.pct(St.yieldMult(s)), flwText = St.pct(2 - St.flowerMult(s)) }
+end
+
 -- Sex is shown whenever the player's level unlocks it (Agriculture 3, same as
 -- reading a seed). Hermaphrodites show as such once they've turned.
 builders.sex = function(plant)

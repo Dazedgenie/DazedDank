@@ -763,7 +763,7 @@ Config.InfoTiers = {
     { level = 3,  fields = { "type", "strain", "looks", "sex", "light", "lightCycle", "roots", "rootRot" } },
     { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg", "rootRotTrend" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },
-    { level = 9,  fields = { "generation", "geneticsBand", "traits" } },
+    { level = 9,  fields = { "generation", "geneticsBand", "traits", "traitBars" } },
     { level = 10, fields = { "qualityEstimate" } },
 }
 

@@ -1,18 +1,12 @@
--- The Grow Room Panel: a right-click option on the wall panel opens one window with a tab per system.
+-- The Grow Room Panel: a right-click option on the wall panel opens the room dashboard; also blackout curtain options.
 
 require "ISUI/ISCollapsableWindow"
 require "ISUI/ISPanel"
 require "ISUI/ISButton"
-require "ISUI/ISTabPanel"
 require "ISUI/ISTextBox"
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisNet"
-require "CannabisMod/CannabisLightsTab"
-require "CannabisMod/CannabisHydroTab"
-require "CannabisMod/CannabisPlantsTab"
-require "CannabisMod/CannabisClimateTab"
-require "CannabisMod/CannabisEquipmentTab"
-require "CannabisMod/CannabisLogTab"
+require "CannabisMod/CannabisDashboard"
 
 local Config = CannabisMod.Config
 local Net = CannabisMod.Net
@@ -20,12 +14,10 @@ local Net = CannabisMod.Net
 local RoomPanel = {}
 CannabisMod.RoomPanel = RoomPanel
 
-local WIDTH, HEIGHT = 560, 420
 local PURPLE = { r = 0.57, g = 0.25, b = 0.93, a = 1 }
 local PLAIN = { r = 0.15, g = 0.15, b = 0.18, a = 1 }
 
 local window = nil
-local lastTab = "Lights"
 local marks = {}    -- floor squares being tinted for the Show buttons: { x, y, z, untilMs }
 
 --- Tint the floor under a piece of equipment for a few seconds so the player can find it.
@@ -59,9 +51,7 @@ end
 local function closeWindow()
     if not window then return 200, 120 end
     local x, y = window:getX(), window:getY()
-    local active = window.tabs and window.tabs.activeView
-    if active and active.name then lastTab = active.name end
-    pcall(window.removeFromUIManager, window)
+    pcall(window.close, window)
     window = nil
     return x, y
 end
@@ -78,64 +68,18 @@ local function choiceButton(parent, x, y, w, label, active, onClick)
 end
 RoomPanel.choiceButton = choiceButton
 
---- Ask for a new room name in a small text box.
-local function askRename(player, info)
-    local box = ISTextBox:new(300, 260, 280, 160, "Room name:", info.name, nil, function(_, button)
-        if button.internal ~= "OK" then return end
-        local text = button.parent.entry:getText()
-        send(player, "roomRename", { x = info.x, y = info.y, z = info.z, name = text })
-    end, player:getPlayerNum())
-    box:initialise()
-    box:addToUIManager()
-end
-
---- Open (or refresh) the window for a roomInfo reply.
+--- Open the dashboard for a roomInfo reply, or refresh it in place when it already shows that room.
 function RoomPanel.show(info)
-    local player = getPlayer()
-    if not player then return end
+    if not getPlayer() then return end
+    if window and window:isVisible() and window.at and window.at.x == info.x and window.at.y == info.y and window.at.z == info.z then
+        window:setInfo(info)
+        return
+    end
     local x, y = closeWindow()
-    local titleH = ISCollapsableWindow.TitleBarHeight()
-    local win = ISCollapsableWindow:new(x, y, WIDTH, HEIGHT + titleH)
-    win:initialise()
-    win:setTitle(info.name .. " - Grow Room Panel")
-    win.resizable = false
-
-    local tabs = ISTabPanel:new(0, titleH, WIDTH, HEIGHT)
-    tabs:initialise()
-    tabs.tabPadX = 20
-    win:addChild(tabs)
-
-    local at = { x = info.x, y = info.y, z = info.z }
-    local function panelArgs(extra)
-        local args = { x = at.x, y = at.y, z = at.z }
-        for k, v in pairs(extra) do args[k] = v end
-        return args
-    end
-    local actions = {
-        schedule = function(schedule) send(player, "roomSetSchedule", panelArgs({ schedule = schedule })) end,
-        mode = function(mode) send(player, "roomSetMode", panelArgs({ mode = mode })) end,
-        rename = function() askRename(player, info) end,
-        hydro = function(action, target, nutrient) send(player, "roomHydro", panelArgs({ action = action, target = target, nutrient = nutrient })) end,
-        floodTimer = function(mode) send(player, "roomFloodTimer", panelArgs({ mode = mode })) end,
-        override = function(kind, state) send(player, "roomOverride", panelArgs({ kind = kind, state = state })) end,
-        inspect = function(px, py, pz) send(player, "roomInspectPlant", panelArgs({ px = px, py = py, pz = pz })) end,
-        highlight = RoomPanel.highlight,
-    }
-    local tabHeight = HEIGHT - 28
-    for _, def in ipairs({ { "Lights", CannabisMod.LightsTab }, { "Hydro", CannabisMod.HydroTab }, { "Plants", CannabisMod.PlantsTab },
-        { "Climate", CannabisMod.ClimateTab }, { "Equipment", CannabisMod.EquipmentTab }, { "Log", CannabisMod.LogTab } }) do
-        local view = def[2]:new(0, 0, WIDTH, tabHeight, info, actions)
-        view:initialise()
-        view:createChildren()
-        tabs:addView(def[1], view)
-    end
-    tabs:activateView(lastTab)
-    win.tabs = tabs
-
-    win:addToUIManager()
-    win:setVisible(true)
-    win.at = at
-    window = win
+    x = math.max(0, math.min(x, getCore():getScreenWidth() - CannabisMod.DashboardLayout.WIDTH))
+    y = math.max(0, math.min(y, getCore():getScreenHeight() - CannabisMod.DashboardLayout.HEIGHT))
+    window = CannabisMod.DashPanel.create(info, x, y, function(p) if window == p then window = nil end end)
+    window.at = { x = info.x, y = info.y, z = info.z }
 end
 
 Net.clientHandlers.roomInfo = RoomPanel.show

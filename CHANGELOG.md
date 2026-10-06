@@ -1,5 +1,9 @@
 # Dazed Dank patch notes
 
+## dd54 (UI redesign, ui-redesign branch)
+- Changed: the **Grow Room Panel** is one dashboard instead of tabs: a 24-hour lights ring, temperature and humidity against their targets, room seal, a sideways-scrolling row of plant cards (each showing the plant in its pot), reservoir tanks, equipment tiles and the newest alert. Click the room name to rename it, the mode pill or lights card to change them, a plant to inspect it, a tank or equipment tile for its actions (right-click a plant for Show in room). The mouse wheel scrolls the plant row; **Log** opens the full log.
+- Changed: the plant **Inspect** window is a light card in the same style: the plant drawn in its pot, vitals, care facts, genetics as bars at Agriculture 9, and warnings as chips. Info your level can't read yet is left out.
+
 ## dd53.2
 - Changed: the **Heater**, **Dehumidifier** and **Humidifier** now hang on a wall up high, like an overhead cupboard or a poster, in all four facings. The art is a placeholder until the Blender pass. Units already standing on the floor keep working.
 - Added: an **Equipment** tab on the Grow Room Panel listing every fan, heater, dehumidifier and humidifier in the room, with where it is, which wall it hangs on, whether it's running, and a Show button.

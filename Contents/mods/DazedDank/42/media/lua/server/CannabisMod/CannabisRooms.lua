@@ -683,8 +683,17 @@ function Rooms.plantRows(panelKey, level)
                 x = plant.x, y = plant.y, z = plant.z, name = d.name or "Cannabis Plant",
                 stage = d.stage or d.stageRough or "?", water = water or d.waterRough or "?",
                 health = d.healthBand, type = d.type, warnings = d.warnings and #d.warnings or 0,
-                strain = d.strain, sex = d.sex, looks = d.looks,
+                strain = d.strain, sex = d.sex, looks = d.looks, stageKey = d.stage,
             }
+            -- The plant's sprites, so the dashboard card can show it as it stands.
+            pcall(function()
+                local plot = SFarmingSystem.instance:getLuaObjectAt(plant.x, plant.y, plant.z)
+                if plot and CannabisMod.PotPlants then
+                    local sprite, bag = CannabisMod.PotPlants.wanted(plot)
+                    local row = rows[#rows]
+                    row.sprite, row.pot, row.lift = sprite, plot.spriteName, bag and Config.PLANT_LIFT[bag] or 0
+                end
+            end)
         end
     end
     table.sort(rows, function(a, b)

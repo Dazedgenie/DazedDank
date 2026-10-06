@@ -343,6 +343,7 @@ local function pct(mult)
     local v = math.floor((mult - 1) * 100 + (mult >= 1 and 0.5 or -0.5))
     return (v > 0 and "+" or "") .. v .. "%"
 end
+Strains.pct = pct
 
 --- Exact summary so growers can select for a trait: "85% indica, potency +4%, yield +6%, flowers 9% faster".
 function Strains.describe(strain)
