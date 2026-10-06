@@ -1,4 +1,4 @@
--- The Sow Seed menu on a grow bag, bucket or flood table lists only the seeds the player is carrying, not every crop at 0.
+-- The Sow Seed menu on a grow bag, bucket or flood table lists only cannabis seeds the player is carrying.
 
 require "Farming/ISUI/ISFarmingMenu"
 require "CannabisMod/CannabisConfig"
@@ -13,6 +13,17 @@ local function isPotSquare(square)
         local sprite = objects:get(i):getSprite()
         local name = sprite and sprite:getName()
         if name and Config.bagFromSprite(name) then return true end
+    end
+    return false
+end
+
+--- True when a Sow row plants a crop other than cannabis (its crop name is one of the option's arguments).
+local function otherCrop(option)
+    local props = farming_vegetableconf and farming_vegetableconf.props
+    if not props then return false end
+    for i = 1, 10 do
+        local v = option["param" .. i]
+        if type(v) == "string" and props[v] then return v ~= Config.CROP_TYPE end
     end
     return false
 end
@@ -35,11 +46,11 @@ if ISFarmingMenu and ISFarmingMenu.doSeedMenu and not ISFarmingMenu.ddSowFiltere
         if not (subMenu and isPotSquare(sq)) then return end
         local empty = {}
         for _, option in ipairs(subMenu.options or {}) do
-            if type(option.name) == "string" and option.name:match(" : 0$") then empty[#empty + 1] = option.name end
+            if type(option.name) == "string" and (option.name:match(" : 0$") or otherCrop(option)) then empty[#empty + 1] = option.name end
         end
         for _, name in ipairs(empty) do subMenu:removeOptionByName(name) end
         if subMenu.numOptions <= 1 then
-            subMenu:addOption(getText("IGUI_DD_NoSeedsCarried") ~= "IGUI_DD_NoSeedsCarried" and getText("IGUI_DD_NoSeedsCarried") or "No seeds carried", nil, nil).notAvailable = true
+            subMenu:addOption(getText("IGUI_DD_NoSeedsCarried") ~= "IGUI_DD_NoSeedsCarried" and getText("IGUI_DD_NoSeedsCarried") or "No cannabis seeds carried", nil, nil).notAvailable = true
         end
     end
 end

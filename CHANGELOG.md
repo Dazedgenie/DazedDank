@@ -8,8 +8,12 @@
 - Added: more strain name variety. New crosses can be named after about 80 more Kentucky towns (Bardstown to Monkeys Eyebrow, Rabbit Hash and Possum Trot), and about 4 in 10 get a zombie-style name, like "Shambler Rush", "Patient Zero Kush" or "Frankfort Fever".
 - Added: real strain names as strain words: 14 each for indica (Northern Lights, Bubba Kush, Granddaddy Purple...), sativa (Sour Diesel, Durban Poison, Jack Herer...) and hybrid (Blue Dream, Gelato, Wedding Cake...), giving names like "Ekron Sour Diesel" or "Shambler Bubba Kush". New sandbox option **Strain Name Words**: original and real strains (default), original words only, or real strains only.
 - Art: the wall-mounted Heater, Dehumidifier and Humidifier are now Blender renders in the same style as the panel and fans, with new inventory icons.
-- Fixed: tomatoes and other vegetables planted in a grow bag, DWC bucket or RDWC bucket no longer turn the pot into a bare vanilla seedling. The pot stays and the crop grows on top of it; once harvested the pot empties for the next planting. Flood tables still show the vanilla crop for now.
-- Changed: the **Sow** menu on a grow bag or bucket lists only the seeds you're carrying.
+- Changed: grow bags, DWC and RDWC buckets and flood tables only take cannabis. The **Sow** menu there lists only the cannabis seeds you're carrying.
+- Changed: a cannabis plant in a container is now drawn as its own layer on top of the pot, so one set of plant art serves every container (a bigger set for the XL mother pots). The mod's art is about 8 MB smaller, which leaves room for new plant looks. Plants already growing in pots in an old save may show the wrong art; replant them.
+- Changed: strain colours (the Strain Tint option) now colour only the plant, not the pot.
+- Added: the Grow Room Panel's **Plants** tab shows each plant's strain and sex under its row once your Agriculture level can read them (level 3). Males and hermaphrodites are shown in orange.
+- Fixed: a blackout curtain no longer draws over pipes on the same wall.
+- Changed: hanging a blackout curtain takes down any vanilla sheet or curtain on that window or door and gives it back.
 
 ## dd53.1
 - Fixed: the Exhaust Fan, Intake Fan, Dehumidifier and Humidifier recipes used items that don't exist in 42.21 (Motor, Empty Water Bottle), so the game threw those recipes out. They now take a Blower Fan and a Water Bottle.

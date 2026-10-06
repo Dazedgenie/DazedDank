@@ -28,7 +28,7 @@ function RowsTab:rows() return {} end
 
 --- How many rows fit between the top of the list and the bottom margin.
 function RowsTab:visibleCount()
-    return math.max(1, math.floor((self.height - self.top - self.bottom) / RowsTab.ROW_H))
+    return math.max(1, math.floor((self.height - self.top - self.bottom) / (self.rowH or RowsTab.ROW_H)))
 end
 
 --- The rows on screen now, as { row, y } pairs.
@@ -37,7 +37,7 @@ function RowsTab:visibleRows()
     for i = 1, self:visibleCount() do
         local row = rows[self.scroll + i]
         if not row then break end
-        out[#out + 1] = { row = row, y = self.top + (i - 1) * RowsTab.ROW_H }
+        out[#out + 1] = { row = row, y = self.top + (i - 1) * (self.rowH or RowsTab.ROW_H) }
     end
     return out
 end

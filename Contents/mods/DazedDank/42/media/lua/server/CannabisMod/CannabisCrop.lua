@@ -87,16 +87,20 @@ end
 local originalGetSpriteName = farming_vegetableconf.getSpriteName
 CannabisMod.vanillaSpriteName = originalGetSpriteName
 
+--- What a cannabis plot looks like: type, stage index, vanilla condition and whether it shows as male.
+function CannabisMod.plantLook(plot)
+    local Registry = CannabisMod.Registry
+    -- Type and stage come from the server registry; clients receive the resulting sprites.
+    local record = Registry and Registry.getPlant(plot.x, plot.y, plot.z)
+    local plantType = record and record.type or Config.TYPES.HYBRID
+    local stage = record and record.stage or NBOFGROW_TO_STAGE[plot.nbOfGrow] or Config.STAGE.Seedling
+    return plantType, stage, vanillaCondition(plot), record and record.sex == Config.SEX.MALE
+end
+
 farming_vegetableconf.getSpriteName = function(plot)
     -- Other crops go straight to vanilla, without a bag lookup.
     local plowed = plot and plot.state == "plow"
-    if not plot or (not plowed and plot.typeOfSeed ~= CROP) then
-        -- Another crop in a grow bag keeps showing the bag; the crop is drawn as a raised layer on top (CannabisVegBags).
-        local Registry = CannabisMod.Registry
-        local bag = plot and Registry and Registry.getBag and Registry.getBag(plot.x, plot.y, plot.z)
-        if bag and Config.VEG_LIFT[bag] then return Config.bagEmptySprite(bag, true) end
-        return originalGetSpriteName(plot)
-    end
+    if not plot or (not plowed and plot.typeOfSeed ~= CROP) then return originalGetSpriteName(plot) end
     -- Grow bags are registered on the server by tile.
     local Registry = CannabisMod.Registry
     local bag = Registry and Registry.getBag and Registry.getBag(plot.x, plot.y, plot.z) or nil
@@ -106,14 +110,10 @@ farming_vegetableconf.getSpriteName = function(plot)
         return Config.bagEmptySprite(bag, Registry.isBagSoiled(plot.x, plot.y, plot.z))
     end
     if plowed then return originalGetSpriteName(plot) end
-    -- Type and stage come from the server registry. It only exists on the
-    -- server, which is the side that sets sprites anyway; clients receive the
-    -- result.
-    local record = Registry and Registry.getPlant(plot.x, plot.y, plot.z)
-    local plantType = record and record.type or Config.TYPES.HYBRID
-    local stage = record and record.stage or NBOFGROW_TO_STAGE[plot.nbOfGrow] or Config.STAGE.Seedling
-    local male = record and record.sex == Config.SEX.MALE
-    return Config.spriteName(plantType, stage, vanillaCondition(plot), bag, male)
+    -- A plant in a container keeps the container's sprite; the plant is a raised layer on top (CannabisPotPlants).
+    if bag and Config.GrowBag[bag] then return Config.bagEmptySprite(bag, true) end
+    local plantType, stage, condition, male = CannabisMod.plantLook(plot)
+    return Config.spriteName(plantType, stage, condition, nil, male)
 end
 
 -- Name shown over a plot: an empty bag is a "Small Grow Bag", not "Plowed

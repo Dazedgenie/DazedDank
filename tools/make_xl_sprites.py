@@ -1,4 +1,7 @@
 """
+Retired: plants in pots are now drawn from dazeddank_overlay_01 (tools/make_overlay_sprites.py), and the pot+plant
+sprites this script read and wrote have been dropped from the packs. Kept for the empty XL pot art.
+
 make_xl_sprites.py -- build the XL Grow Bag and XL DWC Bucket sprites from the large bag and DWC renders.
 
 Scales the empty pot up 25% about its footprint and lifts the plant (10% bigger) onto the new rim, then

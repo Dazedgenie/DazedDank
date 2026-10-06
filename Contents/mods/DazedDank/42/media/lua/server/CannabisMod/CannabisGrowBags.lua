@@ -137,7 +137,7 @@ local function removePlot(player, luaObject, size)
     if Config.isHydro(size) and CannabisMod.Hydro then
         CannabisMod.Hydro.onPickUp(player, luaObject.x, luaObject.y, luaObject.z)
     end
-    if CannabisMod.VegBags then CannabisMod.VegBags.clear(luaObject:getSquare()) end
+    if CannabisMod.PotPlants then CannabisMod.PotPlants.clear(luaObject:getSquare()) end
     Registry.clearBag(luaObject.x, luaObject.y, luaObject.z)
     SFarmingSystem.instance:removePlant(luaObject)
 end

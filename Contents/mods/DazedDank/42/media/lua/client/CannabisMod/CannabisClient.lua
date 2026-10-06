@@ -414,7 +414,8 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         end
 
         -- Pull a male once its pollen sacs show, after a yes/no check so a misclick can't lose a plant.
-        if Config.isMaleSprite(plot.spriteName) then
+        local _, overlayName = Config.overlayOn(square)
+        if Config.isMaleSprite(plot.spriteName) or Config.isMaleSprite(overlayName) then
             context:addOption("Pull Male Plant", player, function()
                 local text = "Pull this male plant? It will be thrown away."
                 local modal = ISModalDialog:new(getCore():getScreenWidth() / 2 - 175, getCore():getScreenHeight() / 2 - 75,
@@ -725,6 +726,14 @@ if ISSeedActionNew and ISSeedActionNew.isValid then
             self.ddUnfilled = ok and unfilled
         end
         if self.ddUnfilled then return false end
+        -- Containers only take cannabis.
+        if self.ddNotCannabis == nil then
+            local p = self.plant
+            local sq = p and getCell():getGridSquare(p.x, p.y, p.z)
+            local plot = sq and plotOnSquare(sq)
+            self.ddNotCannabis = self.typeOfSeed ~= Config.CROP_TYPE and plot ~= nil and Config.bagFromSprite(plot.spriteName) ~= nil
+        end
+        if self.ddNotCannabis then return false end
         return originalIsValid(self)
     end
 end

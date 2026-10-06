@@ -151,6 +151,8 @@ Config.SPRITE_SHEET = "dazeddank_plants_01"
 Config.HYDRO_SHEET = "dazeddank_hydro_01"
 -- Third sheet for the grow room panel and its fittings.
 Config.ROOMS_SHEET = "dazeddank_rooms_01"
+-- Fourth sheet: plants with no pot, drawn as a raised layer on top of any container (standard size, then XL).
+Config.OVERLAY_SHEET = "dazeddank_overlay_01"
 Config.MAX_SHEET_TILES = 512
 
 -- Vanilla's names for plant conditions -> our block number.
@@ -258,7 +260,8 @@ end
 function Config.splitSprite(spriteName)
     if type(spriteName) ~= "string" then return nil end
     local sheet, n = spriteName:match("^(.-)_(%d+)$")
-    if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET and sheet ~= Config.ROOMS_SHEET then return nil end
+    if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET and sheet ~= Config.ROOMS_SHEET
+        and sheet ~= Config.OVERLAY_SHEET then return nil end
     return sheet, tonumber(n)
 end
 
@@ -327,9 +330,36 @@ function Config.bagEmptySprite(bag, soiled)
     return Config.sheetOf(bag) .. "_" .. (soiled and def.emptySprite or def.drySprite)
 end
 
--- Other crops grown in a pot are drawn on top of it, raised this many pixels (1x) so they sit on the soil.
--- Flood tables are left out: their sprites change with facing, so a crop there still replaces the table.
-Config.VEG_LIFT = { small = 13, large = 20, xlbag = 25, dwc = 20, rdwc = 20, xldwc = 25 }
+-- A plant in a container is drawn on top of it, raised this many pixels (1x) so its stem starts on the soil or medium.
+Config.PLANT_LIFT = { small = 13, large = 20, dwc = 20, rdwc = 20, ebb = 20.5, xlbag = 28, xldwc = 27 }
+local OVERLAY_PER_SIZE = 110   -- 65 female then 45 male sprites per size
+
+--- Overlay sprite for a plant in a container: same layout as the ground sprites, with the bigger set for the XL pots.
+function Config.overlaySprite(plantType, stage, condition, bag, male)
+    local base = Config.isMotherPot(bag) and OVERLAY_PER_SIZE or 0
+    local cond = Config.SPRITE_CONDITION[condition] or 0
+    if male and stage and stage >= 3 then
+        local t = MALE_TYPE_INDEX[plantType] or MALE_TYPE_INDEX.Hybrid
+        return Config.OVERLAY_SHEET .. "_" .. tostring(base + 65 + cond * 9 + t * 3 + (math.min(stage, 5) - 3))
+    end
+    local slot = 0
+    if stage and stage > 1 then slot = (SPRITE_TYPE_OFFSET[plantType] or SPRITE_TYPE_OFFSET.Hybrid) + math.min(stage, 5) - 2 end
+    return Config.OVERLAY_SHEET .. "_" .. tostring(base + cond * 13 + slot)
+end
+
+--- The raised plant object on a square (any object showing an overlay sprite), or nil.
+function Config.overlayOn(square)
+    if not square then return nil end
+    local objects = square:getObjects()
+    local prefix = Config.OVERLAY_SHEET .. "_"
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        local name = sprite and sprite:getName()
+        if name and name:sub(1, #prefix) == prefix then return obj, name end
+    end
+    return nil
+end
 
 --- True if this sprite is an unfilled (no soil yet) bag.
 function Config.bagIsUnfilled(spriteName)
@@ -363,6 +393,7 @@ function Config.isMaleSprite(spriteName)
     if sheet == Config.SPRITE_SHEET and n >= Config.GROUND_SPRITES.maleBase and n < Config.GROUND_SPRITES.maleBase + 45 then
         return true
     end
+    if sheet == Config.OVERLAY_SHEET then return n % OVERLAY_PER_SIZE >= 65 end
     for kind, def in pairs(Config.GrowBag) do
         if sheet == Config.sheetOf(kind) and n >= def.maleBase and n < def.maleBase + 45 then return true end
     end

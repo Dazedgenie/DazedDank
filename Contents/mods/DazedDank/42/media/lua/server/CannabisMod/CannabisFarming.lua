@@ -70,10 +70,20 @@ local function applyTint(plant, luaObject)
     if not ok or not obj or not obj.setCustomColor then return end
     local r, g, b = 1, 1, 1
     if plant then r, g, b = Strains.tint(Strains.of(plant)) end
-    pcall(function()
-        obj:setCustomColor(r, g, b, 1)
-        if isServer() and obj.sendObjectChange then obj:sendObjectChange("customColor") end
-    end)
+    -- In a container the colour goes on the raised plant, and the container itself stays plain.
+    local overlay = Config.overlayOn(obj:getSquare())
+    local function paint(target, cr, cg, cb)
+        pcall(function()
+            target:setCustomColor(cr, cg, cb, 1)
+            if isServer() and target.sendObjectChange then target:sendObjectChange("customColor") end
+        end)
+    end
+    if overlay then
+        paint(obj, 1, 1, 1)
+        paint(overlay, r, g, b)
+    else
+        paint(obj, r, g, b)
+    end
 end
 Farming.applyTint = applyTint
 
@@ -226,6 +236,10 @@ function ISSeedActionNew:complete()
     -- A grow bag has to be filled with soil before its first planting.
     local pl = self.plant
     local bagKind = pl and Registry.getBag(pl.x, pl.y, pl.z)
+    if bagKind and self.typeOfSeed ~= CROP then
+        if Net and self.character then Net.notify(self.character, "Grow bags, buckets and flood tables only take cannabis") end
+        return false
+    end
     if bagKind and not Registry.isBagSoiled(pl.x, pl.y, pl.z) then
         local msg = Config.isHydro(bagKind) and "Add a rockwool cube or clay pebbles first" or "Fill the grow bag with soil first"
         if Net and self.character then Net.notify(self.character, msg) end

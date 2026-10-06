@@ -683,6 +683,7 @@ function Rooms.plantRows(panelKey, level)
                 x = plant.x, y = plant.y, z = plant.z, name = d.name or "Cannabis Plant",
                 stage = d.stage or d.stageRough or "?", water = water or d.waterRough or "?",
                 health = d.healthBand, type = d.type, warnings = d.warnings and #d.warnings or 0,
+                strain = d.strain, sex = d.sex,
             }
         end
     end
@@ -1014,7 +1015,19 @@ function Rooms.addCurtainObject(square, kind, dir)
     local sprite = Config.Rooms.CURTAIN_SPRITES[kind][dir]
     pcall(function()
         local obj = IsoObject.new(getCell(), square, sprite)
-        square:AddTileObject(obj)
+        -- Slot it in just after the wall and its door or window, so pipes and other fittings on the square draw in front.
+        local at = nil
+        local objects = square:getObjects()
+        pcall(function() for i = 0, objects:size() - 1 do
+            local o = objects:get(i)
+            local isFrame = instanceof(o, "IsoDoor") or instanceof(o, "IsoWindow") or instanceof(o, "IsoWindowFrame")
+                or (instanceof(o, "IsoThumpable") and (o:isDoor() or o:isWindow()))
+            local props = o:getProperties()
+            local isWall = props and (props:Is(IsoFlagType.WallN) or props:Is(IsoFlagType.WallW) or props:Is(IsoFlagType.WallNW)
+                or props:Is(IsoFlagType.DoorWallN) or props:Is(IsoFlagType.DoorWallW) or props:Is(IsoFlagType.WindowN) or props:Is(IsoFlagType.WindowW))
+            if isFrame or isWall then at = i + 1 end
+        end end)
+        if not (at and at < objects:size() and pcall(square.AddTileObject, square, obj, at)) then square:AddTileObject(obj) end
         obj:transmitCompleteItemToClients()
     end)
 end
@@ -1038,6 +1051,42 @@ local function edgeSquares(x, y, z, dir)
     local far
     if dir == "N" then far = cell:getGridSquare(x, y - 1, z) else far = cell:getGridSquare(x - 1, y, z) end
     return near, far
+end
+
+--- Take down vanilla sheets and curtains on the frame between two squares, handing them back the way vanilla does.
+local function stripVanillaCurtains(player, square, other, dir)
+    local north = dir == "N"
+    local removed = 0
+    local function takeDown(obj)
+        if obj and obj.removeSheet and pcall(obj.removeSheet, obj, player) then removed = removed + 1 end
+    end
+    local function facesEdge(obj)
+        for _, m in ipairs({ "getNorth", "isNorth" }) do
+            if obj[m] then
+                local ok, v = pcall(obj[m], obj)
+                if ok and type(v) == "boolean" then return v == north end
+            end
+        end
+        return true
+    end
+    for _, sq in ipairs({ square, other }) do
+        local list = {}
+        local objects = sq:getObjects()
+        for i = 0, objects:size() - 1 do list[#list + 1] = objects:get(i) end
+        for _, obj in ipairs(list) do
+            pcall(function()
+                if instanceof(obj, "IsoCurtain") then
+                    if facesEdge(obj) then takeDown(obj) end
+                elseif (instanceof(obj, "IsoWindow") or instanceof(obj, "IsoDoor") or instanceof(obj, "IsoThumpable")) and facesEdge(obj) then
+                    -- A window points at its curtain object; a door wears a hung sheet itself.
+                    local c = obj.HasCurtains and obj:HasCurtains()
+                    if c and c ~= true and instanceof(c, "IsoCurtain") then takeDown(c)
+                    elseif c and instanceof(obj, "IsoDoor") then takeDown(obj) end
+                end
+            end)
+        end
+    end
+    if removed > 0 then print("[DazedDank] hangCurtain: took down " .. removed .. " vanilla curtain(s)") end
 end
 
 commands.hangCurtain = function(player, args)
@@ -1070,6 +1119,7 @@ commands.hangCurtain = function(player, args)
     local container = item:getContainer()
     container:Remove(item)
     sendRemoveItemFromContainer(container, item)
+    stripVanillaCurtains(player, square, other, dir)
     curtains[edge] = true
     print("[DazedDank] hangCurtain: hung a " .. kind .. " curtain on " .. edge)
     Rooms.addCurtainObject(square, kind, dir)

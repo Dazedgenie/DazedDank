@@ -9,3 +9,5 @@ tiledef=dazeddank_hydro_01 7421
 pack=dazeddank_hydro_01
 tiledef=dazeddank_rooms_01 7422
 pack=dazeddank_rooms_01
+tiledef=dazeddank_overlay_01 7423
+pack=dazeddank_overlay_01
