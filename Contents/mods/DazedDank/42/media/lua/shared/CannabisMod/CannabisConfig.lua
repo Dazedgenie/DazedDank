@@ -636,7 +636,10 @@ end
 function Config.Timer.isOn(schedule, hour)
     local onHours = schedule and Config.Timer.SCHEDULES[schedule]
     if not onHours then return true end
-    return (hour - Config.Timer.ON_HOUR) % 24 < onHours
+    -- Hours since switch-on, 0-23. No % here: the game's Lua keeps the sign (-1 % 24 is -1), which lit the dark hours.
+    local since = hour - Config.Timer.ON_HOUR
+    if since < 0 then since = since + 24 end
+    return since < onHours
 end
 
 --- True if a schedule keeps plants in veg (no timer, or anything but 12/12).

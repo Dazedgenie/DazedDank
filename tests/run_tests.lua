@@ -1466,6 +1466,12 @@ do
     check("18/6 is on from 6:00 to midnight", TM.isOn("18/6", 6) and TM.isOn("18/6", 23) and not TM.isOn("18/6", 0) and not TM.isOn("18/6", 5))
     check("12/12 is on from 6:00 to 18:00", TM.isOn("12/12", 6) and TM.isOn("12/12", 17) and not TM.isOn("12/12", 18) and not TM.isOn("12/12", 3))
     check("no timer is always on", TM.isOn(nil, 2) and TM.isOn(nil, 20))
+    local function litHours(sch) local n = 0 for h = 0, 23 do if TM.isOn(sch, h) then n = n + 1 end end return n end
+    check("18/6 lights 18 hours a day and 12/12 lights 12", litHours("18/6") == 18 and litHours("12/12") == 12 and litHours(nil) == 24)
+    -- The game's Lua truncates % toward zero (-1 % 24 is -1), so the timer must not lean on % for hours before 6:00.
+    local src = io.open(MOD .. "shared/CannabisMod/CannabisConfig.lua"):read("*a")
+    local body = src:match("function Config%.Timer%.isOn.-\nend")
+    check("the timer's hour maths doesn't use %", body ~= nil and not body:gsub("%-%-[^\n]*", ""):find("%%"))
     check("only 12/12 is a short day", TM.isLongDay(nil) and TM.isLongDay("18/6") and not TM.isLongDay("12/12"))
     local b1, b3, b7 = TM.vegBonus(24), TM.vegBonus(72), TM.vegBonus(168)
     check("veg bonus: none without extra veg", TM.vegBonus(0) == 0 and TM.vegBonus(nil) == 0)
