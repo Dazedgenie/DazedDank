@@ -12,6 +12,7 @@
 - Art: Blender renders for both windows: a grow-tent backdrop behind every plant photo, glass reservoir tanks with the water level showing through, and icons for each section (lights, temperature, humidity, room seal, plants, reservoirs, equipment, vitals, care and genetics).
 - Changed: plants in the Inspect window are sized to fit their photo, so tall sativas no longer poke out of the top.
 - Fixed: a blackout curtain could hide a player standing on its square in front of it, so it looked like you'd stepped in behind it. Build 42 treats a modded tile with no depth map as a solid block filling its square. The grow room tiles (curtains, panel, fans, wall and floor units) now ship one, so players show in front of what hangs on a wall and behind what stands in front of them.
+- Added: debug option **[Debug] Fill reservoirs and water pots nearby** (right-click the ground in debug mode). Within 20 tiles on any floor it fills every DWC, XL DWC, RDWC control and flood reservoir to the brim (clean water if it was empty, nutrients kept), and waters every soil pot, grow bag and in-ground cannabis plot to 80, under the overwatering line.
 - Changed: **exhaust and intake fans** hang up high, level with the wall heater, dehumidifier and humidifier. Fans already placed move up too.
 - Fixed: the climate features (purple buds, outdoor plant temperature, lamp heat, curing temperature) lost their settings when the UI update was installed over them, which would have thrown an error at harvest. Both are now in one build.
 

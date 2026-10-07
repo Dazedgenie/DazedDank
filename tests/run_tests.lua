@@ -1711,6 +1711,23 @@ do
     check("checking a reservoir adds no rot", r.rot == 5 and r.lastTick == 250)
     r.rot, r.level = 0, 0.1
     end
+    do
+    -- Debug: fill nearby reservoirs and water nearby soil pots in one go.
+    local soilSq = fakeSquare(704, 700, 0, false, true)
+    local soilPlot = GB.makePlot(soilSq, "small")
+    soilPlot.waterLvl = 5
+    local farSq = fakeSquare(760, 700, 0, false, true)
+    local farPlot = GB.makePlot(farSq, "small")
+    farPlot.waterLvl = 5
+    r.level, r.tainted = 0, true
+    fire("OnClientCommand", "CannabisMod", "debugFillWater", grower, {})
+    check("debug fill tops the DWC reservoir up with clean water", math.abs(r.level - HY.capacity(r)) < 0.01 and not r.tainted)
+    check("debug fill waters a nearby pot to a healthy level", soilPlot.waterLvl == HY.DEBUG_POT_WATER
+        and soilPlot.waterLvl > C.Water.LOW and soilPlot.waterLvl < C.Water.HIGH)
+    check("debug fill leaves pots out of range alone", farPlot.waterLvl == 5 and sent[#sent].data.text:find("Filled 1 reservoir"))
+    R.clearBag(704, 700, 0); R.clearBag(760, 700, 0)
+    r.rot, r.level, r.tainted = 0, 0.1, false
+    end
 
     -- root rot: no power, and the cure
     r.level, r.rot, r.tainted, r.changedAt = 15, 0, false, 30

@@ -506,6 +506,9 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         context:addOption("[Debug] Racks and jars: +24 hours", player, function(p)
             send(p, "debugAdvanceStations", { hours = 24 })
         end)
+        context:addOption("[Debug] Fill reservoirs and water pots nearby", player, function(p)
+            send(p, "debugFillWater")
+        end)
         if plot then
             context:addOption("[Debug] Cannabis: next stage", player, function(p)
                 send(p, "debugNextStage", squareArgs(square))

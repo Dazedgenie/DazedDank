@@ -1003,3 +1003,65 @@ commands.debugHydroKit = function(player, args)
     Net.notify(player, "Gave 2 DWC buckets, an XL DWC bucket, an RDWC control and 2 sites, 2 flood tables, a flood reservoir and timer, "
         .. "5 rockwool cubes, clay pebbles, nutrients and bleach. Bring your own water.")
 end
+
+Hydro.DEBUG_FILL_RANGE = 20   -- tiles around the player the debug fill reaches, on any floor
+Hydro.DEBUG_POT_WATER = 80    -- a soil pot's water after the debug fill: well watered, under the overwatering line
+
+--- Fill `r` to capacity; one that was empty gets fresh, clean water and its age restarts.
+local function debugFill(r, now)
+    if not r.everFilled or (r.level or 0) <= 0.05 then
+        r.changedAt = now
+        r.tainted = false
+    end
+    r.everFilled = true
+    r.level = Hydro.capacity(r)
+    r.fillPending = nil
+end
+
+--- Debug: fill every hydro reservoir and water every soil pot or cannabis plot near (x, y). Returns reservoirs, pots.
+function Hydro.debugFillNear(x, y, range)
+    local now = Registry.nowHours()
+    local done, reservoirs, pots = {}, 0, 0
+    local function near(tx, ty) return math.abs(tx - x) <= range and math.abs(ty - y) <= range end
+    local function fill(r)
+        if r and not done[r] then done[r] = true; debugFill(r, now); reservoirs = reservoirs + 1 end
+    end
+    local function water(tx, ty, tz)
+        local key = Config.tileKey(tx, ty, tz)
+        if done[key] then return end
+        done[key] = true
+        local luaObject = Farming.getVanilla(tx, ty, tz)
+        if not luaObject then return end
+        luaObject.waterLvl = Hydro.DEBUG_POT_WATER
+        pcall(function() luaObject:saveData() end)
+        local plant = Registry.getPlant(tx, ty, tz)
+        if plant then plant.water = Hydro.DEBUG_POT_WATER end
+        pots = pots + 1
+    end
+    for key, kind in Registry.eachBag() do
+        local tx, ty, tz = key:match("^(%-?%d+)_(%-?%d+)_(%-?%d+)$")
+        tx, ty, tz = tonumber(tx), tonumber(ty), tonumber(tz)
+        if tx and near(tx, ty) then
+            if Config.isHydro(kind) then fill(Hydro.reservoirOf(tx, ty, tz)) else water(tx, ty, tz) end
+        end
+    end
+    -- RDWC control buckets and flood reservoirs with no site linked yet are still reservoirs.
+    for _, r in pairs(res or {}) do
+        if (r.isControl or r.isFlood) and r.x and near(r.x, r.y) then fill(r) end
+    end
+    -- Cannabis planted straight in the ground has no bag.
+    for _, plant in Registry.each() do
+        if plant.x and near(plant.x, plant.y) and not Config.isHydro(Registry.getBag(plant.x, plant.y, plant.z)) then
+            water(plant.x, plant.y, plant.z)
+        end
+    end
+    return reservoirs, pots
+end
+
+commands.debugFillWater = function(player, args)
+    if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then return end
+    local x, y = math.floor(player:getX()), math.floor(player:getY())
+    local reservoirs, pots = Hydro.debugFillNear(x, y, Hydro.DEBUG_FILL_RANGE)
+    Net.notify(player, string.format("Filled %d reservoir(s) and watered %d pot(s) within %d tiles", reservoirs, pots,
+        Hydro.DEBUG_FILL_RANGE))
+end
