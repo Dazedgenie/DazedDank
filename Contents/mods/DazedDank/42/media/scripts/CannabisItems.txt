@@ -254,6 +254,7 @@ module CannabisMod
         Weight          = 0.5,
         Capacity        = 3,
         WeightReduction = 0,
+        AcceptItemFunction = DazedDankAccept.Buds,
         Icon            = CuringJar,
         WorldStaticModel = JarGlass_Ground,
     }

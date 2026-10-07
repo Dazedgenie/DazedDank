@@ -3448,5 +3448,38 @@ do
     check("reservoir tanks draw glass over water", find(m, "tex", function(op) return op.name == "tank_front" end) ~= nil)
 end
 
+do
+    -- Racks take whole plants and jars and barrels take buds, through the game's own container check.
+    require "CannabisMod/CannabisAccept"
+    local A = DazedDankAccept
+    local function item(t) return { getFullType = function() return t end } end
+    local wet, dried, bud, apple = item(C.WET_PLANT_ITEMS.Indica), item(C.DRIED_PLANT_ITEMS.Hybrid), item(C.Drying.BUD_ITEM), item("Base.Apple")
+    check("racks take only whole plants", A.Rack(nil, wet) and A.Rack(nil, dried) and not A.Rack(nil, bud) and not A.Rack(nil, apple))
+    check("jars and barrels take only buds", A.Buds(nil, bud) and not A.Buds(nil, wet) and not A.Buds(nil, apple))
+    local function obj(sprite, n)
+        local cs = {}
+        for i = 1, n do cs[i] = { fn = nil, getAcceptItemFunction = function(c) return c.fn end, setAcceptItemFunction = function(c, f) c.fn = f end } end
+        return { getSprite = function() return { getName = function() return sprite end } end,
+            getContainerCount = function() return n end, getContainerByIndex = function(_, i) return cs[i + 1] end }, cs
+    end
+    local rackSprite
+    for name in pairs(C.Drying.RACK_SPRITES) do rackSprite = name break end
+    local rack, rc = obj(rackSprite, 2)
+    local barrel, bc = obj(C.Drying.BARREL_SPRITE, 1)
+    local shelf, sc = obj("furniture_shelving_01_0", 1)
+    local sq = { getObjects = function() local list = { rack, barrel, shelf }
+        return { size = function() return #list end, get = function(_, i) return list[i + 1] end } end }
+    fire("LoadGridsquare", sq)
+    check("loading a square tags every rack container", rc[1].fn == A.RACK and rc[2].fn == A.RACK)
+    check("loading a square tags barrels for buds and leaves other furniture alone", bc[1].fn == A.BUDS and sc[1].fn == nil)
+    local placed, pc = obj(C.Drying.BARREL_SPRITE, 1)
+    fire("OnObjectAdded", placed)
+    check("a newly placed barrel is tagged too", pc[1].fn == A.BUDS)
+    local script = io.open(MOD .. "../scripts/CannabisItems.txt", "r")
+    local text = script and script:read("*a") or ""
+    if script then script:close() end
+    check("the curing jar item takes buds only", text:find("item CuringJar%s*{[^}]*AcceptItemFunction%s*=%s*DazedDankAccept%.Buds") ~= nil)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
