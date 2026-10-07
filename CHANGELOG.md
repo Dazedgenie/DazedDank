@@ -11,6 +11,8 @@
 - Changed: the plant **Inspect** window is a light card in the same style: the plant drawn in its pot, vitals, care facts, genetics as bars at Agriculture 9, and warnings as chips. Info your level can't read yet is left out.
 - Art: Blender renders for both windows: a grow-tent backdrop behind every plant photo, glass reservoir tanks with the water level showing through, and icons for each section (lights, temperature, humidity, room seal, plants, reservoirs, equipment, vitals, care and genetics).
 - Changed: plants in the Inspect window are sized to fit their photo, so tall sativas no longer poke out of the top.
+- Fixed: a blackout curtain could hide a player standing on its square in front of it, so it looked like you'd stepped in behind it. Build 42 treats a modded tile with no depth map as a solid block filling its square. The grow room tiles (curtains, panel, fans, wall and floor units) now ship one, so players show in front of what hangs on a wall and behind what stands in front of them.
+- Changed: **exhaust and intake fans** hang up high, level with the wall heater, dehumidifier and humidifier. Fans already placed move up too.
 - Fixed: the climate features (purple buds, outdoor plant temperature, lamp heat, curing temperature) lost their settings when the UI update was installed over them, which would have thrown an error at harvest. Both are now in one build.
 
 ## dd53.2

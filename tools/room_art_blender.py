@@ -95,7 +95,7 @@ def build_fan(accent_rgb):
     guard = mat("fan_guard", "metal", (0.62, 0.63, 0.68))
     blade = mat("fan_blade", "metal", (0.70, 0.71, 0.75))
     dark = mat("fan_dark", "metal", (0.05, 0.05, 0.07))
-    s, d, z = 0.46, 0.14, 1.15
+    s, d, z = 0.46, 0.14, WALL_Z   # up with the wall heater, dehumidifier and humidifier
     y = WALL_Y - d / 2
     box(parts, "fan_box", (0, y, z), (s, d, s), housing)
     box(parts, "fan_trim", (0, y - d / 2 - 0.004, z), (s - 0.02, 0.008, s - 0.02), accent)

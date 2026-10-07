@@ -207,7 +207,7 @@ def main(out):
         fan = draw_fan(accent)
         for facing in ("S", "E", "N", "W"):
             name = f"{i:03d}_{kind}_{facing}.png"
-            hang(fan, FACINGS[facing], 70).save(out / name)
+            hang(fan, FACINGS[facing], 119).save(out / name)   # level with the wall units' centres
             cells.append({"file": name, "facing": "S", "x": 0, "y": 0, "props": {
                 "IsMoveAble": "", "CustomName": label, "GroupName": "Dazed Dank", "CustomItem": "CannabisMod." + item,
                 "Facing": facing, "PickUpLevel": "0", "PickUpWeight": "20", "Material": "Metal", "CanScrap": "",
