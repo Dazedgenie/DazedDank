@@ -41,6 +41,11 @@ end
 
 --- Take a fresh roomInfo reply, keeping the plant row's scroll where it can.
 function DashPanel:setInfo(info)
+    -- A reply to a Refresh click says so on the button for a moment.
+    if self.refreshSent then
+        self.refreshSent = nil
+        info.refreshLabel, self.labelUntil = "Updated", getTimestampMs() + 1500
+    end
     self.info = info
     self.scroll = math.max(0, math.min(self.scroll or 0, Dash.maxScroll(info)))
     self.model = Dash.build(info, self.scroll, fontHeight, measure)
@@ -92,7 +97,25 @@ function DashPanel:prerender()
     end
 end
 
+--- Show `label` on the Refresh button until `untilMs` (nil keeps it until changed).
+function DashPanel:setLabel(label, untilMs)
+    self.info.refreshLabel, self.labelUntil = label, untilMs
+    self.model = Dash.build(self.info, self.scroll, fontHeight, measure)
+end
+
+--- Put the Refresh label back after a moment, or say "No reply" when the server never answered.
+function DashPanel:updateLabel()
+    local now = getTimestampMs()
+    if self.refreshSent and now - self.refreshSent > 3000 then
+        self.refreshSent = nil
+        self:setLabel("No reply", now + 2500)
+    elseif self.labelUntil and now > self.labelUntil then
+        self:setLabel(nil, nil)
+    end
+end
+
 function DashPanel:render()
+    self:updateLabel()
     -- A faint wash over whatever the mouse would click, so the clickable parts can be found.
     local h = self:isMouseOver() and self:hitAt(self:getMouseX(), self:getMouseY())
     if h then
@@ -260,6 +283,8 @@ function DashPanel:onHit(id, right)
     elseif id == "log" then
         self:openLog()
     elseif id == "refresh" then
+        self.refreshSent = getTimestampMs()
+        self:setLabel("...", nil)
         send("requestRoom", self:args())
     end
 end

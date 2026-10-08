@@ -3706,6 +3706,11 @@ do
     local m = Dash.build(info, 0, fh, ms)
     local ids = hitIds(m)
     check("dashboard has its fixed size", m.width == Dash.WIDTH and m.height == Dash.HEIGHT)
+    local function hasText(model, str) for _, op in ipairs(model.ops) do if op.kind == "text" and op.text == str then return true end end return false end
+    check("the Refresh button reads Refresh by default", hasText(m, "Refresh") and ids.refresh)
+    info.refreshLabel = "Updated"
+    check("the Refresh button can show the last refresh's outcome", hasText(Dash.build(info, 0, fh, ms), "Updated"))
+    info.refreshLabel = nil
     do
         -- A room with all seven kinds of unit: every tile shows, inside the equipment card, with labels that fit.
         local all = {}

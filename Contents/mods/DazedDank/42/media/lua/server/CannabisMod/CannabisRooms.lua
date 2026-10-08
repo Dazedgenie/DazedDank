@@ -452,14 +452,20 @@ local function panelFor(player, args)
     if not (x and y and z and panels) then return nil end
     local key = Config.tileKey(x, y, z)
     local room = panels[key]
-    if not room then return nil end
+    if not room then
+        Net.notify(player, "This panel has no grow room on record. Pick it up and place it again")
+        return nil
+    end
     -- The panel window stays open while you walk the room, so anywhere in the room counts, not just beside the panel.
     local here = Config.tileKey(math.floor(player:getX()), math.floor(player:getY()), math.floor(player:getZ()))
     if not isNear(player, x, y, z) and tileRoom[here] ~= key then
         Net.notify(player, "Walk back into the grow room to use its panel")
         return nil
     end
-    if not Rooms.canUse(player, room) then return nil end
+    if not Rooms.canUse(player, room) then
+        Net.notify(player, "This grow room belongs to someone else's safehouse")
+        return nil
+    end
     return room
 end
 

@@ -1,6 +1,8 @@
 # Dazed Dank patch notes
 
 ## dd54 (Climate and UI redesign, in testing)
+- Changed: the grow panel's **Refresh** button shows what happened: "..." while it asks, "Updated" when the room comes back, and "No reply" if the server never answers. A panel the server has no record of, or one in someone else's safehouse, now says so instead of doing nothing.
+- Fixed: the occupation and trait descriptions logged formatting errors. A bare "%" reads as a format code in the game's translations, so they say "percent" now.
 - Added: **grower occupations and traits.** Three occupations: **Cultivation Tech** (-4: knows every Dank recipe, reads plants 2 Agriculture levels higher short of genetics, cuttings root 10% more often), **Budtender** (+2: knows papers, jar and barrel, reads every bud, cures up to +15%) and **Botanist / Breeder** (-4: reads genetics and hermie lines on everything, one extra seed per pollination, truer and luckier crosses). Four traits: **Green Thumb** (4: 15% less from care mistakes, +5% rooting), **Trim Hand** (2: trims twice as fast and asks before trimming a wet plant, see **Trim Plant Anyway**), **Chronic** (-3: starts dependent with some tolerance) and **Lightweight** (-2: highs 50% stronger, tolerance builds 50% faster). Sandbox: **Grower Occupations and Traits** (on); off hides them all and switches their effects off.
 - Art: placeholder icons for the occupations and traits.
 - Added: works with **DazedCore 1.3.0** and **Dazed Climate**. Outdoor plants, rooting cuttings, drying racks and grow room outdoor air now read temperatures from DazedCore when it's loaded (real room temperatures with Dazed Climate). Without them, the game's own temperatures are used as before.

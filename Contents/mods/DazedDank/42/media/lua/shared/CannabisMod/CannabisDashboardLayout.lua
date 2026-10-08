@@ -77,8 +77,9 @@ function Dash.build(info, scroll, fontH, measure)
     local counts = (info.tiles or 0) .. " tiles  |  " .. #(info.lamps or {}) .. " lamps  |  " .. #(info.plants or {}) .. " plants"
     text(counts, nx + mw + 20, (HEAD_H - small) / 2, { 0.79, 0.75, 0.88 })
     -- Refresh asks the server for the room again; the close button sits to its right as a child of the window.
-    local rw = measure("Small", "Refresh") + 20
-    button(W - 44 - rw, (HEAD_H - small - 6) / 2, rw, small + 6, "Refresh", "refresh", true)
+    -- The label shows the last refresh's outcome for a moment ("Updated", "No reply"); the width fits the longest.
+    local rw = math.max(measure("Small", "Refresh"), measure("Small", "No reply"), measure("Small", "Updated")) + 20
+    button(W - 44 - rw, (HEAD_H - small - 6) / 2, rw, small + 6, info.refreshLabel or "Refresh", "refresh", true)
     text(string.format("%02d:00", info.hour or 0), W - 44 - rw - 10, (HEAD_H - small) / 2, C.white, "Small", "right")
 
     -- Row 1: lights, temperature, humidity, room seal.
