@@ -449,9 +449,17 @@ end
 --- The panel a player is acting on: close enough, a real panel, and allowed to use it.
 local function panelFor(player, args)
     local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
-    if not (x and y and z and panels) or not isNear(player, x, y, z) then return nil end
-    local room = panels[Config.tileKey(x, y, z)]
-    if not room or not Rooms.canUse(player, room) then return nil end
+    if not (x and y and z and panels) then return nil end
+    local key = Config.tileKey(x, y, z)
+    local room = panels[key]
+    if not room then return nil end
+    -- The panel window stays open while you walk the room, so anywhere in the room counts, not just beside the panel.
+    local here = Config.tileKey(math.floor(player:getX()), math.floor(player:getY()), math.floor(player:getZ()))
+    if not isNear(player, x, y, z) and tileRoom[here] ~= key then
+        Net.notify(player, "Walk back into the grow room to use its panel")
+        return nil
+    end
+    if not Rooms.canUse(player, room) then return nil end
     return room
 end
 

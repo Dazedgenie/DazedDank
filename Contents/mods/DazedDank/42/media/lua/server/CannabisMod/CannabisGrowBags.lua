@@ -324,18 +324,43 @@ local function convertBagAt(x, y, z)
 end
 GrowBags.convertBagAt = convertBagAt
 
---- Rebuild an empty plot under a bag, bucket or table tile the save kept without its farming record (a crash between saves).
---- Soil bags keep their soil; hydro containers lose their medium with the record, so they ask for it again. True when rebuilt.
+--- Bring back a bag, bucket or table tile the save kept without its farming record (a crash between saves). True when done.
+--- A plot object that still carries its farming state goes back to the farming system as it is; otherwise an empty plot is made.
 function GrowBags.adoptOrphan(square, obj, kind)
     local x, y, z = square:getX(), square:getY(), square:getZ()
     if Farming.getVanilla(x, y, z) then return false end
+    local sys = SFarmingSystem and SFarmingSystem.instance
+    local okValid, valid = pcall(function() return sys and sys.isValidIsoObject and sys:isValidIsoObject(obj) end)
+    if okValid and valid then
+        Registry.setBag(x, y, z, kind)
+        pcall(sys.loadIsoObject, sys, obj)
+        local luaObject = Farming.getVanilla(x, y, z)
+        if not luaObject then Registry.clearBag(x, y, z) return false end
+        -- A pot with something growing in it already has its soil or medium.
+        Registry.setBagSoiled(x, y, z, luaObject.state ~= "plow" or (not Config.isHydro(kind) and not Config.bagIsUnfilled(obj:getSprite():getName())))
+        return true
+    end
     local soiled = not Config.isHydro(kind) and not Config.bagIsUnfilled(obj:getSprite():getName())
     if CannabisMod.Hydro then CannabisMod.Hydro.clear(x, y, z) end
     Registry.setBag(x, y, z, kind)
     Registry.setBagSoiled(x, y, z, soiled)
-    if not GrowBags.makePlot(square, kind) then return false end
-    removeFurniture(square, obj)
+    local luaObject = GrowBags.makePlot(square, kind)
+    if not luaObject then return false end
+    -- The plow takes an object already on the square as the plot's own; only a separate leftover is removed.
+    local mine = false
+    pcall(function() mine = luaObject:getIsoObject() == obj end)
+    if not mine then removeFurniture(square, obj) end
     return true
+end
+
+--- Draw the object back for a registered bag whose plot is in the farming system but has nothing on its square. True when drawn.
+function GrowBags.redraw(x, y, z)
+    local luaObject = Farming.getVanilla(x, y, z)
+    if not (luaObject and luaObject.getIsoObject and luaObject.addObject) or luaObject:getIsoObject() then return false end
+    luaObject.spriteName = farming_vegetableconf.getSpriteName(luaObject)
+    luaObject.objectName = farming_vegetableconf.getObjectName(luaObject)
+    if not pcall(luaObject.addObject, luaObject) then return false end
+    return luaObject:getIsoObject() ~= nil
 end
 
 --- Pair a rebuilt flood table tile with a rebuilt neighbour that has no partner, so picking up either takes the table.

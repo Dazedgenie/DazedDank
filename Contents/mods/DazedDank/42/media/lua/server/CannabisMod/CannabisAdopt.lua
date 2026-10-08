@@ -1,5 +1,5 @@
 -- Crash recovery: a save can keep a bag, bucket, table or grow room panel on the map but lose its farming or room
--- record (the map saves as you play, the records only on a full save). Such tiles are rebuilt, empty, as their square loads.
+-- record (the map saves as you play, the records only on a full save); such tiles are rebuilt as their square loads.
 
 if isClient() then return end
 
@@ -7,6 +7,7 @@ require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisGrowBags"
 require "CannabisMod/CannabisRooms"
+require "CannabisMod/CannabisRegistry"
 
 local Config   = CannabisMod.Config
 local Farming  = CannabisMod.Farming
@@ -16,9 +17,25 @@ CannabisMod.Adopt = Adopt
 
 Adopt.WAIT_TICKS = 30          -- ticks after a square loads before it is checked, so the farming system has caught up
 Adopt.START_TICKS = 120        -- ticks after the game starts before any check runs
+Adopt.REDRAW_TICKS = 300       -- how often registered bags with no object on their square are drawn again
 Adopt.queue = {}
 Adopt.restored = 0
 local ticks = 0
+local Registry = CannabisMod.Registry
+
+--- Draw back every loaded bag whose plot exists but has no object on its square. Returns how many were drawn.
+function Adopt.redrawAll()
+    local n = 0
+    for key in Registry.eachBag() do
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        if x and getCell():getGridSquare(x, y, z) then
+            local ok, drawn = pcall(CannabisMod.GrowBags.redraw, x, y, z)
+            if ok and drawn then n = n + 1 end
+        end
+    end
+    return n
+end
 
 --- What a loaded object is to us: "plot" (a bag or bucket shown as a plot), "furniture" (placed, never converted), "panel" or nil.
 function Adopt.kindOf(obj)
@@ -76,7 +93,12 @@ end
 --- Work through the queue once the game has settled.
 function Adopt.tick()
     ticks = ticks + 1
-    if ticks < Adopt.START_TICKS or #Adopt.queue == 0 then return end
+    if ticks < Adopt.START_TICKS then return end
+    if (ticks - Adopt.START_TICKS) % Adopt.REDRAW_TICKS == 0 then
+        local drawn = Adopt.redrawAll()
+        if drawn > 0 then print(string.format("[DazedDank] drew back %d grow container(s) that had lost their object", drawn)) end
+    end
+    if #Adopt.queue == 0 then return end
     local before = Adopt.restored
     for i = #Adopt.queue, 1, -1 do
         local job = Adopt.queue[i]

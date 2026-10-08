@@ -2439,6 +2439,14 @@ end
     hourOfDay = 22
     fire("OnClientCommand", "CannabisMod", "requestRoom", owner, { x = 500, y = 500, z = 0 })
     check("a 12/12 lamp is dark at 22:00", sent[#sent].data.lamps[1].lit == false)
+    -- The panel window works from anywhere in the room, not just beside the panel.
+    sent = {}
+    fire("OnClientCommand", "CannabisMod", "requestRoom", newPlayer(502, 504, 5), { x = 500, y = 500, z = 0 })
+    check("Refresh works from the far end of the room", sent[#sent] and sent[#sent].data and sent[#sent].data.tiles == 15)
+    sent = {}
+    fire("OnClientCommand", "CannabisMod", "requestRoom", newPlayer(520, 520, 5), { x = 500, y = 500, z = 0 })
+    check("outside the room it says why instead of doing nothing", sent[#sent] and sent[#sent].data and sent[#sent].data.tiles == nil
+        and tostring(sent[#sent].data.text):find("Walk back into the grow room"))
     hourOfDay = 12
     R.remove("500_500_0")
 
@@ -3568,6 +3576,43 @@ do
         and CannabisMod.Hydro.get(7707, 7700, 0, "ebb").partner == "7706_7700_0")
     check("a grow room panel that lost its room is registered again", Rooms.scan("7720_7720_0") ~= nil)
     check("a bag that still has its plot is left alone", fp:getLuaObjectAt(7730, 7700, 0) == keptPlot and #kept.objs == 1)
+
+    -- The real plow takes a plot object already on the square as its own: that object must stay.
+    local oldPlow, oldGetIso = SFarmingSystem.instance.plow, Plot.getIsoObject
+    local tsq = fakeSquare(7740, 7700, 0, false, true)
+    tsq.objs[1] = C.bagEmptySprite("dwc", true)
+    local orphanObj = tsq:getObjects():get(0)
+    SFarmingSystem.instance.plow = function(self, sq)
+        local p = oldPlow(self, sq)
+        if sq == tsq then p.iso = orphanObj end
+        return p
+    end
+    check("an orphan the plow takes as its plot is kept, not deleted", CannabisMod.GrowBags.adoptOrphan(tsq, orphanObj, "dwc") and #tsq.objs == 1)
+    SFarmingSystem.instance.plow = oldPlow
+
+    -- A plot object that still carries its farming state goes back to the farming system as it is, plant and all.
+    local vsq = fakeSquare(7742, 7700, 0, false, true)
+    local vobj = { md = { state = "seeded", nbOfGrow = 3, health = 80 }, sprite = C.bagEmptySprite("large", true) }
+    function vobj:hasModData() return true end
+    function vobj:getModData() return self.md end
+    function vobj:getSprite() local n = self.sprite return { getName = function() return n end } end
+    local loaded = nil
+    SFarmingSystem.isValidIsoObject = function(_, o) return o.hasModData ~= nil and o:hasModData() and o:getModData().state ~= nil end
+    SFarmingSystem.loadIsoObject = function(self, o) loaded = o; local p = SFarmingSystem.instance:plow(vsq); p.state = o:getModData().state end
+    check("a plot object with its farming state is restored as it is", CannabisMod.GrowBags.adoptOrphan(vsq, vobj, "large")
+        and loaded == vobj and fp:getLuaObjectAt(7742, 7700, 0).state == "seeded" and R.getBag(7742, 7700, 0) == "large" and R.isBagSoiled(7742, 7700, 0))
+    SFarmingSystem.isValidIsoObject, SFarmingSystem.loadIsoObject = nil, nil
+
+    -- A registered bag whose plot lost its object gets it drawn back.
+    local rsq = fakeSquare(7744, 7700, 0, false, true)
+    R.setBag(7744, 7700, 0, "small")
+    local lost = SFarmingSystem.instance:plow(rsq)
+    lost.noIso = true
+    Plot.getIsoObject = function(self) if self.noIso then return nil end return oldGetIso(self) end
+    Plot.addObject = function(self) self.noIso = nil; self.drawnSprite = self.spriteName end
+    check("a bag whose plot lost its object is drawn back", Ad.redrawAll() >= 1 and not lost.noIso and lost.drawnSprite == C.bagEmptySprite("small", false))
+    check("a bag that has its object isn't drawn twice", Ad.redrawAll() == 0)
+    Plot.getIsoObject, Plot.addObject = oldGetIso, nil
 end
 
 end)()
