@@ -807,10 +807,19 @@ commands.debugDryingKit = function(player, args)
     Farming.giveItems(player, D.BARREL_ITEM, 1)
     Farming.giveItems(player, D.FAN_ITEM, 1)
     Farming.giveItems(player, "Base.Scissors", 1)
-    Farming.giveItems(player, Config.WET_PLANT_ITEMS.Indica, 2, function(item)
-        item:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 6, genetics = 80, generation = 1 }
-    end)
-    Net.notify(player, "Gave a rack, jar, barrel, fan, scissors and 2 wet plants. Place the rack, barrel and fan like furniture; set the jar down")
+    -- Three wet plants, each a random starter strain, carrying a harvest record like a real one.
+    for _ = 1, 3 do
+        local starters = Strains.STARTERS
+        local strain = Strains.copy(starters[Config.randInt(1, #starters)])
+        local kind = Strains.typeOf(strain)
+        Farming.giveItems(player, Config.WET_PLANT_ITEMS[kind] or Config.WET_PLANT_ITEMS.Hybrid, 1, function(item)
+            local harvest = { type = kind, strain = strain, quality = 80, budYield = 6, genetics = 80, generation = 1 }
+            item:getModData().CannabisHarvest = harvest
+            local name = Strains.plantName(harvest, "Wet")
+            if name then item:setName(name) end
+        end)
+    end
+    Net.notify(player, "Gave a rack, jar, barrel, fan, scissors and 3 wet plants. Place the rack, barrel and fan like furniture; set the jar down")
 end
 
 --- Pretend `hours` hours have passed at every station (applied at the next settle).

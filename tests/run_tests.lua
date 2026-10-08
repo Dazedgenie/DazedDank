@@ -1323,7 +1323,16 @@ end)()
 -- debug kit and time skip
 local dk = newPlayer(0, 0, 1)
 fire("OnClientCommand", "CannabisMod", "debugDryingKit", dk, {})
-check("debug drying kit", dk.inv:count(C.Drying.RACK_ITEM) == 1 and dk.inv:count(C.Drying.JAR_ITEM) == 1 and dk.inv:count(C.WET_PLANT_ITEMS.Indica) == 2)
+local wetGiven, named = 0, 0
+for _, it in ipairs(dk.inv.items) do
+    if C.isHangingPlant(it.fullType) then
+        wetGiven = wetGiven + 1
+        local h = it:getModData().CannabisHarvest
+        if h and h.strain and it.name == "Wet " .. h.strain.name .. " (" .. h.type .. ")" then named = named + 1 end
+    end
+end
+check("debug drying kit: rack, jar and 3 named starter-strain wet plants", dk.inv:count(C.Drying.RACK_ITEM) == 1
+    and dk.inv:count(C.Drying.JAR_ITEM) == 1 and wetGiven == 3 and named == 3)
 
 end
 
