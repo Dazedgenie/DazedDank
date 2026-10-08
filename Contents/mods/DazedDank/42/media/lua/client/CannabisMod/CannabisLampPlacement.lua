@@ -38,6 +38,29 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
         return true
     end
 
+    -- One console line per refused square (at most every 2 s), so a lamp that won't place can be traced in console.txt.
+    local traceAt, traceKey = 0, nil
+    local function trace(sq, why)
+        local now = getTimestampMs()
+        local key = sq and (sq:getX() .. "," .. sq:getY() .. "," .. sq:getZ()) or "?"
+        if key == traceKey and now - traceAt < 2000 then return end
+        traceAt, traceKey = now, key
+        local parts = {}
+        pcall(function()
+            local objects = sq:getObjects()
+            for i = 0, objects:size() - 1 do
+                local sprite = objects:get(i):getSprite()
+                local props = sprite and sprite:getProperties()
+                local flags = {}
+                for _, f in ipairs({ "IsLow", "IsHigh", "BlocksPlacement", "IsTable", "IsTableTop" }) do
+                    if props and props:has(f) then flags[#flags + 1] = f end
+                end
+                parts[#parts + 1] = tostring(sprite and sprite:getName()) .. (#flags > 0 and ("[" .. table.concat(flags, ",") .. "]") or "")
+            end
+        end)
+        print("[DazedDank] lamp can't go at " .. key .. " (" .. why .. "): " .. table.concat(parts, " "))
+    end
+
     -- Runs every frame while any furniture is being placed, so other items fall through after two table lookups.
     function ISMoveableSpriteProps:canPlaceMoveable(character, square, item)
         Preview.note(self, square)
@@ -47,7 +70,10 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
             self.isHigh = true
             for _, sq in ipairs(Preview.coveredSquares(self, square)) do
                 local ok, inside = pcall(indoorsOffTable, sq)
-                if not (ok and inside) then return false end
+                if not (ok and inside) then
+                    trace(sq, "outdoors or on a table")
+                    return false
+                end
             end
         end
         -- Hydro systems are indoor gear: the reservoir and pumps need shelter.
@@ -62,6 +88,7 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
             self.isFreeTile = freeForLamp
             local ok, result = pcall(originalCanPlace, self, character, square, item)
             self.isFreeTile = nil
+            if not (ok and result) then trace(square, ok and "game refused" or tostring(result)) end
             return ok and result or false
         end
         return originalCanPlace(self, character, square, item)
