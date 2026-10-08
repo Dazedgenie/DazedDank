@@ -480,6 +480,14 @@ function Rooms.onPlaced(obj)
     if player then Net.notify(player, why) end
 end
 
+--- A panel the save kept without its room record (a crash between saves) is registered again; true when it was.
+function Rooms.adoptPanel(obj)
+    if not panels or not isPanelObject(obj) then return false end
+    local square = obj:getSquare()
+    if not square or panels[Config.tileKey(square:getX(), square:getY(), square:getZ())] then return false end
+    return (Rooms.register(square, nil)) == true
+end
+
 Events.OnObjectAdded.Add(function(obj)
     local ok, isPanel = pcall(isPanelObject, obj)
     if ok and isPanel then Rooms.onPlaced(obj) end

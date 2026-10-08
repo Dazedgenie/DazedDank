@@ -324,6 +324,39 @@ local function convertBagAt(x, y, z)
 end
 GrowBags.convertBagAt = convertBagAt
 
+--- Rebuild an empty plot under a bag, bucket or table tile the save kept without its farming record (a crash between saves).
+--- Soil bags keep their soil; hydro containers lose their medium with the record, so they ask for it again. True when rebuilt.
+function GrowBags.adoptOrphan(square, obj, kind)
+    local x, y, z = square:getX(), square:getY(), square:getZ()
+    if Farming.getVanilla(x, y, z) then return false end
+    local soiled = not Config.isHydro(kind) and not Config.bagIsUnfilled(obj:getSprite():getName())
+    if CannabisMod.Hydro then CannabisMod.Hydro.clear(x, y, z) end
+    Registry.setBag(x, y, z, kind)
+    Registry.setBagSoiled(x, y, z, soiled)
+    if not GrowBags.makePlot(square, kind) then return false end
+    removeFurniture(square, obj)
+    return true
+end
+
+--- Pair a rebuilt flood table tile with a rebuilt neighbour that has no partner, so picking up either takes the table.
+function GrowBags.pairOrphanTable(x, y, z)
+    local Hydro = CannabisMod.Hydro
+    if not Hydro or Registry.getBag(x, y, z) ~= "ebb" then return end
+    local me = Hydro.get(x, y, z, "ebb")
+    if me.partner then return end
+    for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+        local nx, ny = x + d[1], y + d[2]
+        if Registry.getBag(nx, ny, z) == "ebb" then
+            local other = Hydro.get(nx, ny, z, "ebb")
+            if not other.partner then
+                me.partner, other.partner = Config.tileKey(nx, ny, z), Config.tileKey(x, y, z)
+                me.part, other.part = 0, 1
+                return
+            end
+        end
+    end
+end
+
 -- Squares waiting for a furniture bag to show up, retried for a few seconds.
 local pendingConvert = {}
 

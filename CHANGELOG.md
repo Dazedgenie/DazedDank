@@ -19,6 +19,7 @@
 - Fixed: the close button (X) on the Grow Room Panel and the plant Inspect window was hidden under the title bar. Both windows now draw their layout first and the buttons on top.
 - Added: a **Refresh** button on the Grow Room Panel title bar that asks for the room again.
 - Changed: the debug **Fill reservoirs** option now fills drip tanks too.
+- Fixed: after a crash, grow bags, DWC and RDWC buckets, flood tables and grow room panels could stay on the map but stop working: missing from menus, the panel doing nothing. The map saves as you play, but their records only save on a full save. Now, when one loads without its record, it is rebuilt empty: soil bags keep their soil, hydro buckets and tables ask for their medium again, and a panel registers its room again. Plants lost in the crash can't come back.
 - Fixed: hovering the **Drip Irrigation Tank** filled the console with formatting errors. A bare "%" in its tooltip read as a format code; it now says "percent".
 - Fixed: a plant card's warning badge covered its Health row. The badge (or a green "all good") now sits on the bottom of the plant photo.
 - Fixed: "12 tiles ? 2 lamps" and "Sativa ? Haze" showed a question mark: the game font has no middle dot. Those spots use a bar now.

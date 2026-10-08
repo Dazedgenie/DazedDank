@@ -3499,6 +3499,38 @@ do
     RM.edgeBlocked = oldBlocked
 end
 
+-- Crash recovery: bags, buckets and panels the map kept without their records are rebuilt as their square loads.
+do
+    require "CannabisMod/CannabisAdopt"
+    local Ad, Rooms = CannabisMod.Adopt, CannabisMod.Rooms
+    local dsq = fakeSquare(7700, 7700, 0, false, true)
+    dsq.objs[1] = C.bagEmptySprite("dwc", true)
+    local lsq = fakeSquare(7702, 7700, 0, false, true)
+    lsq.objs[1] = C.bagEmptySprite("large", true)
+    local fsq = fakeSquare(7704, 7700, 0, false, true)
+    fsq.objs[1] = C.SPRITE_SHEET .. "_" .. C.GrowBag.small.furnSprite
+    local t1, t2 = fakeSquare(7706, 7700, 0, false, true), fakeSquare(7707, 7700, 0, false, true)
+    t1.objs[1], t2.objs[1] = C.bagEmptySprite("ebb", true), C.bagEmptySprite("ebb", true)
+    local psq = fakeSquare(7720, 7720, 0, false, true)
+    psq.objs[1] = { sprite = "dazeddank_rooms_01_0", md = {} }
+    local kept = fakeSquare(7730, 7700, 0, false, true)
+    kept.objs[1] = C.bagEmptySprite("small", true)
+    R.setBag(7730, 7700, 0, "small"); local keptPlot = SFarmingSystem.instance:plow(kept)
+    for _, sq in ipairs({ dsq, lsq, fsq, t1, t2, psq, kept }) do fire("LoadGridsquare", sq) end
+    for _ = 1, Ad.START_TICKS + Ad.WAIT_TICKS + 5 do fire("OnTick") end
+    local fp = SFarmingSystem.instance
+    check("a DWC bucket that lost its record is a working bucket again", R.getBag(7700, 7700, 0) == "dwc"
+        and fp:getLuaObjectAt(7700, 7700, 0) ~= nil and #dsq.objs == 0)
+    check("a rebuilt bucket asks for its medium again", not R.isBagSoiled(7700, 7700, 0))
+    check("a rebuilt soil bag keeps its soil", R.getBag(7702, 7700, 0) == "large" and R.isBagSoiled(7702, 7700, 0))
+    check("a bag left as furniture is converted", R.getBag(7704, 7700, 0) == "small" and fp:getLuaObjectAt(7704, 7700, 0) ~= nil)
+    local h1 = CannabisMod.Hydro.get(7706, 7700, 0, "ebb")
+    check("both halves of a rebuilt flood table pair up", R.getBag(7707, 7700, 0) == "ebb" and h1.partner == "7707_7700_0"
+        and CannabisMod.Hydro.get(7707, 7700, 0, "ebb").partner == "7706_7700_0")
+    check("a grow room panel that lost its room is registered again", Rooms.scan("7720_7720_0") ~= nil)
+    check("a bag that still has its plot is left alone", fp:getLuaObjectAt(7730, 7700, 0) == keptPlot and #kept.objs == 1)
+end
+
 end)()
 
 -- ---- Cannabis in pots: the pot stays, the plant is a raised layer ------------
