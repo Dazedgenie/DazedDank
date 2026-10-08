@@ -295,6 +295,30 @@ end
 
 --- What a player sees when inspecting a SEED item (not a planted plant).
 --- Below Agriculture 3 the type and sex are hidden.
+--- A short name for a seed in the Sow menu: what the player can read of it, without the trait list.
+function Info.seedShortLabel(seedData, level, reading)
+    if not seedData or not Info.tierOpen(Config.SEED_INSPECT_LEVEL, level, reading) then return "Unknown cannabis seed" end
+    local strain = seedData.strain and seedData.strain.name
+    local label = (strain and (strain .. " (" .. tostring(seedData.type) .. ")") or tostring(seedData.type)) .. ", " .. tostring(seedData.sex)
+    if reading and reading.genetics and seedData.hermieLineage then label = label .. ", hermie line" end
+    return label
+end
+
+--- Group carried seeds by the short label the player can read: a sorted list of { label, items }.
+function Info.seedGroups(items, level, reading, dataOf)
+    local byLabel, list = {}, {}
+    for _, item in ipairs(items) do
+        local label = Info.seedShortLabel(dataOf(item), level, reading)
+        if not byLabel[label] then
+            byLabel[label] = { label = label, items = {} }
+            list[#list + 1] = byLabel[label]
+        end
+        table.insert(byLabel[label].items, item)
+    end
+    table.sort(list, function(a, b) return a.label < b.label end)
+    return list
+end
+
 function Info.seedLabel(seedData, level, reading)
     if not seedData or not Info.tierOpen(Config.SEED_INSPECT_LEVEL, level, reading) then
         return "Unknown cannabis seed"

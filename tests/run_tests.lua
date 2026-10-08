@@ -4023,5 +4023,26 @@ end)()
     check("tracker: durations", Rp.duration(0.5) == "30m" and Rp.duration(1.25) == "1h 15m")
 end)()
 
+-- ---- Sow menu seed groups --------------------------------------------------
+;(function()
+    local St = CannabisMod.Strains
+    local function seed(i, sex, extra)
+        local d = { type = St.typeOf(St.STARTERS[i]), strain = St.copy(St.STARTERS[i]), sex = sex }
+        for k, v in pairs(extra or {}) do d[k] = v end
+        return { d = d }
+    end
+    local items = { seed(1, "Female"), seed(1, "Female"), seed(1, "Male"), seed(4, "Female"), seed(4, "Female", { hermieLineage = true }) }
+    local dataOf = function(it) return it.d end
+    local groups = I.seedGroups(items, 5, nil, dataOf)
+    local function count(label) for _, g in ipairs(groups) do if g.label == label then return #g.items end end return 0 end
+    check("sow: seeds group by strain and sex", #groups == 3 and count("Knox Kush (Indica), Female") == 2
+        and count("Knox Kush (Indica), Male") == 1 and count("Riverside Haze (Sativa), Female") == 2)
+    groups = I.seedGroups(items, 1, nil, dataOf)
+    check("sow: below the inspect level every seed is one unknown group", #groups == 1 and groups[1].label == "Unknown cannabis seed" and #groups[1].items == 5)
+    groups = I.seedGroups(items, 3, { boost = 0, genetics = true }, dataOf)
+    check("sow: a Breeder tells hermie lines apart", count("Riverside Haze (Sativa), Female, hermie line") == 1
+        and count("Riverside Haze (Sativa), Female") == 1)
+end)()
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
