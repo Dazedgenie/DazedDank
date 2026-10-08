@@ -1,6 +1,7 @@
 # Dazed Dank patch notes
 
 ## dd54 (Climate and UI redesign, in testing)
+- Changed: **old blackout curtains are cleared out.** Any still hanging are taken down as their squares load, their light-blocking records are dropped at game start, and curtains in your inventory and bags are removed when you load in (a message says how many). The Hang Blackout Curtain option is gone; hang a vanilla sheet instead.
 - Changed: the debug **Give cannabis test seeds** option gives 2 female and 1 male seed of each of the six starter strains (18 seeds) instead of one of each type.
 - Changed: harvested whole plants carry their strain name, wet and dried: "Wet Knox Kush (Indica)", "Dried Purple Riverside Haze (Sativa)". Plants already harvested pick the name up the first time they hang on a rack. Buds and joints were already named by strain; a bud only says "Hybrid Bud" when its plant had no strain (from before strains existed, or debug kits).
 - Added: **High Tracker** (right-click anywhere). A small window showing whether you're high, in withdrawal or sober: the strain smoked, coming up / peak / coming down, strength now and at peak, time left, tolerance, dependency, whether the hit has turned anxious, and each stat change per hour with your current value.

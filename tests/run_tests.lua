@@ -2580,6 +2580,22 @@ end
         check("Light Leaks off: outside lamps never get in", CannabisMod.Light.lampsAt(804, 802, 0).cap == nil)
         SandboxVars = nil
 
+        -- Retired curtains: a loaded square loses its overlay, the records go at game start, and inventories are emptied.
+        near.inv:AddItems(C.Rooms.CURTAIN_ITEM, 1)
+        fire("OnClientCommand", "CannabisMod", "hangCurtain", near, { x = 805, y = 801, z = 0, dir = "W" })
+        local function overlayCount() local n = 0 for _, e in ipairs(fakeSquares["805_801_0"].objs) do if (type(e) == "table" and e.sprite or e) == C.Rooms.CURTAIN_SPRITES.door.W then n = n + 1 end end return n end
+        check("retire: a hung curtain to clear", overlayCount() == 1 and R.openingsOf("800_800_0")[1].covered ~= R.openingsOf("800_800_0")[2].covered)
+        fire("LoadGridsquare", fakeSquares["805_801_0"])
+        fire("OnGameStart")
+        R.rebuild(gate)
+        check("retire: loading the square removes the overlay", overlayCount() == 0)
+        check("retire: game start forgets the curtain, so the door is open again", not R.openingsOf("800_800_0")[1].covered and not R.openingsOf("800_800_0")[2].covered)
+        near.inv:AddItems(C.Rooms.CURTAIN_ITEM, 3)
+        local had = near.inv:count(C.Rooms.CURTAIN_ITEM)
+        fire("OnClientCommand", "CannabisMod", "retireCurtains", near, {})
+        check("retire: curtains in the inventory are removed", had >= 3 and near.inv:count(C.Rooms.CURTAIN_ITEM) == 0
+            and sent[#sent].data.text:find("removed " .. had, 1, true))
+
         hourOfDay = 19
         local p = { x = 803, y = 801, z = 0, warnings = {}, stage = 2, care = 100, stress = 0, lightCap = 85, nextStageAt = 100 }
         check("sun through an open window leaks in the dusk dark hours", R.sunLeakAt("800_800_0", 803, 801, 19))

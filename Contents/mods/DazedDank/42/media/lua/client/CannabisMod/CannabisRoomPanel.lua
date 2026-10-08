@@ -175,14 +175,12 @@ local function addCurtainOption(player, context, obj)
         context:addOption("Take Down Blackout Curtain", player, function() act("removeCurtain") end)
         return
     end
-    local option = context:addOption("Hang Blackout Curtain", player, function() act("hangCurtain") end)
-    if not player:getInventory():containsTypeRecurse(Config.Rooms.CURTAIN_ITEM) then
-        option.notAvailable = true
-        local tip = ISInventoryPaneContextMenu.addToolTip()
-        tip.description = "You need a blackout curtain."
-        option.toolTip = tip
-    end
 end
+
+-- Blackout curtains are retired: ask the server to clear any left in this player's inventory.
+Events.OnCreatePlayer.Add(function(_, player)
+    if player then sendClientCommand(player, Config.COMMAND_MODULE, "retireCurtains", {}) end
+end)
 
 --- Add "Open Grow Room Panel" when the right-click lands on a panel.
 local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, test)

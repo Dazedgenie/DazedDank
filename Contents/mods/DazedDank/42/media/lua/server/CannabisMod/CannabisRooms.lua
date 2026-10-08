@@ -1261,6 +1261,74 @@ commands.removeCurtain = function(player, args)
     Net.notify(player, "Blackout curtain taken down")
 end
 
+-- --------------------------------------------------------------------------
+-- Retired blackout curtains: vanilla sheets do the job now, so old curtains are cleared out of saves.
+-- --------------------------------------------------------------------------
+
+--- True when an object is a blackout curtain overlay.
+function Rooms.isCurtainObject(obj)
+    local ok, name = pcall(function() return obj:getSprite():getName() end)
+    if not (ok and name) then return false end
+    for _, set in pairs(Config.Rooms.CURTAIN_SPRITES) do
+        for _, sprite in pairs(set) do if sprite == name then return true end end
+    end
+    return false
+end
+
+--- Remove every curtain overlay on a square; returns how many went.
+function Rooms.clearCurtainsOn(square)
+    local found = {}
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        if Rooms.isCurtainObject(obj) then found[#found + 1] = obj end
+    end
+    for _, obj in ipairs(found) do
+        pcall(square.RemoveTileObject, square, obj)
+        pcall(square.transmitRemoveItemFromSquare, square, obj)
+    end
+    if #found > 0 then Config.debugLog("removed " .. #found .. " retired blackout curtain(s) at " .. square:getX() .. "," .. square:getY() .. "," .. square:getZ()) end
+    return #found
+end
+
+--- Forget every hung curtain, so the frames count by their doors and vanilla sheets alone.
+function Rooms.forgetCurtains()
+    if not curtains then return 0 end
+    local keys = {}
+    for k in pairs(curtains) do keys[#keys + 1] = k end
+    for _, k in ipairs(keys) do curtains[k] = nil end
+    return #keys
+end
+
+--- Take every blackout curtain out of a player's inventory and bags; returns how many went.
+function Rooms.clearCurtainItems(player)
+    local inv = player and player:getInventory()
+    if not inv then return 0 end
+    local removed = 0
+    for _ = 1, 200 do
+        local item = inv:getFirstTypeRecurse(Config.Rooms.CURTAIN_ITEM)
+        if not item then break end
+        local container = item:getContainer()
+        if not container then break end
+        container:Remove(item)
+        pcall(sendRemoveItemFromContainer, container, item)
+        removed = removed + 1
+    end
+    return removed
+end
+
+Events.LoadGridsquare.Add(function(square) pcall(Rooms.clearCurtainsOn, square) end)
+Events.OnGameStart.Add(function()
+    local n = Rooms.forgetCurtains()
+    if n > 0 then print("[DazedDank] forgot " .. n .. " retired blackout curtain record(s)") end
+end)
+
+--- Sent by each client as its player loads: their old curtains are taken away.
+commands.retireCurtains = function(player, args)
+    local n = Rooms.clearCurtainItems(player)
+    if n > 0 then Net.notify(player, "Blackout curtains are retired (hang a sheet instead): removed " .. n .. " from your inventory") end
+end
+
 -- Walls and doors change rarely, so the rooms are re-read every ten minutes and once at load.
 Events.EveryTenMinutes.Add(function() Rooms.rebuild() Rooms.tick() end)
 Events.OnGameStart.Add(function() Rooms.rebuild() end)
