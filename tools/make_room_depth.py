@@ -18,7 +18,8 @@ OUT = f"{MOD}/common/media/depthmaps/DEPTH_{SHEET}.png"
 # Wall pieces by tile: the edge they hang on and how far their front stands off it, in squares.
 # Facing S hangs on the north edge, E on the west, N on the south and W on the east.
 FACING_EDGE = ("N", "W", "S", "E")
-WALL = {4: ("N", 0.12), 5: ("W", 0.12), 6: ("N", 0.12), 7: ("W", 0.12)}
+# Curtains sit flush in the frame (0.03), so nobody can stand between a curtain and its door.
+WALL = {4: ("N", 0.03), 5: ("W", 0.03), 6: ("N", 0.03), 7: ("W", 0.03)}
 for first, standoff in ((0, 0.12), (8, 0.20), (12, 0.20), (20, 0.22), (24, 0.22), (28, 0.22), (32, 0.26), (36, 0.22)):
     for k in range(4):
         WALL[first + k] = (FACING_EDGE[k], standoff)
