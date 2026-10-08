@@ -1112,7 +1112,7 @@ local function debugFill(r, now)
     r.fillPending = nil
 end
 
---- Debug: fill every hydro reservoir and water every soil pot or cannabis plot near (x, y). Returns reservoirs, pots.
+--- Debug: fill every hydro reservoir and drip tank and water every soil pot or cannabis plot near (x, y). Returns reservoirs, pots.
 function Hydro.debugFillNear(x, y, range)
     local now = Registry.nowHours()
     local done, reservoirs, pots = {}, 0, 0
@@ -1139,9 +1139,9 @@ function Hydro.debugFillNear(x, y, range)
             if Config.isHydro(kind) then fill(Hydro.reservoirOf(tx, ty, tz)) else water(tx, ty, tz) end
         end
     end
-    -- RDWC control buckets and flood reservoirs with no site linked yet are still reservoirs.
+    -- RDWC control buckets and flood reservoirs with no site linked yet, and drip tanks, have no bag of their own.
     for _, r in pairs(res or {}) do
-        if (r.isControl or r.isFlood) and r.x and near(r.x, r.y) then fill(r) end
+        if (r.isControl or r.isFlood or r.isDrip) and r.x and near(r.x, r.y) then fill(r) end
     end
     -- Cannabis planted straight in the ground has no bag.
     for _, plant in Registry.each() do
