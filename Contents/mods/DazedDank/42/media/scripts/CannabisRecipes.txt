@@ -526,27 +526,6 @@ module CannabisMod
         }
     }
 
-    craftRecipe DDMakeBlackoutCurtain
-    {
-        timedAction = Making,
-        time = 120,
-        NeedToBeLearn = true,
-        Tags = InHandCraft;Farming,
-        category = Farming,
-        xpAward = Tailoring:5,
-        SkillRequired = Tailoring:1,
-        inputs
-        {
-            item 1 tags[base:sewingneedle] mode:keep,
-            item 2 [Base.Thread],
-            item 4 [Base.RippedSheets],
-        }
-        outputs
-        {
-            item 1 CannabisMod.BlackoutCurtain,
-        }
-    }
-
     craftRecipe DDMakeClayPebbles
     {
         timedAction = Making,

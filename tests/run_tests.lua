@@ -2571,9 +2571,48 @@ end
         check("the sun leak stresses the plant and warns", p.stress > 0 and p.warnings.lightLeak == true)
         check("the leak is logged", R.roomAt(800, 800, 0).log[#R.roomAt(800, 800, 0).log].text:find("sunlight"))
         check("no sun leak at night or in the lit hours", not R.sunLeakAt("800_800_0", 803, 801, 3) and not R.sunLeakAt("800_800_0", 803, 801, 12))
+        -- An empty door frame to the outside lets the sun in too, so the window alone no longer seals the room.
         near.inv:AddItems(C.Rooms.CURTAIN_ITEM, 1)
         fire("OnClientCommand", "CannabisMod", "hangCurtain", near, { x = 802, y = 800, z = 0, dir = "N" })
-        check("a curtain on the window stops the sun leak", not R.sunLeakAt("800_800_0", 803, 801, 19))
+        check("an empty door frame to the outside lets the sun in", R.sunLeakAt("800_800_0", 803, 801, 19) == 1)
+
+        -- A real door: closed it seeps the DoorLeak share, and a sheet hung and drawn seals it.
+        local door = { open = false, sheet = nil }
+        function door:IsOpen() return self.open end
+        function door:HasCurtains() return self.sheet end
+        fakeSquares["804_801_0"].getDoorTo = function() return door end
+        local sheet = { shut = false }
+        function sheet:IsOpen() return not self.shut end
+        local function leakNow() R.rebuild(gate) return R.openingsOf("800_800_0") end
+        local function doorOf(ops) for _, o in ipairs(ops) do if o.kind == "door" then return o end end end
+        door.open = true
+        check("an open door leaks fully", doorOf(leakNow()).leak == 1)
+        door.open = false
+        local d = doorOf(leakNow())
+        check("a closed door with no sheet seeps a quarter by default", math.abs(d.leak - 0.25) < 1e-9 and d.seeps and not d.covered)
+        check("the sun seeps in round the closed door at that share", math.abs(R.sunLeakAt("800_800_0", 803, 801, 19) - 0.25) < 1e-9)
+        local before = (function() local q = { x = 803, y = 801, z = 0, warnings = {}, stage = 2, care = 100, stress = 0, lightCap = 85, nextStageAt = 100 }
+            CannabisMod.Light.update(q) return q end)()
+        -- Sun and the lamp outside both seep in, each at a quarter: half a full leak, not a whole one.
+        SandboxVars = { CannabisMod = { DoorLeak = 0 } }; leakNow()
+        local base = (function() local q = { x = 803, y = 801, z = 0, warnings = {}, stage = 2, care = 100, stress = 0, lightCap = 85, nextStageAt = 100 }
+            CannabisMod.Light.update(q) return q end)()
+        SandboxVars = nil; leakNow()
+        check("a seeping door stresses a plant a quarter as much per source", math.abs(before.stress - base.stress - C.Timer.LEAK_STRESS_PER_HOUR / 6 * 0.5) < 1e-6
+            and before.warnings.lightLeak == true)
+        check("a lamp seeping in round a closed door isn't the plant's light", CannabisMod.Light.lampsAt(803, 801, 0).cap == nil)
+        door.sheet = sheet
+        check("an open sheet on the door still seeps", doorOf(leakNow()).seeps)
+        sheet.shut = true
+        d = doorOf(leakNow())
+        check("a drawn sheet on a closed door seals it", d.leak == 0 and d.covered and not R.sunLeakAt("800_800_0", 803, 801, 19))
+        door.sheet = nil
+        SandboxVars = { CannabisMod = { DoorLeak = 0 } }
+        check("Closed Door Light Leak 0: a closed door seals", doorOf(leakNow()).covered)
+        SandboxVars = { CannabisMod = { DoorLeak = 100 } }
+        check("Closed Door Light Leak 100: a closed door leaks like an open one", doorOf(leakNow()).leak == 1)
+        SandboxVars = nil
+        fakeSquares["804_801_0"].getDoorTo = nil
         R.edgeKind, R.edgeBlocked = oldKind, oldBlocked
         R.remove("800_800_0")
         hourOfDay = 12

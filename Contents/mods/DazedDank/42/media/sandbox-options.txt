@@ -198,6 +198,16 @@ option CannabisMod.LightLeaks
     translation = CannabisMod_LightLeaks,
 }
 
+option CannabisMod.DoorLeak
+{
+    type = integer,
+    min = 0,
+    max = 100,
+    default = 25,
+    page = CannabisMod,
+    translation = CannabisMod_DoorLeak,
+}
+
 option CannabisMod.RoomPowerPenalty
 {
     type = boolean,

@@ -151,7 +151,10 @@ function Dash.build(info, scroll, fontH, measure)
     local open = 0
     for i, o in ipairs(openings) do
         if not o.covered then open = open + 1 end
-        if i <= 3 then dot(o.covered, (o.kind == "door" and "Door " or "Window ") .. o.x .. "," .. o.y .. (o.covered and " covered" or " open")) end
+        if i <= 3 then
+            local state = o.covered and " covered" or (o.seeps and " seeps (hang a sheet)" or " open")
+            dot(o.covered, (o.kind == "door" and "Door " or "Window ") .. o.x .. "," .. o.y .. state)
+        end
     end
     if #openings > 3 then text("+" .. (#openings - 3) .. " more", sx + 30, sy, C.muted) end
     if #openings == 0 then text("No doors or windows", sx + 30, sy, C.muted) end

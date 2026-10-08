@@ -93,7 +93,7 @@ end
 --- Returns { cap, name } for the brightest lamp lit right now (nil when none is lit), plus
 --- anyLong / anyShort for whether any reaching lamp runs a veg (24/0, 18/6) or a 12/12 schedule.
 function Light.lampsAt(x, y, z)
-    local out = { cap = nil, name = nil, anyLong = false, anyShort = false, longOn = false }
+    local out = { cap = nil, name = nil, anyLong = false, anyShort = false, longOn = false, seepLong = 0 }
     local hour = getGameTime():getHour()
     local range = Config.sandbox("LampRange")
     local needPower = Config.sandbox("LampsNeedPower")
@@ -110,8 +110,14 @@ function Light.lampsAt(x, y, z)
                 if lamps then
                     for _, lamp in ipairs(lamps) do
                         local def = lamp.def
-                        local blocked = roomKey and Rooms.keyAt(x + dx, y + dy, z) ~= roomKey
-                            and not Rooms.outsideLampReaches(roomKey, x, y, x + dx, y + dy, def, range)
+                        local outsideLeak = roomKey and Rooms.keyAt(x + dx, y + dy, z) ~= roomKey
+                            and Rooms.lampLeak(roomKey, x, y, x + dx, y + dy, def, range) or nil
+                        local blocked = outsideLeak ~= nil and outsideLeak < 1
+                        -- A lit veg lamp seeping in round a closed door is a small leak, not the plant's light.
+                        if blocked and outsideLeak > 0 and isLongDay(lamp.schedule) and isOn(lamp.schedule, hour)
+                            and reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
+                            out.seepLong = math.max(out.seepLong, outsideLeak)
+                        end
                         if not blocked and reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
                             local on = isOn(lamp.schedule, hour)
                             if isLongDay(lamp.schedule) then
@@ -182,9 +188,9 @@ function Light.update(plant)
     local hourNow = getGameTime():getHour()
     local sunLeak = roomKey ~= nil and Config.sandbox("LightLeaks") and Rooms.sunLeakAt(roomKey, plant.x, plant.y, hourNow)
     if sunLeak then
-        plant.stress = Config.clamp((plant.stress or 0) + Config.Timer.LEAK_STRESS_PER_HOUR / 6, 0, Config.Stress.MAX)
+        plant.stress = Config.clamp((plant.stress or 0) + Config.Timer.LEAK_STRESS_PER_HOUR / 6 * sunLeak, 0, Config.Stress.MAX)
         plant.warnings.lightLeak = true
-        Rooms.noteLeak(roomKey, "Light leak: sunlight through an uncovered window")
+        Rooms.noteLeak(roomKey, sunLeak < 1 and "Light leak: sunlight round a closed door" or "Light leak: sunlight through an uncovered window or open door")
     end
 
     if scheduledDark then
@@ -216,6 +222,10 @@ function Light.update(plant)
         plant.stress = Config.clamp((plant.stress or 0) + Config.Timer.LEAK_STRESS_PER_HOUR / 6, 0, Config.Stress.MAX)
         plant.warnings.lightLeak = true
         if roomKey then Rooms.noteLeak(roomKey, "Light leak: a lamp outside the room") end
+    elseif (lamps.seepLong or 0) > 0 and shortDark and cycle ~= "long" and Config.sandbox("LightLeaks") then
+        plant.stress = Config.clamp((plant.stress or 0) + Config.Timer.LEAK_STRESS_PER_HOUR / 6 * lamps.seepLong, 0, Config.Stress.MAX)
+        plant.warnings.lightLeak = true
+        if roomKey then Rooms.noteLeak(roomKey, "Light leak: a lamp outside, round a closed door") end
     elseif cycle ~= "leak" and not sunLeak then
         plant.warnings.lightLeak = nil
     end

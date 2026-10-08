@@ -14,7 +14,7 @@ Agreed 2026-10-03. Builds on the released mod without changing any existing item
 
 - Every lamp and flood light inside the fill is synced to the room schedule (24/0, 18/6, 12/12). A lamp placed in the room with its own timer has the timer removed and handed back.
 - Flood lights outside any room stay independent.
-- **Leaks:** any light not from the room's lamps during the room's dark hours. Sources: a lamp in another room through a doorway, a flood light outside, and sun through a window. Blocked by a **Blackout Curtain** hung on a door frame or window frame from inside the room; vanilla closed sheet curtains also count on windows. The Lights tab lists each opening and whether it's covered.
+- **Leaks:** any light not from the room's lamps during the room's dark hours. Sources: a lamp in another room through a doorway, a flood light outside, and sun through a window or a door to the outside. A vanilla sheet or curtain hung and drawn shut seals a window or door. A closed door with no drawn sheet seeps a share of a full leak round its edges (sandbox **Closed Door Light Leak**, 25% by default, 0 to seal); an open door or uncovered window leaks fully. A seep adds its share of the leak stress but never counts as the plant's light. Blackout curtains already hung still seal. The Lights tab lists each opening as covered, seeping or open.
 - The existing per-plant leak stress stays as the effect.
 
 ## Hydro
@@ -61,7 +61,7 @@ Agreed 2026-10-03. Builds on the released mod without changing any existing item
 
 ## Settled details
 
-- Blackout curtain: ripped sheets, thread and needle, Tailoring 1, taught by Controlled Environment Quarterly. On a door it also hides the room from zombies looking through the door's window, like a vanilla sheet.
+- Blackout curtain: retired (no longer craftable); vanilla sheets do the job. Curtains already hung or carried still work. On a door it also hides the room from zombies looking through the door's window, like a vanilla sheet.
 - Rooms can be renamed from the panel; the name shows in the panel title and log entries.
 
 ## Build progress (fork `DazedDank-GrowRooms`, branch `growrooms`)

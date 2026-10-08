@@ -847,6 +847,7 @@ Config.SandboxDefaults = {
     StrainWords       = 1,    -- strain name words: 1 original and real strains, 2 original only, 3 real strains only
     RoomClimate       = true, -- grow rooms simulate temperature and humidity (off = rooms sit at their targets)
     LightLeaks        = true, -- light from outside a grow room's own lamps counts as a leak in its dark hours
+    DoorLeak          = 25,   -- percent of a full leak that seeps round a closed door with no drawn sheet (0 = closed doors seal)
     RoomPowerPenalty  = true, -- a power cut in a grow room adds stress for the lit hours lost (off = only the per-plant penalty)
     StrainTint        = true, -- plants take a light tint from their strain
     LampHeat          = true, -- lit grow lamps warm Dazed Climate rooms

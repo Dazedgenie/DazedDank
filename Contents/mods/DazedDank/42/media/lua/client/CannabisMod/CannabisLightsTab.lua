@@ -70,6 +70,7 @@ function LightsTab:render()
         local kind = (o.kind == "window" and "Window " or "Door ") .. o.x .. ", " .. o.y
         self:drawText(kind, 350, y, 1, 1, 1, 1, font)
         if o.covered then self:drawText("Covered", 470, y, 0.5, 0.95, 0.5, 1, font)
+        elseif o.seeps then self:drawText("Seeps: hang a sheet", 470, y, 1, 0.85, 0.45, 1, font)
         else self:drawText("OPEN", 470, y, 1, 0.75, 0.35, 1, font) end
     end
     if #info.lamps == 0 then

@@ -14,7 +14,7 @@ Recipes.NAMES = {
     "DDMakeCuringJar", "DDMakeCuringBarrel", "DDSwapPapers",
     "DDMakeDWCBucket", "DDMakeDWCBucketXL", "DDMakeClayPebbles", "DDMakeRDWCSite", "DDMakeRDWCControl",
     "DDMakeFloodTable", "DDMakeFloodReservoir", "DDMakeFloodTimer",
-    "DDMakeGrowRoomPanel", "DDMakeBlackoutCurtain",
+    "DDMakeGrowRoomPanel",
     "DDMakeExhaustFan", "DDMakeIntakeFan", "DDMakeHeater", "DDMakeDehumidifier", "DDMakeHumidifier", "DDMakeWallAC", "DDMakeCirculationFan", "DDMakeDripTank",
 }
 

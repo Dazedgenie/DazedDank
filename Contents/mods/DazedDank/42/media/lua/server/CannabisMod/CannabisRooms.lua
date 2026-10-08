@@ -82,7 +82,51 @@ function Rooms.vanillaCovered(a, b)
     return ok and covered == true
 end
 
---- Every door and window frame on a room's edge, with whether a curtain covers it.
+--- The door between squares a and b and its state: open, and whether a sheet hung on it is drawn. Nil when there is none.
+function Rooms.doorState(a, b)
+    local door = nil
+    for _, pair in ipairs({ { a, b }, { b, a } }) do
+        local ok, d = pcall(pair[1].getDoorTo, pair[1], pair[2])
+        if ok and d then door = d break end
+    end
+    -- Fallback: the door object standing on either square (the edge is already known to be a door frame).
+    if not door then
+        for _, sq in ipairs({ a, b }) do
+            pcall(function()
+                local objects = sq:getObjects()
+                for i = 0, objects:size() - 1 do
+                    local o = objects:get(i)
+                    if not door and (instanceof(o, "IsoDoor") or (instanceof(o, "IsoThumpable") and o:isDoor())) then door = o end
+                end
+            end)
+        end
+    end
+    if not door then return nil end
+    local isOpen = false
+    pcall(function() isOpen = door:IsOpen() == true end)
+    -- A vanilla door's sheet is its own curtain object (as for windows); built doors answer for it themselves.
+    local drawn = false
+    pcall(function()
+        local c = door:HasCurtains()
+        if not c then return end
+        if c ~= true and c.IsOpen then drawn = not c:IsOpen()
+        elseif door.isCurtainOpen then drawn = not door:isCurtainOpen() end
+    end)
+    return isOpen, drawn == true
+end
+
+--- How much light an opening lets in, 0 (sealed) to 1 (open): a drawn curtain or sheet seals it,
+--- and a closed door with no drawn sheet seeps the sandbox DoorLeak share round its edges.
+function Rooms.leakOf(kind, sq, nb, edge)
+    if curtains[edge] == true then return 0 end
+    if kind == "window" then return Rooms.vanillaCovered(sq, nb) and 0 or 1 end
+    local isOpen, drawn = Rooms.doorState(sq, nb)
+    if isOpen == nil or isOpen then return 1 end
+    if drawn then return 0 end
+    return Config.clamp((tonumber(Config.sandbox("DoorLeak")) or 25) / 100, 0, 1)
+end
+
+--- Every door and window frame on a room's edge, with how much light it lets in.
 function Rooms.findOpenings(set)
     local cell = getCell()
     local out = {}
@@ -97,8 +141,11 @@ function Rooms.findOpenings(set)
                 local kind = nb and Rooms.edgeKind(sq, nb)
                 if kind then
                     local edge = Rooms.edgeKey(x, y, z, d[3])
-                    local covered = curtains[edge] == true or (kind == "window" and Rooms.vanillaCovered(sq, nb))
-                    out[#out + 1] = { x = x, y = y, z = z, ox = nx, oy = ny, kind = kind, edge = edge, covered = covered }
+                    local leak = Rooms.leakOf(kind, sq, nb, edge)
+                    local outside = false
+                    pcall(function() outside = nb:isOutside() == true end)
+                    out[#out + 1] = { x = x, y = y, z = z, ox = nx, oy = ny, kind = kind, edge = edge, leak = leak,
+                        covered = leak <= 0, seeps = leak > 0 and leak < 1, outside = outside }
                 end
             end
         end
@@ -114,29 +161,39 @@ end
 --- The openings of a room by its panel key.
 function Rooms.openingsOf(panelKey) return openings[panelKey] or {} end
 
---- True when light from an outside lamp at (lx, ly) can reach a plant at (px, py) inside the room: only through an uncovered opening.
-function Rooms.outsideLampReaches(panelKey, px, py, lx, ly, def, range)
-    if not Config.sandbox("LightLeaks") then return false end
+--- How much of an outside lamp at (lx, ly) reaches a plant at (px, py) in the room: the leakiest opening near the plant
+--- that the lamp shines on, 0 to 1.
+function Rooms.lampLeak(panelKey, px, py, lx, ly, def, range)
+    if not Config.sandbox("LightLeaks") then return 0 end
+    local best = 0
     for _, o in ipairs(openings[panelKey] or {}) do
-        if not o.covered and math.abs(px - o.x) + math.abs(py - o.y) <= Config.Rooms.LEAK_NEAR
+        local leak = o.leak or (o.covered and 0 or 1)
+        if leak > best and math.abs(px - o.x) + math.abs(py - o.y) <= Config.Rooms.LEAK_NEAR
             and Config.Light.reaches(o.ox - lx, o.oy - ly, def.radius, range) then
-            return true
+            best = leak
         end
     end
-    return false
+    return best
 end
 
---- True when sunlight through an uncovered window reaches a plant of a 12/12 room during its dark hours.
+--- True when an outside lamp shines into the room through a fully open opening, so it counts as the plant's light.
+function Rooms.outsideLampReaches(panelKey, px, py, lx, ly, def, range)
+    return Rooms.lampLeak(panelKey, px, py, lx, ly, def, range) >= 1
+end
+
+--- How much sunlight reaches a plant of a 12/12 room during its dark hours, 0 to 1: through an uncovered window,
+--- or a door to the outside (open, or seeping round its edges when closed). False when none does.
 function Rooms.sunLeakAt(panelKey, px, py, hour)
     local room = panels[panelKey]
     if not room or room.schedule ~= "12/12" or Config.Timer.isOn("12/12", hour) then return false end
     if hour < Config.Rooms.SUN_FROM or hour >= Config.Rooms.SUN_TO then return false end
+    local best = 0
     for _, o in ipairs(openings[panelKey] or {}) do
-        if o.kind == "window" and not o.covered and math.abs(px - o.x) + math.abs(py - o.y) <= Config.Rooms.LEAK_NEAR then
-            return true
-        end
+        local leak = o.leak or (o.covered and 0 or 1)
+        local sunny = o.kind == "window" or o.outside
+        if sunny and leak > best and math.abs(px - o.x) + math.abs(py - o.y) <= Config.Rooms.LEAK_NEAR then best = leak end
     end
-    return false
+    return best > 0 and best or false
 end
 
 --- Log a line at most once every twelve hours per `kind`, so a steady problem doesn't flood the log.
