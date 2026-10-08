@@ -742,9 +742,16 @@ check("debug kit: dome tray, gel, 3 cuttings", dbg.inv:count(C.DOME_ITEM) == 1 a
 -- ---- Debug commands ------------------------------------------------------
 local tester = newPlayer(430, 430, 3)
 fire("OnClientCommand", "CannabisMod", "debugGiveSeeds", tester, {})
-local males = 0
-for _, it in ipairs(tester.inv.items) do if S.getData(it).sex == C.SEX.MALE then males = males + 1 end end
-check("debug seeds: 6 given, 3 male", #tester.inv.items == 6 and males == 3)
+local males, perStrain = 0, {}
+for _, it in ipairs(tester.inv.items) do
+    local d = S.getData(it)
+    if d.sex == C.SEX.MALE then males = males + 1 end
+    perStrain[d.strain.name] = (perStrain[d.strain.name] or 0) + (d.sex == C.SEX.MALE and 10 or 1)
+end
+local allThree = true
+for _, st in ipairs(CannabisMod.Strains.STARTERS) do if perStrain[st.name] ~= 12 then allThree = false end end
+check("debug seeds: 2 female and 1 male of each starter", #tester.inv.items == 3 * #CannabisMod.Strains.STARTERS
+    and males == #CannabisMod.Strains.STARTERS and allThree)
 local plotD = newPlot(430, 430, 0)
 ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = tester.inv.items[1], plant = { x = 430, y = 430, z = 0 } })
 fire("OnClientCommand", "CannabisMod", "debugNextStage", tester, { x = 430, y = 430, z = 0 })

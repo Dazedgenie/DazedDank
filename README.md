@@ -18,8 +18,8 @@ Mods menu.
 
 ## In-game test (launch with -debug)
 
-1. Right-click the ground: **[Debug] Give cannabis test seeds**. You get 6
-   seeds: 3 female and 3 male, one of each type.
+1. Right-click the ground: **[Debug] Give cannabis test seeds**. You get 18
+   seeds: 2 female and 1 male of each of the six starter strains.
 2. Right-click a seed in your inventory: **Inspect Seed**. Below
    Agriculture 3 it says "Unknown cannabis seed"; at 3+ it shows type and sex.
 3. Plow a plot, then use the vanilla **Sow Seed** menu. Cannabis is listed there.

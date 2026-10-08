@@ -99,18 +99,17 @@ end
 --- type, plus one male of each type for breeding tests.
 commands.debugGiveSeeds = function(player, args)
     if not isDebugAllowed(player) then return end
-    local T, SEX = Config.TYPES, Config.SEX
-    local set = {
-        { type = T.INDICA, sex = SEX.FEMALE }, { type = T.SATIVA, sex = SEX.FEMALE },
-        { type = T.HYBRID, sex = SEX.FEMALE }, { type = T.INDICA, sex = SEX.MALE },
-        { type = T.SATIVA, sex = SEX.MALE },   { type = T.HYBRID, sex = SEX.MALE },
-    }
+    -- Two females and a male of every starter strain, so each can be grown out or bred.
+    local SEX, set = Config.SEX, {}
+    for _, strain in ipairs(CannabisMod.Strains.STARTERS) do
+        for _, sex in ipairs({ SEX.FEMALE, SEX.FEMALE, SEX.MALE }) do set[#set + 1] = { strain = strain, sex = sex } end
+    end
     CannabisMod.Farming.giveItems(player, Config.SEED_ITEM, #set, function(item, n)
-        local seed = CannabisMod.Genetics.newSeed(set[n].type)
+        local seed = CannabisMod.Genetics.newSeed(set[n].strain)
         seed.sex = set[n].sex
         CannabisMod.Seeds.setData(item, seed)
     end)
-    Net.notify(player, "Gave 6 test seeds: 3 female, 3 male (one of each type)")
+    Net.notify(player, "Gave " .. #set .. " test seeds: 2 female and 1 male of each starter strain")
 end
 
 --- Skip the plant on a tile straight to its next stage.
