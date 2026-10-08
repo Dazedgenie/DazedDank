@@ -74,9 +74,12 @@ function Dash.build(info, scroll, fontH, measure)
     local mode = string.upper(info.mode or "Veg")
     local mw = measure("Small", mode) + 20
     button(nx + 10, (HEAD_H - small - 6) / 2, mw, small + 6, mode, "mode", true)
-    local counts = (info.tiles or 0) .. " tiles  ·  " .. #(info.lamps or {}) .. " lamps  ·  " .. #(info.plants or {}) .. " plants"
+    local counts = (info.tiles or 0) .. " tiles  |  " .. #(info.lamps or {}) .. " lamps  |  " .. #(info.plants or {}) .. " plants"
     text(counts, nx + mw + 20, (HEAD_H - small) / 2, { 0.79, 0.75, 0.88 })
-    text(string.format("%02d:00", info.hour or 0), W - 44, (HEAD_H - small) / 2, C.white, "Small", "right")
+    -- Refresh asks the server for the room again; the close button sits to its right as a child of the window.
+    local rw = measure("Small", "Refresh") + 20
+    button(W - 44 - rw, (HEAD_H - small - 6) / 2, rw, small + 6, "Refresh", "refresh", true)
+    text(string.format("%02d:00", info.hour or 0), W - 44 - rw - 10, (HEAD_H - small) / 2, C.white, "Small", "right")
 
     -- Row 1: lights, temperature, humidity, room seal.
     local y1, h1 = HEAD_H + M, 132
@@ -175,7 +178,7 @@ function Dash.build(info, scroll, fontH, measure)
                     ops[#ops + 1] = { kind = "plant", x = x + 8, y = A.y + 34, w = 84, h = A.h - 42, sprite = p.sprite, pot = p.pot, lift = p.lift or 0, fit = true }
                 end
                 local tx, ty = x + 102, A.y + 40
-                local sub = p.type and (p.type .. (p.looks and ("  ·  " .. p.looks) or "")) or p.looks
+                local sub = p.type and (p.type .. (p.looks and ("  |  " .. p.looks) or "")) or p.looks
                 if sub then text(fit(sub, "Small", x + cw - 10 - tx), tx, ty, C.muted); ty = ty + small + 2 end
                 if p.sex then text(p.sex, tx, ty, (p.sex == "Male" or p.sex == "Hermaphrodite") and C.bad or C.text); ty = ty + small + 2 end
                 ty = ty + 4
@@ -193,13 +196,18 @@ function Dash.build(info, scroll, fontH, measure)
                     local hc = (p.health == "Excellent" or p.health == "Good") and C.good or (p.health == "Fair" and C.warn or C.bad)
                     text("Health", tx, ty, C.muted); text(p.health, x + cw - 12, ty, hc, "Small", "right")
                 end
-                local wy = A.y + A.h - small - 16
+                -- The warning chip sits on the bottom of the photo, so it never covers the rows beside it.
+                local chip = nil
                 if (p.warnings or 0) > 0 then
-                    local str = p.warnings .. (p.warnings == 1 and " warning" or " warnings")
-                    pill(tx, wy, cw - 114, small + 6, C.alert)
-                    text(str, tx + (cw - 114) / 2, wy + 3, C.warn, "Small", "center")
+                    chip = { p.warnings .. (p.warnings == 1 and " warning" or " warnings"), C.alert, C.warn }
                 elseif p.health then
-                    text("all good", tx, wy + 3, C.good)
+                    chip = { "all good", { 0.886, 0.957, 0.898 }, C.good }
+                end
+                if chip then
+                    local cwid = math.min(80, measure("Small", chip[1]) + 12)
+                    local cy = A.y + A.h - 8 - (small + 6) - 4
+                    pill(x + 8 + (84 - cwid) / 2, cy, cwid, small + 6, chip[2])
+                    text(fit(chip[1], "Small", cwid - 8), x + 8 + 42, cy + 3, chip[3], "Small", "center")
                 end
                 local vx, vw = math.max(x, A.x), math.min(x + cw, A.x + A.w) - math.max(x, A.x)
                 if vw > 0 then hit(vx, A.y, vw, A.h, "plant:" .. i) end

@@ -19,12 +19,10 @@ local function measure(name, str) return getTextManager():MeasureStringX(FONTS[n
 
 local PlantPanel = ISPanel:derive("CannabisPlantPanel")
 
+-- The layout draws in prerender, under the close button; render runs after children, so drawing there hid it.
 function PlantPanel:prerender()
     local g = Layout.COLORS.ground
     self:drawRect(0, 0, self.width, self.height, 1, g[1], g[2], g[3])
-end
-
-function PlantPanel:render()
     for _, op in ipairs(self.model.ops) do
         local c = op.color
         if op.kind == "rect" then
@@ -68,6 +66,7 @@ function StatusWindow.open(data)
     close.backgroundColorMouseOver = { r = 1, g = 1, b = 1, a = 0.12 }
     close.borderColor = { r = 0, g = 0, b = 0, a = 0 }
     close.textColor = { r = 1, g = 1, b = 1, a = 1 }
+    close.font = UIFont.Medium
     panel:addChild(close)
     panel:addToUIManager()
     panel:setVisible(true)

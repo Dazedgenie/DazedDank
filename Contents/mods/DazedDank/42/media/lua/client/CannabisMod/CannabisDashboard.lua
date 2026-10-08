@@ -53,12 +53,10 @@ function DashPanel:setScroll(value)
     self.model = Dash.build(self.info, self.scroll, fontHeight, measure)
 end
 
+-- The layout draws in prerender, under the child buttons; render runs after children, so drawing there hid the close button.
 function DashPanel:prerender()
     local g = COLORS.ground
     self:drawRect(0, 0, self.width, self.height, 1, g[1], g[2], g[3])
-end
-
-function DashPanel:render()
     for _, op in ipairs(self.model.ops) do
         local c = op.color
         if op.kind == "rect" then
@@ -92,6 +90,9 @@ function DashPanel:render()
             end
         end
     end
+end
+
+function DashPanel:render()
     -- A faint wash over whatever the mouse would click, so the clickable parts can be found.
     local h = self:isMouseOver() and self:hitAt(self:getMouseX(), self:getMouseY())
     if h then
@@ -258,6 +259,8 @@ function DashPanel:onHit(id, right)
         menu(items)
     elseif id == "log" then
         self:openLog()
+    elseif id == "refresh" then
+        send("requestRoom", self:args())
     end
 end
 
@@ -284,6 +287,7 @@ function DashPanel.create(info, x, y, onClose)
     close.backgroundColorMouseOver = { r = 1, g = 1, b = 1, a = 0.12 }
     close.borderColor = { r = 0, g = 0, b = 0, a = 0 }
     close.textColor = { r = 1, g = 1, b = 1, a = 1 }
+    close.font = UIFont.Medium
     panel:addChild(close)
     panel:addToUIManager()
     panel:setVisible(true)

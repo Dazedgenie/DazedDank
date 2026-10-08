@@ -156,7 +156,7 @@ function Layout.build(data, fontH, measure)
     end
     if data.container then
         label("Planted in", cx, cy); cy = cy + small + 1
-        text(data.container .. (data.generation and ("  ·  Gen " .. data.generation) or ""), cx, cy, COLORS.text); cy = cy + small + 8
+        text(data.container .. (data.generation and ("  |  Gen " .. data.generation) or ""), cx, cy, COLORS.text); cy = cy + small + 8
     end
     if data.stage and Config.STAGE[data.stage] then
         label("Stage", cx, cy)
@@ -356,7 +356,7 @@ function Layout.build(data, fontH, measure)
     -- Footer: what more Agriculture would show.
     local nextLevel = Layout.nextUnlock(data.level or 0)
     local foot = "Agriculture " .. tostring(data.level or 0)
-    if nextLevel then foot = foot .. "  ·  more at level " .. nextLevel end
+    if nextLevel then foot = foot .. "  |  more at level " .. nextLevel end
     text(foot, W - M, y - 2, COLORS.muted, "Small", "right")
     y = y - 2 + small + M
 
