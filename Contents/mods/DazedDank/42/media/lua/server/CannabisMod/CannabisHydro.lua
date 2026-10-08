@@ -83,6 +83,7 @@ function Hydro.capacity(r)
         return H.RDWC_CONTROL_L + H.RDWC_SITE_L * Hydro.sitesOf(Config.tileKey(r.x, r.y, r.z))
     end
     if r and r.kind == "ebb" then return H.EBB_RESERVOIR_L end
+    if r and r.kind == "drip" then return Config.Drip.TANK_L end
     -- A DWC bucket holds its own size: the XL bucket more than the standard one.
     local def = r and r.x and Config.GrowBag[Registry.getBag(r.x, r.y, r.z)]
     return (def and def.reservoirL) or H.RESERVOIR_L.dwc
@@ -127,6 +128,21 @@ function Hydro.hasControl(x, y, z) return hasSprite(x, y, z, H.CONTROL_SPRITE) e
 
 --- True if an Ebb and Flow flood reservoir stands on this square (nil when the square isn't loaded).
 function Hydro.hasFlood(x, y, z) return hasSprite(x, y, z, H.FLOOD_SPRITE) end
+
+--- True if a drip irrigation tank stands on this square (nil when the square isn't loaded).
+function Hydro.hasDrip(x, y, z) return hasSprite(x, y, z, Config.Drip.SPRITE) end
+
+--- Every drip tank record: for key, r in Hydro.eachDrip() do ... end
+function Hydro.eachDrip()
+    local list = {}
+    for key, r in pairs(res or {}) do if r.isDrip then list[#list + 1] = { key, r } end end
+    local i = 0
+    return function()
+        i = i + 1
+        local e = list[i]
+        if e then return e[1], e[2] end
+    end
+end
 
 -- RDWC sites that found no control in range, by tile key -> when they looked (not saved; cleared by forgetLinks).
 local missedSearch = {}
@@ -297,6 +313,12 @@ function Hydro.reservoirAt(x, y, z, kind)
         return r
     end
     if kind == "dwc" and Config.hydroOf(Registry.getBag(x, y, z)) == "dwc" then return Hydro.get(x, y, z, "dwc") end
+    if kind == "drip" then
+        if not Hydro.hasDrip(x, y, z) then return nil end
+        local r = Hydro.get(x, y, z, "drip")
+        r.isDrip = true
+        return r
+    end
     return nil
 end
 
@@ -309,6 +331,7 @@ function Hydro.reservoirOfObject(x, y, z, kind)
     if r then
         if kind == "rdwc" then r.isControl = true end
         if kind == "ebb" then r.isFlood = true end
+        if kind == "drip" then r.isDrip = true end
     end
     return r
 end
@@ -573,6 +596,11 @@ end
 --- Returns "noWater", "burn" or "mixed" for the water, and how many plants were fed.
 function Hydro.dose(r, nutrient)
     if r.level <= 0 then return "noWater", 0 end
+    -- A drip tank just holds the food; the drip feeds each pot as it waters it.
+    if r.kind == "drip" then
+        r.strength, r.nutrient = 1, nutrient
+        return "mixed", 0
+    end
     local burn = r.strength > H.BURN_ABOVE
     r.strength, r.nutrient = 1, nutrient
     local fed = 0
@@ -637,6 +665,7 @@ local function hydroTarget(player, args)
     end
     if Hydro.hasControl(x, y, z) then return nil, nil, Hydro.reservoirAt(x, y, z, "rdwc"), true end
     if Hydro.hasFlood(x, y, z) then return nil, nil, Hydro.reservoirAt(x, y, z, "ebb"), true end
+    if Hydro.hasDrip(x, y, z) then return nil, nil, Hydro.reservoirAt(x, y, z, "drip"), true end
     return nil
 end
 
@@ -713,11 +742,30 @@ function Hydro.topUp(player, r, say)
     -- A brand-new reservoir's first fill is fresh water, so its age starts then (topping up a dried-out one isn't a change).
     if not r.everFilled then r.changedAt = Registry.nowHours() end
     r.everFilled = true
+    -- Plain water thins the food already in a drip tank.
+    if r.kind == "drip" and (r.strength or 0) > 0 then r.strength = r.strength * r.level / (r.level + poured) end
     r.level = r.level + poured
     if tainted then r.tainted = true end
     if r.level >= Hydro.capacity(r) - 0.05 then r.fillPending = nil end
     say(string.format("Topped up the reservoir: %.1f of %d L", r.level, Hydro.capacity(r))
         .. (tainted and " (tainted water)" or ""))
+end
+
+--- Mix a bottle of nutrients into the reservoir on this tile (the drip tank's menu uses this).
+commands.hydroDose = function(player, args)
+    local r = reservoirFor(player, args)
+    local itemType = Config.NUTRIENT_ITEMS[args.nutrient]
+    if not (r and itemType) then return end
+    if r.level <= 0 then Net.notify(player, "The tank is empty: top it up first") return end
+    local bottle = Seeds.findItem(player:getInventory(), function(item) return item:getFullType() == itemType end)
+    if not bottle then Net.notify(player, "You have no " .. args.nutrient .. " nutrients") return end
+    local container = bottle:getContainer()
+    if container then
+        container:Remove(bottle)
+        sendRemoveItemFromContainer(container, bottle)
+    end
+    Hydro.dose(r, args.nutrient)
+    Net.notify(player, "Mixed " .. args.nutrient .. " nutrients into the tank")
 end
 
 commands.hydroTopUp = function(player, args)
@@ -805,6 +853,7 @@ end
 
 --- The living plants that drink from this reservoir.
 function Hydro.servedPlants(r)
+    if r and r.kind == "drip" then return CannabisMod.Drip and CannabisMod.Drip.plantsOf(r) or {} end
     -- Only plants close enough to share this reservoir are looked up (a DWC bucket is its own tile).
     local reach = (r.kind == "rdwc" and H.RDWC_RANGE) or (r.kind == "ebb" and H.EBB_SCAN_MAX) or 0
     local out = {}
@@ -854,6 +903,12 @@ commands.hydroCheck = function(player, args)
     elseif r.kind == "ebb" then
         parts[#parts + 1] = #Hydro.ebbSitesOf(Config.tileKey(r.x, r.y, r.z)) .. " of " .. H.EBB_MAX_SITES .. " table sites connected"
         parts[#parts + 1] = r.floodTimer and "flood timer fitted" or "no flood timer (flood by hand)"
+    elseif r.kind == "drip" and CannabisMod.Drip then
+        local pots = #CannabisMod.Drip.tilesOf(r)
+        local inRoom = CannabisMod.Rooms and CannabisMod.Rooms.keyAt(r.x, r.y, r.z)
+        parts[#parts + 1] = string.format("drips to %d pot%s %s", pots, pots == 1 and "" or "s",
+            inRoom and "in its grow room" or ("within " .. tostring(Config.sandbox("DripRadius") or 5) .. " tiles"))
+        if r.dripOn == false then parts[#parts + 1] = "drip off" end
     end
     if r.nutrient and r.strength > 0 then
         parts[#parts + 1] = string.format("%s nutrients at %d%%", r.nutrient, math.floor(r.strength * 100 + 0.5))
@@ -874,7 +929,7 @@ commands.hydroCheck = function(player, args)
     elseif r.rot > 0 then
         parts[#parts + 1] = "the roots look a little brown"
     end
-    Net.notify(player, "Reservoir: " .. table.concat(parts, ", "))
+    Net.notify(player, (r.kind == "drip" and "Drip tank: " or "Reservoir: ") .. table.concat(parts, ", "))
 end
 
 -- --------------------------------------------------------------------------
@@ -1004,9 +1059,11 @@ function Hydro.cleanup()
     if not res then return end
     local gone = {}
     for key, r in pairs(res) do
-        if r.isFlood or r.isControl then
+        if r.isFlood or r.isControl or r.isDrip then
             local present
-            if r.isFlood then present = Hydro.hasFlood(r.x, r.y, r.z) else present = Hydro.hasControl(r.x, r.y, r.z) end
+            if r.isFlood then present = Hydro.hasFlood(r.x, r.y, r.z)
+            elseif r.isDrip then present = Hydro.hasDrip(r.x, r.y, r.z)
+            else present = Hydro.hasControl(r.x, r.y, r.z) end
             if present == false then
                 gone[#gone + 1] = key
                 if r.floodTimer then

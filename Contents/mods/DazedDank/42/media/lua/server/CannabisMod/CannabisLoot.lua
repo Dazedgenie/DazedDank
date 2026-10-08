@@ -11,6 +11,7 @@ CannabisMod.Loot = Loot
 -- Weights per vanilla distribution list; vanilla weights run from about 0.1 (rare) to 50 (common), and a list's "rolls" decide how many picks it makes.
 Loot.TABLE = {
     GardenStoreMisc = {
+        ["CannabisMod.DripTank"] = 0.4,
         ["CannabisMod.CannabisSeed"] = 0.6, ["CannabisMod.SoilSack"] = 4, ["CannabisMod.GrowBagSmallPlaceable"] = 3,
         ["CannabisMod.GrowBagLargePlaceable"] = 2, ["CannabisMod.GrowersHandbook"] = 0.8, ["CannabisMod.LightTimer"] = 3,
         ["CannabisMod.RockwoolCube"] = 3, ["CannabisMod.HydroMagazine"] = 0.6, ["CannabisMod.ControlledEnvMagazine"] = 0.3, ["CannabisMod.VegNutrients"] = 2, ["CannabisMod.BloomNutrients"] = 2,
@@ -26,6 +27,7 @@ Loot.TABLE = {
         ["CannabisMod.VegNutrients"] = 0.5, ["CannabisMod.RootingGel"] = 0.3,
     },
     CrateFarming = {
+        ["CannabisMod.DripTank"] = 0.3,
         ["CannabisMod.CannabisSeed"] = 0.3, ["CannabisMod.SoilSack"] = 2, ["CannabisMod.GrowBagSmallPlaceable"] = 1,
         ["CannabisMod.GrowBagLargePlaceable"] = 0.6,
     },
@@ -47,7 +49,7 @@ Loot.TABLE = {
         ["CannabisMod.CloningDomeTray"] = 1, ["CannabisMod.CuringJar"] = 1.5, ["CannabisMod.CuringBarrel"] = 0.3,
         ["CannabisMod.RockwoolCube"] = 4, ["CannabisMod.HydroMagazine"] = 1.5, ["CannabisMod.DWCBucket"] = 0.6,
         ["CannabisMod.RDWCSite"] = 0.4, ["CannabisMod.RDWCControl"] = 0.15, ["CannabisMod.GrowRoomPanel"] = 0.3, ["CannabisMod.ControlledEnvMagazine"] = 1,
-        ["CannabisMod.ExhaustFan"] = 0.5, ["CannabisMod.IntakeFan"] = 0.5, ["CannabisMod.Heater"] = 0.3, ["CannabisMod.Dehumidifier"] = 0.4, ["CannabisMod.Humidifier"] = 0.4, ["CannabisMod.WallAC"] = 0.2, ["CannabisMod.CirculationFan"] = 0.5, ["CannabisMod.GrowersHandbook"] = 1.5, ["CannabisMod.LightTimer"] = 3,
+        ["CannabisMod.ExhaustFan"] = 0.5, ["CannabisMod.IntakeFan"] = 0.5, ["CannabisMod.Heater"] = 0.3, ["CannabisMod.Dehumidifier"] = 0.4, ["CannabisMod.Humidifier"] = 0.4, ["CannabisMod.WallAC"] = 0.2, ["CannabisMod.CirculationFan"] = 0.5, ["CannabisMod.DripTank"] = 0.5, ["CannabisMod.GrowersHandbook"] = 1.5, ["CannabisMod.LightTimer"] = 3,
     },
     MagazineRackMixed = { ["CannabisMod.GrowersHandbook"] = 1.5, ["CannabisMod.HydroMagazine"] = 1, ["CannabisMod.ControlledEnvMagazine"] = 0.4 },
     ElectronicStoreMisc = { ["CannabisMod.GrowRoomPanel"] = 0.15, ["CannabisMod.Dehumidifier"] = 0.3, ["CannabisMod.Humidifier"] = 0.3, ["CannabisMod.Heater"] = 0.3,

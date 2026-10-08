@@ -175,6 +175,7 @@ require "CannabisMod/CannabisUse"
 require "CannabisMod/CannabisSmoking"
 require "CannabisMod/CannabisTimers"
 require "CannabisMod/CannabisHydro"
+require "CannabisMod/CannabisDrip"
 SPlantGlobalObject = SPlantGlobalObject or { setSpriteName = function(self, n) self.spriteName = n end }
 require "CannabisMod/CannabisPotPlants"
 require "CannabisMod/CannabisPlantTemp"
@@ -2888,7 +2889,7 @@ end
         check("every climate item has its script, recipe, names, tooltip, icon and magazine entry", all)
         local sprites = 0
         for _ in pairs(C.Rooms.EQUIPMENT) do sprites = sprites + 1 end
-        check("equipment sprites cover 8 fan facings, 3 old floor units and 20 wall-unit facings", sprites == 31)
+        check("equipment sprites cover 8 fan facings, 3 old floor units, 20 wall-unit facings and the drip tank", sprites == 32)
         local wallOk = true
         for n = 20, 31 do
             local g = C.Rooms.EQUIPMENT["dazeddank_rooms_01_" .. n]
@@ -3401,6 +3402,91 @@ do
     SandboxVars, hourOfDay = oldVars, oldHour
 end
 
+do
+    -- Drip irrigation: a tank that holds soil pots at a set moisture, in its room or within a radius, and feeds them.
+    local HY, DR, GBm, K = CannabisMod.Hydro, CannabisMod.Drip, CannabisMod.GrowBags, C.Drip
+    local tsq = fakeSquare(9000, 9000, 0, false, true)
+    tsq.objs[1] = { sprite = K.SPRITE, md = {} }
+    local function pot(x, y, water)
+        local sq = fakeSquare(x, y, 0, false, true)
+        local plot = GBm.makePlot(sq, "small")
+        R.setBagSoiled(x, y, 0, true)
+        plot.waterLvl = water
+        return plot
+    end
+    local near, far = pot(9002, 9000, 10), pot(9010, 9000, 10)
+    local bare = fakeSquare(9001, 9001, 0, false, true)
+    GBm.makePlot(bare, "small")
+    CannabisMod.Farming.getVanilla(9001, 9001, 0).waterLvl = 10
+    local r = HY.reservoirAt(9000, 9000, 0, "drip")
+    check("a drip tank is a 50 L reservoir", r and r.isDrip and HY.capacity(r) == K.TANK_L)
+    r.level, r.dripTick = 50, 0
+    DR.run(r, 2)
+    check("the drip waters a pot slowly", math.abs(near.waterLvl - (10 + 2 * K.RATE_PER_HOUR)) < 0.01
+        and math.abs(r.level - (50 - 2 * K.RATE_PER_HOUR * K.L_PER_POINT)) < 0.001)
+    check("pots out of reach and bags with no soil are left alone", far.waterLvl == 10
+        and CannabisMod.Farming.getVanilla(9001, 9001, 0).waterLvl == 10)
+    DR.run(r, 12)
+    check("it holds the pot at the target and no wetter", near.waterLvl == K.TARGET)
+    local before = r.level
+    DR.run(r, 14)
+    check("a pot at the target takes no water", r.level == before)
+    near.waterLvl = 20
+    tsq.power = false
+    DR.run(r, 16)
+    check("no power, no drip", near.waterLvl == 20 and r.dripOn == false)
+    tsq.power = true
+    -- Fertigation: a fed tank feeds each pot once a stage as it waters it.
+    local plant = R.addPlant(9002, 9000, 0, CannabisMod.Genetics.newSeed(T.INDICA))
+    plant.stage, plant.fedThisStage, plant.care = C.STAGE.Vegetative, 0, 50
+    r.nutrient, r.strength = "Veg", 1
+    DR.run(r, 18)
+    check("a fed tank feeds the pots it waters", plant.fedThisStage == 1 and plant.care > 50 and plant.water == near.waterLvl)
+    near.waterLvl = 20
+    DR.run(r, 20)
+    check("and never twice in a stage", plant.fedThisStage == 1)
+    check("the panel and Check see the plants it waters", #HY.servedPlants(r) == 1)
+    check("dosing a drip tank feeds nobody at once, it waits for the drip", select(2, HY.dose(r, "Bloom")) == 0 and r.nutrient == "Bloom")
+    near.waterLvl = 20
+    r.level = 0.1
+    DR.run(r, 22)
+    check("an empty tank stops", r.level == 0 and near.waterLvl > 20 and near.waterLvl < 30)
+    -- On a water line it refills itself once under half, and plain water thins the food.
+    local PL = CannabisMod.Plumbing
+    local tankObj = { getSprite = function() return { getName = function() return K.SPRITE end } end, getSquare = function() return tsq end }
+    r.level, r.strength, r.fillPending = 30, 1, nil
+    check("a drip tank above half asks the line for nothing", PL.room(tankObj) == 0)
+    r.level = 20
+    check("under half it asks to be filled", math.abs(PL.room(tankObj) - 30) < 0.01)
+    PL.put(tankObj, 30)
+    check("the line fills it and thins the nutrients", math.abs(r.level - 50) < 0.01 and math.abs(r.strength - 0.4) < 0.01 and not r.fillPending)
+    R.removePlant(9002, 9000, 0)
+    tsq.objs = {}
+    HY.cleanup()
+    check("a picked-up tank's record is dropped", HY.reservoirAt(9000, 9000, 0, "drip") == nil)
+    -- In a grow room it reaches every soil pot in the room, however far, and the panel can switch it off.
+    local RM = CannabisMod.Rooms
+    for x = 9100, 9108 do for y = 9100, 9102 do fakeSquare(x, y, 0, false, true) end end
+    table.insert(fakeSquares["9100_9100_0"].objs, { sprite = "dazeddank_rooms_01_0", md = {} })
+    local oldBlocked = RM.edgeBlocked
+    RM.edgeBlocked = function() return false end
+    RM.register(fakeSquares["9100_9100_0"], newPlayer(9101, 9100, 8))
+    local room = RM.roomAt(9100, 9100, 0)
+    table.insert(fakeSquares["9101_9102_0"].objs, { sprite = K.SPRITE, md = {} })
+    local rp = GBm.makePlot(fakeSquares["9108_9102_0"], "small")
+    R.setBagSoiled(9108, 9102, 0, true)
+    local rr = HY.reservoirAt(9101, 9102, 0, "drip")
+    local reached = false
+    for _, t in ipairs(DR.tilesOf(rr)) do if t[1] == 9108 and t[2] == 9102 then reached = true end end
+    check("in a grow room the drip reaches the room's pots past its radius", room and reached and rp ~= nil)
+    room.override = room.override or {}
+    room.override.drip = "off"
+    check("the panel can switch the drip off", DR.running(rr) == false)
+    room.override.drip = nil
+    check("and back to auto", DR.running(rr) == true)
+    RM.edgeBlocked = oldBlocked
+end
+
 end)()
 
 -- ---- Cannabis in pots: the pot stays, the plant is a raised layer ------------
@@ -3512,7 +3598,7 @@ do
             if op.kind == "text" and op.align == "center" and op.y > 400 and #op.text * 6 > 60 then labelsFit = false end
         end
         local fids = hitIds(fm)
-        check("all seven equipment tiles fit in the card", tiles == 7 and fits and fids["equip:cooler"] and fids["equip:circfan"])
+        check("every kind of equipment tile fits in the card", tiles == #C.Rooms.EQUIPMENT_ORDER and fits and fids["equip:cooler"] and fids["equip:drip"])
         check("narrow equipment tiles use short labels", labelsFit and find(fm, "text", function(op) return op.text == "AC" end) ~= nil)
     end
     check("dashboard offers the room actions", ids.rename and ids.mode and ids.schedule and ids.topUpAll and ids.doseAll and ids["res:1"]

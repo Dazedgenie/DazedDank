@@ -274,10 +274,17 @@ function addHydroOptions(player, context, plot, kind, action, square)
         tip.description = "Throws out a plant whose root rot is past saving. Change the reservoir afterwards to clear the rot."
         pull.toolTip = tip
     end
-    local parent = context:addOption("Reservoir", player, nil)
+    local parent = context:addOption(kind == "drip" and "Drip Tank" or "Reservoir", player, nil)
     local sub = ISContextMenu:getNew(context)
     context:addSubMenu(parent, sub)
     sub:addOption("Check Reservoir", player, function() action("hydroCheck") end)
+    -- A drip tank carries the pots' food: mix a bottle in and the drip feeds each pot as it waters it.
+    if kind == "drip" then
+        for _, nutrient in ipairs({ "Veg", "Bloom" }) do
+            local opt = sub:addOption("Add " .. nutrient .. " Nutrients", player, function() action("hydroDose", { nutrient = nutrient }) end)
+            needs(opt, inv:containsTypeRecurse(Config.NUTRIENT_ITEMS[nutrient]), "Needs a bottle of " .. nutrient .. " nutrients.")
+        end
+    end
     local water, bleach = fluidsOnHand(player)
     needs(sub:addOption("Top Up Reservoir", player, function() action("hydroTopUp") end), water, "Needs water in a bottle, pot or bucket.")
     -- A plumbed reservoir refills from its line; an RDWC site's reservoir is the control's, so the server decides there.
@@ -356,6 +363,8 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
                 reservoirObj, reservoirKind = obj, "rdwc"
             elseif not reservoirObj and name == Config.Hydro.FLOOD_SPRITE then
                 reservoirObj, reservoirKind = obj, "ebb"
+            elseif not reservoirObj and name == Config.Drip.SPRITE then
+                reservoirObj, reservoirKind = obj, "drip"
             elseif name == Config.Drying.BARREL_SPRITE then
                 barrel = true
             elseif Config.Drying.RACK_SPRITES[name] then
@@ -389,7 +398,7 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         end
     end
 
-    -- RDWC control bucket or flood reservoir: the shared reservoir for the sites around it.
+    -- RDWC control bucket, flood reservoir or drip tank: a reservoir for the plants around it.
     if not anyPlot and reservoirObj then
         addHydroOptions(player, context, nil, reservoirKind, bagAction, square)
         if reservoirKind == "ebb" then

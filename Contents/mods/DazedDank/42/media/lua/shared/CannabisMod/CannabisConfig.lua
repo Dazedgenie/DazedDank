@@ -618,10 +618,11 @@ Config.Rooms = {
         dazeddank_rooms_01_16 = { kind = "heater", name = "Heater" },
         dazeddank_rooms_01_17 = { kind = "dehumidifier", name = "Dehumidifier" },
         dazeddank_rooms_01_18 = { kind = "humidifier", name = "Humidifier" },
+        dazeddank_rooms_01_40 = { kind = "drip", name = "Drip system" },
     },
-    EQUIPMENT_ORDER = { "exhaust", "intake", "cooler", "circfan", "heater", "dehumidifier", "humidifier" },
+    EQUIPMENT_ORDER = { "exhaust", "intake", "cooler", "circfan", "heater", "dehumidifier", "humidifier", "drip" },
     EQUIPMENT_NAMES = { exhaust = "Exhaust fan", intake = "Intake fan", cooler = "AC unit", circfan = "Circulation fan",
-        heater = "Heater", dehumidifier = "Dehumidifier", humidifier = "Humidifier" },
+        heater = "Heater", dehumidifier = "Dehumidifier", humidifier = "Humidifier", drip = "Drip system" },
     CURTAIN_SPRITES = {                         -- the curtain overlay for each kind of opening and wall edge
         door = { N = "dazeddank_rooms_01_4", W = "dazeddank_rooms_01_5" },
         window = { N = "dazeddank_rooms_01_6", W = "dazeddank_rooms_01_7" },
@@ -696,6 +697,17 @@ Config.Hydro = {
     EBB_SCAN_MAX = 64,                          -- most table tiles one network search walks
     LINK_CACHE_HOURS = 1 / 6,                   -- how long an unsure link (a square not loaded, no control in range) is trusted
     EBB_LINK_HOURS = 1,                         -- how long a worked-out table network is trusted (changes clear it at once)
+}
+
+-- Drip irrigation: a tank with a pump that holds soil pots at a set moisture, in its grow room or within a radius outside one.
+Config.Drip = {
+    ITEM = "CannabisMod.DripTank", SPRITE = "dazeddank_rooms_01_40",
+    TANK_L = 50,                                -- litres the tank holds
+    TARGET = 70,                                -- pot moisture the drip holds (vanilla 0-100), under the overwatering line
+    RATE_PER_HOUR = 12,                         -- most moisture points a pot gains an hour: a slow drip, not a soak
+    L_PER_POINT = 0.02,                         -- litres per moisture point (a dry pot to 70 takes about 1.4 L)
+    REFILL_BELOW = 0.5,                         -- on a water line, the tank tops itself up once it drops under half
+    FEED_MIN = 0.3,                             -- nutrient strength the tank needs before the drip feeds the pots
 }
 
 --- The right-click line for a flood table's rockwool: how wet it is as a percent of a fresh flood, and when it dries.
@@ -830,6 +842,7 @@ Config.SandboxDefaults = {
     ReservoirUseRate  = 1.0,  -- multiplier on how fast reservoirs drain and go stale
     HydroQualityBonus = 0.15, -- extra quality ceiling RDWC can reach (0.15 = up to 115)
     PumpsNeedPower    = true, -- hydro pumps only run with power
+    DripRadius        = 5,    -- tiles a drip tank reaches outside a grow room
     StrainWords       = 1,    -- strain name words: 1 original and real strains, 2 original only, 3 real strains only
     RoomClimate       = true, -- grow rooms simulate temperature and humidity (off = rooms sit at their targets)
     LightLeaks        = true, -- light from outside a grow room's own lamps counts as a leak in its dark hours

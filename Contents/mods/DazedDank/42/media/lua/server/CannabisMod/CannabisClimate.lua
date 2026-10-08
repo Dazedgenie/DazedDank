@@ -72,6 +72,8 @@ function Climate.control(room, targets, present, override)
         if T > targets.tHi - 1 then auto.circfan = true elseif T <= targets.tHi - 2.5 then auto.circfan = false end
         if heating then auto.circfan = false end
     end
+    -- The drip system waters on its own schedule; the panel only switches it on or off.
+    if present.drip then auto.drip = true end
     if present.dehumidifier then
         if H > targets.hHi then auto.dehumidifier = true elseif H <= mid then auto.dehumidifier = false end
     end

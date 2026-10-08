@@ -487,7 +487,7 @@ module CannabisMod
         Icon            = ControlledEnvMagazine,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeGrowRoomPanel;DDMakeBlackoutCurtain;DDMakeExhaustFan;DDMakeIntakeFan;DDMakeHeater;DDMakeDehumidifier;DDMakeHumidifier;DDMakeWallAC;DDMakeCirculationFan,
+        LearnedRecipes  = DDMakeGrowRoomPanel;DDMakeBlackoutCurtain;DDMakeExhaustFan;DDMakeIntakeFan;DDMakeHeater;DDMakeDehumidifier;DDMakeHumidifier;DDMakeWallAC;DDMakeCirculationFan;DDMakeDripTank,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,
@@ -574,6 +574,18 @@ module CannabisMod
         Icon            = CirculationFan,
         Tooltip         = Tooltip_DD_CirculationFan,
         WorldObjectSprite = dazeddank_rooms_01_36,
+    }
+
+    /* Drip irrigation tank: holds soil pots at a set moisture with a slow drip, in its grow room or within a radius. */
+    item DripTank
+    {
+        DisplayName     = Drip Irrigation Tank,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 10.0,
+        Icon            = DripTank,
+        Tooltip         = Tooltip_DD_DripTank,
+        WorldObjectSprite = dazeddank_rooms_01_40,
     }
 
     item Dehumidifier

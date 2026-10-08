@@ -295,6 +295,28 @@ def build_circ_fan():
 
 
 
+
+def build_drip_tank():
+    parts = []
+    tank = mat("drip_tank", "metal", (0.16, 0.26, 0.18))
+    lid = mat("drip_lid", "metal", (0.10, 0.16, 0.11))
+    pump = mat("drip_pump", "metal", (0.48, 0.50, 0.55))
+    dial = mat("drip_dial", "metal", (0.90, 0.90, 0.92))
+    hose = mat("drip_hose", "fabric", (0.05, 0.05, 0.06))
+    water = mat("drip_water", "metal", (0.30, 0.62, 0.90))
+    # A squat green tank with a lid, a sight tube, a timer pump on the side and black drip lines running off the floor.
+    disc(parts, "drip_body", (-0.05, 0.05, 0.36), 0.30, 0.72, tank, axis="Z", verts=40)
+    disc(parts, "drip_lid", (-0.05, 0.05, 0.74), 0.27, 0.05, lid, axis="Z", verts=40)
+    box(parts, "drip_sight", (-0.05, -0.255, 0.36), (0.04, 0.012, 0.52), water)
+    box(parts, "drip_pump", (0.30, -0.12, 0.14), (0.20, 0.18, 0.18), pump)
+    disc(parts, "drip_dial", (0.30, -0.215, 0.17), 0.045, 0.012, dial)
+    for k in range(3):
+        box(parts, f"drip_line_{k}", (0.32 + 0.0, -0.32 - k * 0.04, 0.012), (0.012, 0.30, 0.012), hose,
+            rot=(0, 0, math.radians(-20 + 20 * k)))
+    return parts
+
+
+
 SETS = [
     # name, facings, builder
     ("panel", "4", build_panel),
@@ -310,6 +332,7 @@ SETS = [
     ("wall_humidifier", "4", build_wall_humidifier),
     ("wall_ac", "4", build_wall_ac),
     ("circ_fan", "4", build_circ_fan),
+    ("drip_tank", "1", build_drip_tank),
 ]
 
 
@@ -327,6 +350,7 @@ ICONS = [
     ("WallHumidifier", build_wall_humidifier),
     ("WallAC", build_wall_ac),
     ("CirculationFan", build_circ_fan),
+    ("DripTank", build_drip_tank),
 ]
 
 

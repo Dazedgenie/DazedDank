@@ -17,7 +17,8 @@ local COLORS = CannabisMod.StatusLayout.COLORS
 
 local FONTS = { Small = UIFont.Small, Medium = UIFont.Medium, Large = UIFont.Large }
 local ICONS = { exhaust = "Item_ExhaustFan", intake = "Item_IntakeFan", heater = "Item_Heater",
-    dehumidifier = "Item_Dehumidifier", humidifier = "Item_Humidifier", cooler = "Item_WallAC", circfan = "Item_CirculationFan" }
+    dehumidifier = "Item_Dehumidifier", humidifier = "Item_Humidifier", cooler = "Item_WallAC", circfan = "Item_CirculationFan",
+    drip = "Item_DripTank" }
 local STEP = Dash.CARD_W + Dash.CARD_GAP
 
 local function fontHeight(name) return getTextManager():getFontHeight(FONTS[name] or UIFont.Small) end

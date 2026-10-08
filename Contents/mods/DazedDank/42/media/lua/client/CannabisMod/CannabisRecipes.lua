@@ -15,7 +15,7 @@ Recipes.NAMES = {
     "DDMakeDWCBucket", "DDMakeDWCBucketXL", "DDMakeClayPebbles", "DDMakeRDWCSite", "DDMakeRDWCControl",
     "DDMakeFloodTable", "DDMakeFloodReservoir", "DDMakeFloodTimer",
     "DDMakeGrowRoomPanel", "DDMakeBlackoutCurtain",
-    "DDMakeExhaustFan", "DDMakeIntakeFan", "DDMakeHeater", "DDMakeDehumidifier", "DDMakeHumidifier", "DDMakeWallAC", "DDMakeCirculationFan",
+    "DDMakeExhaustFan", "DDMakeIntakeFan", "DDMakeHeater", "DDMakeDehumidifier", "DDMakeHumidifier", "DDMakeWallAC", "DDMakeCirculationFan", "DDMakeDripTank",
 }
 
 --- Learn every recipe on this player unless the magazine is required; returns how many were newly learned.

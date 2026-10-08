@@ -1,5 +1,5 @@
--- Optional Dazed Plumbing hookup: DWC buckets, RDWC control buckets and flood reservoirs take a water line from a tank.
--- The line fills a brand-new reservoir, refills one after "Change Reservoir", and fills one on "Top Up"; it never tops up on its own.
+-- Optional Dazed Plumbing hookup: DWC buckets, RDWC control buckets, flood reservoirs and drip tanks take a water line from a tank.
+-- The line fills a brand-new reservoir, refills one after "Change Reservoir", and fills one on "Top Up"; only a drip tank tops up on its own.
 
 require "CannabisMod/CannabisConfig"
 
@@ -25,6 +25,7 @@ function Plumb.kindOf(obj)
     if name == Config.Hydro.CONTROL_SPRITE then return "rdwc" end
     if name == Config.Hydro.FLOOD_SPRITE then return "ebb" end
     if Config.hydroOf(Config.bagFromSprite(name)) == "dwc" then return "dwc" end
+    if name == Config.Drip.SPRITE then return "drip" end
     return nil
 end
 
@@ -68,6 +69,10 @@ local function waiting(r)
         r.fillPending, r.everFilled = true, true
         if CannabisMod.Registry then r.changedAt = CannabisMod.Registry.nowHours() end
     end
+    -- A drip tank has a float valve: on a line it refills itself once it drops under half.
+    if r.kind == "drip" and not r.fillPending and r.level < CannabisMod.Hydro.capacity(r) * Config.Drip.REFILL_BELOW then
+        r.fillPending = true
+    end
     if not r.fillPending then return 0 end
     local room = CannabisMod.Hydro.capacity(r) - r.level
     if room <= Plumb.FULL_MARGIN then
@@ -104,6 +109,7 @@ function Plumb.put(obj, amount, dirty)
     for _, o in ipairs(fedBy(r)) do
         local add = math.max(0, math.min(left, waiting(o)))
         if add > 0 then
+            if o.kind == "drip" and (o.strength or 0) > 0 then o.strength = o.strength * o.level / (o.level + add) end
             o.level = o.level + add
             if dirty then o.tainted = true end
             left, took = left - add, took + add

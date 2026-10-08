@@ -172,6 +172,16 @@ option CannabisMod.PumpsNeedPower
     translation = CannabisMod_PumpsNeedPower,
 }
 
+option CannabisMod.DripRadius
+{
+    type = integer,
+    min = 1,
+    max = 15,
+    default = 5,
+    page = CannabisMod,
+    translation = CannabisMod_DripRadius,
+}
+
 option CannabisMod.RoomClimate
 {
     type = boolean,

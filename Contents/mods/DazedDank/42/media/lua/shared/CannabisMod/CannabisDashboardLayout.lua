@@ -15,7 +15,7 @@ Dash.CARD_W, Dash.CARD_GAP = 240, 8          -- plant cards, scrolled sideways
 local HEAD_H, M = 40, 12
 -- Equipment labels for the narrow tiles a room with every kind of unit gets.
 Dash.SHORT_NAMES = { exhaust = "Exhaust", intake = "Intake", cooler = "AC", circfan = "Circ", heater = "Heater",
-    dehumidifier = "Dehum", humidifier = "Humid" }
+    dehumidifier = "Dehum", humidifier = "Humid", drip = "Drip" }
 local PLANT_Y, PLANT_H = 214, 168
 local STAGE_NAME = { Seedling = "Seedling", Vegetative = "Vegetative", PreFlower = "Pre-flower", Flowering = "Flowering", Ripe = "Ripe" }
 local TYPE_COLOR = { Indica = C.Indica, Sativa = C.Sativa, Hybrid = C.Hybrid }

@@ -588,7 +588,8 @@ function Rooms.reservoirRecords(panelKey)
         local bag = Registry.getBag(x, y, z)
         if Config.hydroOf(bag) == "dwc" then r, name = Hydro.reservoirAt(x, y, z, "dwc"), (bag == "xldwc" and "XL DWC bucket" or "DWC bucket")
         elseif Hydro.hasControl(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "rdwc"), "RDWC control"
-        elseif Hydro.hasFlood(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "ebb"), "Flood reservoir" end
+        elseif Hydro.hasFlood(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "ebb"), "Flood reservoir"
+        elseif Hydro.hasDrip and Hydro.hasDrip(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "drip"), "Drip tank" end
         if r then out[#out + 1] = { key = key, record = r, name = name, dist = math.abs(x - room.x) + math.abs(y - room.y) } end
     end
     table.sort(out, function(a, b)

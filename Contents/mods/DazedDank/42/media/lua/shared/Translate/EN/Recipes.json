@@ -31,6 +31,7 @@
     "DDMakeHumidifier": "Make Humidifier",
     "DDMakeWallAC": "Make Wall Air Conditioner",
     "DDMakeCirculationFan": "Make Circulation Fan",
+    "DDMakeDripTank": "Make Drip Irrigation Tank",
     "DDMakeGrowBagXL": "Make XL Grow Bag",
     "DDMakeDWCBucketXL": "Make XL DWC Bucket"
 }

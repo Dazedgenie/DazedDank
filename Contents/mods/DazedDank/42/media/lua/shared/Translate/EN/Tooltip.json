@@ -10,5 +10,6 @@
     "Tooltip_DD_Humidifier": "Stand in a grow room. The panel switches it on when the air is too dry. Needs panel power.",
     "Tooltip_DD_WallAC": "Mount on any wall inside a grow room. The panel runs it when the room is too hot: about 6 C cooler per unit whatever the weather, never below 12 C, and a little drier. Needs panel power.",
     "Tooltip_DD_CirculationFan": "Mount on any wall inside a grow room. Keeps the air moving so lamp hot spots don't build up: about 1.5 C cooler each, 3 C at most. Needs panel power.",
+    "Tooltip_DD_DripTank": "Holds every soil pot in its grow room (or within a few tiles outside one) at about 70% water with a slow drip. Fill its 50 L tank by hand or with a water line, which keeps it topped up. Add nutrients and it feeds the pots too. The pump needs power.",
     "Tooltip_DD_PurplePrefix": "Purple"
 }

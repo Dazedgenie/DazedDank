@@ -36,6 +36,8 @@
     "Sandbox_CannabisMod_HydroQualityBonus_tooltip": "How far above 100 an RDWC grow's quality can reach (0.15 = up to 115). 0 removes the Top Shelf tier.",
     "Sandbox_CannabisMod_PumpsNeedPower": "Pumps Need Power",
     "Sandbox_CannabisMod_PumpsNeedPower_tooltip": "If enabled, hydro air and water pumps only run with power. Without air, roots start to rot.",
+    "Sandbox_CannabisMod_DripRadius": "Drip Irrigation Radius",
+    "Sandbox_CannabisMod_DripRadius_tooltip": "How many tiles a drip irrigation tank reaches when it isn't in a grow room. In a grow room it waters every soil pot in the room.",
     "Sandbox_CannabisMod_RoomClimate": "Room Climate",
     "Sandbox_CannabisMod_RoomClimate_tooltip": "If enabled, grow rooms simulate temperature and humidity and need fans, heaters and dehumidifiers. If off, rooms always sit at their target.",
     "Sandbox_CannabisMod_LightLeaks": "Light Leaks",
