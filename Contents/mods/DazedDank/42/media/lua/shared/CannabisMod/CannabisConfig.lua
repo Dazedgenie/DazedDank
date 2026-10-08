@@ -561,6 +561,10 @@ Config.Climate = {
     RESERVOIR_HUMIDITY = 0.8,                   -- per reservoir holding water
     WET_PLANT_HUMIDITY = 2.0,                   -- per wet plant hanging on a rack
     HUMIDIFIER = 14, DEHUMIDIFIER = 14,         -- percentage points of humidity the machines move
+    COOLER_C = 6, COOLER_DRY = 6,               -- a running wall AC takes this many C and humidity points off the room
+    COOLER_FLOOR_C = 12,                        -- an AC won't pull a room below this
+    CIRC_FAN_C = 1.5, CIRC_FAN_MAX_C = 3,       -- circulation fans break up hot spots: this much each, this much at most
+    COOLER_HEAT = -18,                          -- a running AC's pull on a Dazed Climate room, in C x squares per hour
     MAX_RISE = 30,                              -- the most a room can climb above the outdoor temperature
     BASE_VENT = 0.3,                            -- air change a sealed room still has
     VENT = { exhaust = 1.2, intake = 0.6 },     -- air change per fan at full effect
@@ -615,8 +619,9 @@ Config.Rooms = {
         dazeddank_rooms_01_17 = { kind = "dehumidifier", name = "Dehumidifier" },
         dazeddank_rooms_01_18 = { kind = "humidifier", name = "Humidifier" },
     },
-    EQUIPMENT_ORDER = { "exhaust", "intake", "heater", "dehumidifier", "humidifier" },
-    EQUIPMENT_NAMES = { exhaust = "Exhaust fan", intake = "Intake fan", heater = "Heater", dehumidifier = "Dehumidifier", humidifier = "Humidifier" },
+    EQUIPMENT_ORDER = { "exhaust", "intake", "cooler", "circfan", "heater", "dehumidifier", "humidifier" },
+    EQUIPMENT_NAMES = { exhaust = "Exhaust fan", intake = "Intake fan", cooler = "AC unit", circfan = "Circulation fan",
+        heater = "Heater", dehumidifier = "Dehumidifier", humidifier = "Humidifier" },
     CURTAIN_SPRITES = {                         -- the curtain overlay for each kind of opening and wall edge
         door = { N = "dazeddank_rooms_01_4", W = "dazeddank_rooms_01_5" },
         window = { N = "dazeddank_rooms_01_6", W = "dazeddank_rooms_01_7" },
@@ -625,8 +630,10 @@ Config.Rooms = {
         dazeddank_rooms_01_0 = "S", dazeddank_rooms_01_1 = "E", dazeddank_rooms_01_2 = "N", dazeddank_rooms_01_3 = "W",
     },
 }
--- Wall-mounted heater, dehumidifier and humidifier hang up high in four facings (20-23, 24-27, 28-31); the floor units stay for old saves.
-for i, unit in ipairs({ { "heater", "Heater" }, { "dehumidifier", "Dehumidifier" }, { "humidifier", "Humidifier" } }) do
+-- Wall units hang up high in four facings: heater 20-23, dehumidifier 24-27, humidifier 28-31, AC 32-35, circulation fan 36-39.
+-- The floor units (16-18) stay for old saves.
+for i, unit in ipairs({ { "heater", "Heater" }, { "dehumidifier", "Dehumidifier" }, { "humidifier", "Humidifier" },
+        { "cooler", "AC unit" }, { "circfan", "Circulation fan" } }) do
     for j, facing in ipairs({ "S", "E", "N", "W" }) do
         Config.Rooms.EQUIPMENT["dazeddank_rooms_01_" .. (16 + i * 4 + j - 1)] = { kind = unit[1], name = unit[2], wall = facing }
     end

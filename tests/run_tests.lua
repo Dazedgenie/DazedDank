@@ -2688,6 +2688,14 @@ end
         check("plants raise humidity and a dehumidifier takes it back", wetH > 60 and dryH < wetH)
         local _, two = CL.balance({ outT = 10, outH = 60, lampHeat = 0, moisture = 0, exhaust = 0, intake = 0, humidifier = 2 })
         check("two humidifiers move twice as much", math.abs(two - 60 - 2 * K.HUMIDIFIER) < 0.01)
+        local base = { outT = 30, outH = 60, lampHeat = 0, moisture = 0, exhaust = 0, intake = 0 }
+        local function with(extra) local t = {} for k, v in pairs(base) do t[k] = v end for k, v in pairs(extra) do t[k] = v end return t end
+        local acT, acH = CL.balance(with({ cooler = 1 }))
+        check("a wall AC cools a room whatever the weather and dries it a little", acT == 30 - K.COOLER_C and acH == 60 - K.COOLER_DRY)
+        check("ACs stop at their floor", CL.balance(with({ cooler = 5 })) == K.COOLER_FLOOR_C
+            and CL.balance(with({ outT = 8, cooler = 1 })) == 8)
+        check("circulation fans take a little off, capped", CL.balance(with({ circfan = 1 })) == 30 - K.CIRC_FAN_C
+            and CL.balance(with({ circfan = 5 })) == 30 - K.CIRC_FAN_MAX_C)
 
         local cr = { temp = 20, hum = 45 }
         local on = CL.control(cr, tg, { heater = true, exhaust = true, intake = true }, nil)
@@ -2709,6 +2717,18 @@ end
         on = CL.control({ temp = 20, hum = 45 }, tg, { heater = true }, { heater = "on" })
         check("a manual on runs even in range", on.heater == true)
         check("kinds the room lacks are not listed", on.exhaust == nil)
+        local ac = { temp = 27, hum = 45 }
+        on = CL.control(ac, tg, { cooler = true, circfan = true }, nil)
+        check("too hot: the AC and circulation fans run", on.cooler == true and on.circfan == true)
+        ac.temp = 24.5
+        on = CL.control(ac, tg, { cooler = true, circfan = true }, nil)
+        check("the AC holds on until 2 C under the top, the fans to 2.5 under", on.cooler == true and on.circfan == true)
+        ac.temp = 23.4
+        on = CL.control(ac, tg, { cooler = true, circfan = true }, nil)
+        check("then both rest", on.cooler == false and on.circfan == false)
+        ac.temp = 27
+        on = CL.control(ac, tg, { heater = true, cooler = true, circfan = true }, { heater = "on" })
+        check("the AC and fans never fight a running heater", on.heater == true and not on.cooler and not on.circfan)
         local s1, hot1 = CL.plantStress(20, 45, true)
         local s2, hot2 = CL.plantStress(35, 45, false)
         local s3, _, wet3 = CL.plantStress(20, 70, true)
@@ -2757,6 +2777,25 @@ end
         fire("OnClientCommand", "CannabisMod", "roomOverride", cp, { x = 1300, y = 1300, z = 0, kind = "exhaust", state = "auto" })
         fire("OnClientCommand", "CannabisMod", "roomOverride", cp, { x = 1300, y = 1300, z = 0, kind = "kettle", state = "on" })
         check("auto clears the override, an unknown kind is ignored", croom.override.exhaust == nil and croom.override.kettle == nil)
+
+        -- A heat wave: the fans can't beat the outdoors, a wall AC and a circulation fan can.
+        R.outdoor = function() return { t = 35, h = 50 } end
+        for _ = 1, 40 do R.tick(2001) end
+        local wave = croom.temp
+        table.insert(fakeSquares["1302_1300_0"].objs, { sprite = "dazeddank_rooms_01_32", md = {} })
+        table.insert(fakeSquares["1303_1300_0"].objs, { sprite = "dazeddank_rooms_01_36", md = {} })
+        for _ = 1, 40 do R.tick(2001) end
+        check("in a heat wave the exhaust can't cool past the outdoors but a wall AC can", wave >= 35
+            and croom.running.cooler == true and croom.running.circfan == true and croom.temp < wave - K.COOLER_C
+            and croom.present.cooler == 1 and croom.present.circfan == 1)
+        local LHc = CannabisMod.LampHeat
+        local acObj = { getSprite = function() return { getName = function() return "dazeddank_rooms_01_33" end } end,
+            getSquare = function() return fakeSquares["1302_1300_0"] end }
+        check("a running AC cools its Dazed Climate room too", LHc.isCooler(acObj) and LHc.coolerHeat(acObj) == K.COOLER_HEAT)
+        croom.running.cooler = false
+        check("an idle AC gives Dazed Climate nothing", LHc.coolerHeat(acObj) == 0)
+        table.remove(fakeSquares["1303_1300_0"].objs); table.remove(fakeSquares["1302_1300_0"].objs)
+        R.outdoor = function() return { t = 10, h = 50 } end
 
         for x = 1300, 1304 do for y = 1300, 1302 do fakeSquares[x .. "_" .. y .. "_0"].power = false end end
         R.tick(2002)
@@ -2817,7 +2856,8 @@ end
         local function readAll(path) local f = assert(io.open(MOD .. "../" .. path)); local t = f:read("*a"); f:close(); return t end
         local items, recipes = readAll("scripts/CannabisItems.txt"), readAll("scripts/CannabisRecipes.txt")
         local names, tips, recipeNames = readAll("lua/shared/Translate/EN/ItemName.json"), readAll("lua/shared/Translate/EN/Tooltip.json"), readAll("lua/shared/Translate/EN/Recipes.json")
-        local gear = { ExhaustFan = "DDMakeExhaustFan", IntakeFan = "DDMakeIntakeFan", Heater = "DDMakeHeater", Dehumidifier = "DDMakeDehumidifier", Humidifier = "DDMakeHumidifier" }
+        local gear = { ExhaustFan = "DDMakeExhaustFan", IntakeFan = "DDMakeIntakeFan", Heater = "DDMakeHeater", Dehumidifier = "DDMakeDehumidifier", Humidifier = "DDMakeHumidifier",
+            WallAC = "DDMakeWallAC", CirculationFan = "DDMakeCirculationFan" }
         local all = true
         for item, recipe in pairs(gear) do
             local f = io.open(MOD .. "../textures/Item_" .. item .. ".png", "rb")
@@ -2832,7 +2872,7 @@ end
         check("every climate item has its script, recipe, names, tooltip, icon and magazine entry", all)
         local sprites = 0
         for _ in pairs(C.Rooms.EQUIPMENT) do sprites = sprites + 1 end
-        check("equipment sprites cover 8 fan facings, 3 old floor units and 12 wall-unit facings", sprites == 23)
+        check("equipment sprites cover 8 fan facings, 3 old floor units and 20 wall-unit facings", sprites == 31)
         local wallOk = true
         for n = 20, 31 do
             local g = C.Rooms.EQUIPMENT["dazeddank_rooms_01_" .. n]
@@ -3138,7 +3178,8 @@ do
     local sources = {}
     DazedClimate = { Rooms = { addObjectSource = function(src) sources[#sources + 1] = src end } }
     LH.register(); LH.register()
-    check("lamp heat registers with Dazed Climate once", #sources == 1 and sources[1].heat == LH.heat)
+    check("lamp heat and AC cooling register with Dazed Climate once", #sources == 2 and sources[1].heat == LH.heat
+        and sources[2].heat == LH.coolerHeat and sources[2].match == LH.isCooler)
 
     -- Dank's own room model still adds a lamp's full radius per tile, as before lamp heat for Dazed Climate.
     for x = 7600, 7602 do fakeSquare(x, 7600, 0, false, true) end
@@ -3435,6 +3476,29 @@ do
     local m = Dash.build(info, 0, fh, ms)
     local ids = hitIds(m)
     check("dashboard has its fixed size", m.width == Dash.WIDTH and m.height == Dash.HEIGHT)
+    do
+        -- A room with all seven kinds of unit: every tile shows, inside the equipment card, with labels that fit.
+        local all = {}
+        for _, k in ipairs(C.Rooms.EQUIPMENT_ORDER) do all[#all + 1] = { kind = k, running = k == "cooler", powered = true } end
+        local full = {}
+        for k, v in pairs(info) do full[k] = v end
+        full.equipment = all
+        local fm = Dash.build(full, 0, fh, ms)
+        local tiles, fits, right = 0, true, Dash.WIDTH - 12
+        for _, op in ipairs(fm.ops) do
+            if op.kind == "equip" then
+                tiles = tiles + 1
+                if op.x + op.w > right then fits = false end
+            end
+        end
+        local labelsFit = true
+        for _, op in ipairs(fm.ops) do
+            if op.kind == "text" and op.align == "center" and op.y > 400 and #op.text * 6 > 60 then labelsFit = false end
+        end
+        local fids = hitIds(fm)
+        check("all seven equipment tiles fit in the card", tiles == 7 and fits and fids["equip:cooler"] and fids["equip:circfan"])
+        check("narrow equipment tiles use short labels", labelsFit and find(fm, "text", function(op) return op.text == "AC" end) ~= nil)
+    end
     check("dashboard offers the room actions", ids.rename and ids.mode and ids.schedule and ids.topUpAll and ids.doseAll and ids["res:1"]
         and ids["equip:heater"] and ids.log and ids["plant:1"])
     check("five plants scroll sideways", Dash.maxScroll(info) > 0 and ids.scrollRight ~= nil and ids.scrollLeft == nil)

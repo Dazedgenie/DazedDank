@@ -13,6 +13,9 @@ CannabisMod.DashboardLayout = Dash
 Dash.WIDTH, Dash.HEIGHT = 760, 566
 Dash.CARD_W, Dash.CARD_GAP = 240, 8          -- plant cards, scrolled sideways
 local HEAD_H, M = 40, 12
+-- Equipment labels for the narrow tiles a room with every kind of unit gets.
+Dash.SHORT_NAMES = { exhaust = "Exhaust", intake = "Intake", cooler = "AC", circfan = "Circ", heater = "Heater",
+    dehumidifier = "Dehum", humidifier = "Humid" }
 local PLANT_Y, PLANT_H = 214, 168
 local STAGE_NAME = { Seedling = "Seedling", Vegetative = "Vegetative", PreFlower = "Pre-flower", Flowering = "Flowering", Ripe = "Ripe" }
 local TYPE_COLOR = { Indica = C.Indica, Sativa = C.Sativa, Hybrid = C.Hybrid }
@@ -257,22 +260,31 @@ function Dash.build(info, scroll, fontH, measure)
     end)
     if #kinds == 0 then text("No fans or climate units yet.", ex + 14, y3 + 40, C.muted) end
     local override = climate.override or {}
+    -- Up to five kinds get full tiles; with more (all seven) the tiles narrow and use short labels so they all fit.
+    local n = #kinds
+    local gap = n <= 5 and 8 or 6
+    local tw = n <= 5 and 74 or math.floor((ew - 28 - (n - 1) * gap) / n)
+    local narrow = tw < 70
     for i, kind in ipairs(kinds) do
-        if i > 5 then break end
         local list = rows[kind]
-        local x, y, tw = ex + 14 + (i - 1) * 82, y3 + 30, 74
+        local x, y = ex + 14 + (i - 1) * (tw + gap), y3 + 30
         card(x, y, tw, 58, C.ground, C.ground)
         ops[#ops + 1] = { kind = "equip", x = x, y = y, w = tw, h = 58, equipKind = kind }
         local m = string.upper(string.sub(override[kind] or "auto", 1, 1)) .. string.sub(override[kind] or "auto", 2)
-        pill(x + tw - 40, y + 3, 36, small + 2, C.purple)
-        text(m, x + tw - 22, y + 4, C.white, "Small", "center")
-        local nm = (Config.Rooms.EQUIPMENT_NAMES[kind] or kind):gsub(" fan", "")
+        if narrow then
+            pill(x + 3, y + 3, tw - 6, small + 2, C.purple)
+            text(m, x + tw / 2, y + 4, C.white, "Small", "center")
+        else
+            pill(x + tw - 40, y + 3, 36, small + 2, C.purple)
+            text(m, x + tw - 22, y + 4, C.white, "Small", "center")
+        end
+        local nm = narrow and Dash.SHORT_NAMES[kind] or (Config.Rooms.EQUIPMENT_NAMES[kind] or kind):gsub(" fan", "")
         if #list > 1 then nm = nm .. " x" .. #list end
         text(nm, x + tw / 2, y + 62, C.text, "Small", "center")
         local running, powered = false, false
         for _, e in ipairs(list) do running = running or e.running; powered = powered or e.powered end
-        local st, col = running and "running" or "idle", running and C.good or C.muted
-        if not powered then st, col = "no power", C.bad end
+        local st, col = running and (narrow and "on" or "running") or "idle", running and C.good or C.muted
+        if not powered then st, col = narrow and "no pwr" or "no power", C.bad end
         pill(x + 6, y + 64 + small + 4, 8, 8, col)
         text(st, x + 18, y + 62 + small, col)
         hit(x, y, tw, 64 + 2 * small, "equip:" .. kind)

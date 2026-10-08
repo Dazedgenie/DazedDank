@@ -487,7 +487,7 @@ module CannabisMod
         Icon            = ControlledEnvMagazine,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeGrowRoomPanel;DDMakeBlackoutCurtain;DDMakeExhaustFan;DDMakeIntakeFan;DDMakeHeater;DDMakeDehumidifier;DDMakeHumidifier,
+        LearnedRecipes  = DDMakeGrowRoomPanel;DDMakeBlackoutCurtain;DDMakeExhaustFan;DDMakeIntakeFan;DDMakeHeater;DDMakeDehumidifier;DDMakeHumidifier;DDMakeWallAC;DDMakeCirculationFan,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,
@@ -550,6 +550,30 @@ module CannabisMod
         Icon            = Heater,
         Tooltip         = Tooltip_DD_Heater,
         WorldObjectSprite = dazeddank_rooms_01_20,
+    }
+
+    /* Wall air conditioner: cools a grow room whatever the weather, down to 12 C, and dries the air a little. */
+    item WallAC
+    {
+        DisplayName     = Wall Air Conditioner,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 14.0,
+        Icon            = WallAC,
+        Tooltip         = Tooltip_DD_WallAC,
+        WorldObjectSprite = dazeddank_rooms_01_32,
+    }
+
+    /* Circulation fan: moves the room's air around so lamp hot spots don't build up. */
+    item CirculationFan
+    {
+        DisplayName     = Circulation Fan,
+        DisplayCategory = Furniture,
+        ItemType        = base:moveable,
+        Weight          = 4.0,
+        Icon            = CirculationFan,
+        Tooltip         = Tooltip_DD_CirculationFan,
+        WorldObjectSprite = dazeddank_rooms_01_36,
     }
 
     item Dehumidifier

@@ -17,7 +17,7 @@ local COLORS = CannabisMod.StatusLayout.COLORS
 
 local FONTS = { Small = UIFont.Small, Medium = UIFont.Medium, Large = UIFont.Large }
 local ICONS = { exhaust = "Item_ExhaustFan", intake = "Item_IntakeFan", heater = "Item_Heater",
-    dehumidifier = "Item_Dehumidifier", humidifier = "Item_Humidifier" }
+    dehumidifier = "Item_Dehumidifier", humidifier = "Item_Humidifier", cooler = "Item_WallAC", circfan = "Item_CirculationFan" }
 local STEP = Dash.CARD_W + Dash.CARD_GAP
 
 local function fontHeight(name) return getTextManager():getFontHeight(FONTS[name] or UIFont.Small) end
@@ -72,7 +72,10 @@ function DashPanel:render()
             pcall(Draw.plant, self, op.x, op.y, op.w, op.h, op.sprite, op.pot, op.lift, op.fit)
         elseif op.kind == "equip" then
             local t = ICONS[op.equipKind] and getTexture(ICONS[op.equipKind])
-            if t then self:drawTextureScaled(t, op.x + 8, op.y + 14, 36, 36, 1, 1, 1, 1) end
+            -- Full tiles keep the icon at the left under the mode pill; narrow ones centre a smaller icon.
+            local size = math.min(36, op.w - 12)
+            local ix = op.w >= 70 and op.x + 8 or op.x + (op.w - size) / 2
+            if t then self:drawTextureScaled(t, ix, op.y + 14, size, size, 1, 1, 1, 1) end
         elseif op.kind == "clip" then
             self:setStencilRect(op.x, op.y, op.w, op.h)
         elseif op.kind == "unclip" then

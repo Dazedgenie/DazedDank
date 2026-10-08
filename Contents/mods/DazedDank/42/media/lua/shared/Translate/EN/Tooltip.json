@@ -8,5 +8,7 @@
     "Tooltip_DD_Heater": "Stand in a grow room. The panel switches it on when the room is too cold. Needs panel power.",
     "Tooltip_DD_Dehumidifier": "Stand in a grow room. The panel switches it on when the air is too humid. Needs panel power.",
     "Tooltip_DD_Humidifier": "Stand in a grow room. The panel switches it on when the air is too dry. Needs panel power.",
+    "Tooltip_DD_WallAC": "Mount on any wall inside a grow room. The panel runs it when the room is too hot: about 6 C cooler per unit whatever the weather, never below 12 C, and a little drier. Needs panel power.",
+    "Tooltip_DD_CirculationFan": "Mount on any wall inside a grow room. Keeps the air moving so lamp hot spots don't build up: about 1.5 C cooler each, 3 C at most. Needs panel power.",
     "Tooltip_DD_PurplePrefix": "Purple"
 }

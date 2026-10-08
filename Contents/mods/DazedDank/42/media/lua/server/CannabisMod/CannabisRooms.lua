@@ -959,6 +959,8 @@ function Rooms.updateClimate(panelKey, plants, outdoor, advance, now)
         heater = running.heater and scan.count.heater or 0,
         humidifier = running.humidifier and scan.count.humidifier or 0,
         dehumidifier = running.dehumidifier and scan.count.dehumidifier or 0,
+        cooler = running.cooler and scan.count.cooler or 0,
+        circfan = running.circfan and scan.count.circfan or 0,
     })
     local hotNow, wetNow = false, false
     for _, p in ipairs(plants) do

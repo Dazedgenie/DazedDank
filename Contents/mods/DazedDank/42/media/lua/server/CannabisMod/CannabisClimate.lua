@@ -24,12 +24,17 @@ local function count(v)
 end
 
 --- Where the room would settle with these inputs, as temperature and humidity.
---- Inputs: outT, outH (outdoors), lampHeat and moisture (gains), exhaust and intake (effective fan sums), heater, humidifier, dehumidifier (how many are running).
+--- Inputs: outT, outH (outdoors), lampHeat and moisture (gains), exhaust and intake (effective fan sums), heater, humidifier, dehumidifier,
+--- cooler and circfan (how many are running).
 function Climate.balance(i)
     local vent = K.BASE_VENT + i.exhaust + i.intake
     local t = i.outT + math.min(K.MAX_RISE, (i.lampHeat + count(i.heater) * K.HEATER_C) / vent)
+    -- Cooling works whatever the weather: ACs pull heat out (down to a floor), circulation fans take the edge off.
+    t = t - math.min(K.CIRC_FAN_MAX_C, count(i.circfan) * K.CIRC_FAN_C)
+    local coolers = count(i.cooler)
+    if coolers > 0 and t > K.COOLER_FLOOR_C then t = math.max(K.COOLER_FLOOR_C, t - coolers * K.COOLER_C) end
     local h = i.outH + i.moisture / vent
-    h = h + count(i.humidifier) * K.HUMIDIFIER - count(i.dehumidifier) * K.DEHUMIDIFIER
+    h = h + count(i.humidifier) * K.HUMIDIFIER - count(i.dehumidifier) * K.DEHUMIDIFIER - coolers * K.COOLER_DRY
     return t, Config.clamp(h, 5, 100)
 end
 
@@ -56,6 +61,16 @@ function Climate.control(room, targets, present, override)
         if T > targets.tHi or H > targets.hHi then auto.exhaust = true
         elseif T <= targets.tHi - 1 and H <= targets.hHi - 3 then auto.exhaust = false end
         auto.intake = auto.exhaust
+    end
+    -- The AC runs above the room's top temperature and rests 2 C under it; fans start a little earlier. Neither fights the heater.
+    local heating = auto.heater or (override and override.heater == "on")
+    if present.cooler then
+        if T > targets.tHi then auto.cooler = true elseif T <= targets.tHi - 2 then auto.cooler = false end
+        if heating then auto.cooler = false end
+    end
+    if present.circfan then
+        if T > targets.tHi - 1 then auto.circfan = true elseif T <= targets.tHi - 2.5 then auto.circfan = false end
+        if heating then auto.circfan = false end
     end
     if present.dehumidifier then
         if H > targets.hHi then auto.dehumidifier = true elseif H <= mid then auto.dehumidifier = false end

@@ -49,6 +49,8 @@
     "CannabisMod.Heater": "Grow Room Heater",
     "CannabisMod.Dehumidifier": "Dehumidifier",
     "CannabisMod.Humidifier": "Humidifier",
+    "CannabisMod.WallAC": "Wall Air Conditioner",
+    "CannabisMod.CirculationFan": "Circulation Fan",
     "CannabisMod.GrowBagXLPlaceable": "XL Grow Bag",
     "CannabisMod.DWCBucketXL": "XL DWC Bucket"
 }

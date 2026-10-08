@@ -29,6 +29,8 @@
     "DDMakeHeater": "Make Grow Room Heater",
     "DDMakeDehumidifier": "Make Dehumidifier",
     "DDMakeHumidifier": "Make Humidifier",
+    "DDMakeWallAC": "Make Wall Air Conditioner",
+    "DDMakeCirculationFan": "Make Circulation Fan",
     "DDMakeGrowBagXL": "Make XL Grow Bag",
     "DDMakeDWCBucketXL": "Make XL DWC Bucket"
 }

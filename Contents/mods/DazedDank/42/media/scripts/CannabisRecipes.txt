@@ -647,6 +647,55 @@ module CannabisMod
         }
     }
 
+    craftRecipe DDMakeWallAC
+    {
+        timedAction = MakingElectrical,
+        time = 240,
+        NeedToBeLearn = true,
+        Tags = InHandCraft;Electrical,
+        category = Electrical,
+        xpAward = Electricity:15,
+        SkillRequired = Electricity:5,
+        inputs
+        {
+            item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems],
+            item 1 [Base.BlowerFan],
+            item 2 [Base.RubberHose],
+            item 2 [Base.SheetMetal],
+            item 2 [Base.AluminumScrap],
+            item 3 [Base.ElectricWire],
+            item 3 [Base.ElectronicsScrap],
+            item 4 [Base.Screws],
+        }
+        outputs
+        {
+            item 1 CannabisMod.WallAC,
+        }
+    }
+
+    craftRecipe DDMakeCirculationFan
+    {
+        timedAction = MakingElectrical,
+        time = 120,
+        NeedToBeLearn = true,
+        Tags = InHandCraft;Electrical,
+        category = Electrical,
+        xpAward = Electricity:6,
+        SkillRequired = Electricity:2,
+        inputs
+        {
+            item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems],
+            item 1 [Base.BlowerFan],
+            item 1 [Base.ElectricWire],
+            item 1 [Base.ScrapMetal],
+            item 1 [Base.ElectronicsScrap],
+        }
+        outputs
+        {
+            item 1 CannabisMod.CirculationFan,
+        }
+    }
+
     craftRecipe DDMakeHeater
     {
         timedAction = MakingElectrical,

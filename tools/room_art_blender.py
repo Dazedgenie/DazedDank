@@ -1,4 +1,5 @@
-"""Dazed Dank grow room art: the panel, blackout curtains, fans, floor and wall-mounted climate units, rendered with the PZ Sprite Forge rig.
+"""Dazed Dank grow room art: the panel, blackout curtains, fans, floor and wall-mounted climate units, wall AC and circulation fan,
+rendered with the PZ Sprite Forge rig.
 Run: blender.exe -b -P room_art.py [-- sets...] (renders land in ./renders/<set>/); add "icons" to render inventory icons instead."""
 from __future__ import annotations
 
@@ -248,6 +249,52 @@ def build_wall_humidifier():
     return parts
 
 
+
+def build_wall_ac():
+    parts = []
+    body = mat("wac_body", "metal", (0.90, 0.91, 0.93))
+    trim = mat("wac_trim", "metal", (0.70, 0.72, 0.76))
+    dark = mat("wac_dark", "metal", (0.16, 0.17, 0.20))
+    led = mat("wac_led", "metal", (0.25, 0.85, 0.50))
+    screen = mat("wac_screen", "metal", (0.30, 0.62, 0.90))
+    w, h, d = 0.80, 0.26, 0.20
+    y = WALL_Y - d / 2
+    box(parts, "wac_body", (0, y, WALL_Z), (w, d, h), body)
+    box(parts, "wac_back", (0, WALL_Y - 0.01, WALL_Z), (w - 0.04, 0.02, h - 0.04), trim)
+    fy = y - d / 2
+    # Intake slots on top, the swing louvre along the bottom front and a small display with a power light.
+    for k in range(7):
+        box(parts, f"wac_slot_{k}", (-0.30 + k * 0.10, y, WALL_Z + h / 2 + 0.002), (0.06, d - 0.06, 0.006), trim)
+    box(parts, "wac_louvre", (0, fy - 0.02, WALL_Z - h / 2 + 0.03), (w - 0.10, 0.05, 0.03), dark, rot=(math.radians(-30), 0, 0))
+    box(parts, "wac_screen", (0.22, fy - 0.004, WALL_Z + 0.02), (0.12, 0.008, 0.05), screen)
+    disc(parts, "wac_led", (0.32, fy - 0.006, WALL_Z + 0.02), 0.012, 0.012, led, verts=12)
+    return parts
+
+
+def build_circ_fan():
+    parts = []
+    housing = mat("cfan_housing", "metal", (0.20, 0.21, 0.25))
+    blade = mat("cfan_blade", "metal", (0.35, 0.62, 0.86))
+    guard = mat("cfan_guard", "metal", (0.70, 0.71, 0.75))
+    r, z = 0.20, WALL_Z
+    y = WALL_Y - 0.16
+    # A short wall bracket and arm, the motor pod, three blades and a wire guard facing the room.
+    box(parts, "cfan_plate", (0, WALL_Y - 0.01, z - 0.18), (0.10, 0.02, 0.14), housing)
+    box(parts, "cfan_arm", (0, WALL_Y - 0.08, z - 0.18), (0.04, 0.14, 0.04), housing)
+    disc(parts, "cfan_motor", (0, y + 0.06, z), 0.07, 0.10, housing)
+    for k in range(3):
+        a = math.radians(30 + 120 * k)
+        box(parts, f"cfan_blade_{k}", (math.cos(a) * 0.09, y - 0.01, z + math.sin(a) * 0.09), (0.16, 0.01, 0.07), blade, rot=(0, -a, 0))
+    disc(parts, "cfan_hub", (0, y - 0.02, z), 0.03, 0.03, housing)
+    for k, rr in enumerate((0.07, 0.13, r)):
+        ring(parts, f"cfan_guard_{k}", (0, y - 0.04, z), rr, 0.005, guard)
+        ring(parts, f"cfan_guard_back_{k}", (0, y + 0.03, z), rr, 0.005, guard)
+    box(parts, "cfan_bar_v", (0, y - 0.04, z), (0.010, 0.010, 2 * r), guard)
+    box(parts, "cfan_bar_h", (0, y - 0.04, z), (2 * r, 0.010, 0.010), guard)
+    return parts
+
+
+
 SETS = [
     # name, facings, builder
     ("panel", "4", build_panel),
@@ -261,6 +308,8 @@ SETS = [
     ("wall_heater", "4", build_wall_heater),
     ("wall_dehumidifier", "4", build_wall_dehumidifier),
     ("wall_humidifier", "4", build_wall_humidifier),
+    ("wall_ac", "4", build_wall_ac),
+    ("circ_fan", "4", build_circ_fan),
 ]
 
 
@@ -276,6 +325,8 @@ ICONS = [
     ("WallHeater", build_wall_heater),
     ("WallDehumidifier", build_wall_dehumidifier),
     ("WallHumidifier", build_wall_humidifier),
+    ("WallAC", build_wall_ac),
+    ("CirculationFan", build_circ_fan),
 ]
 
 

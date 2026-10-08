@@ -1,4 +1,4 @@
--- Lit grow lamps warm the room they hang in, for the Dazed Climate mod's room temperatures.
+-- Lit grow lamps warm the room they hang in, and running wall ACs cool it, for the Dazed Climate mod's room temperatures.
 -- Registered once with Dazed Climate when it is loaded; without it this file does nothing.
 
 if isClient() then return end
@@ -51,6 +51,33 @@ function LampHeat.heat(obj)
     return def.radius * Config.Weather.LAMP_HEAT_PER_RADIUS / (def.tiles or 1)
 end
 
+--- The equipment entry for an object's sprite, or nil.
+local function gearOf(obj)
+    local ok, name = pcall(function()
+        local sprite = obj:getSprite()
+        return sprite and sprite:getName()
+    end)
+    return ok and name and Config.Rooms.EQUIPMENT[name] or nil
+end
+
+--- True for a placed wall AC (Dazed Climate asks this once per room read).
+function LampHeat.isCooler(obj)
+    local gear = gearOf(obj)
+    return gear ~= nil and gear.kind == "cooler"
+end
+
+--- A wall AC's pull on its Dazed Climate room: negative heat while its grow room panel has it running, else none.
+function LampHeat.coolerHeat(obj)
+    local ok, heat = pcall(function()
+        local square = obj:getSquare()
+        local Rooms = CannabisMod.Rooms
+        local room = square and Rooms and Rooms.roomAt(square:getX(), square:getY(), square:getZ())
+        if not (room and room.powered ~= false and room.running and room.running.cooler) then return 0 end
+        return Config.Climate.COOLER_HEAT
+    end)
+    return ok and heat or 0
+end
+
 local registered = false
 
 --- Hand the lamp source to Dazed Climate once, if it is loaded yet.
@@ -59,6 +86,7 @@ function LampHeat.register()
     local rooms = DazedClimate and DazedClimate.Rooms
     if not (rooms and rooms.addObjectSource) then return false end
     rooms.addObjectSource({ match = LampHeat.match, heat = LampHeat.heat })
+    rooms.addObjectSource({ match = LampHeat.isCooler, heat = LampHeat.coolerHeat })
     registered = true
     print("[DazedDank] Dazed Climate found: grow lamps warm their rooms")
     return true
