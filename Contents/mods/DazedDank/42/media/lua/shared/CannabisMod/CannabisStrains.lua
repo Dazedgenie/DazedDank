@@ -173,6 +173,15 @@ function Strains.typeOf(strain)
     return T.HYBRID
 end
 
+--- A harvested whole plant's name from its harvest data: "Wet Knox Kush (Indica)", or nil without a strain (keeps the item's own name).
+--- `stage` is "Wet" or "Dried"; a purple plant gets "Purple" in front unless its strain already says it.
+function Strains.plantName(harvest, stage)
+    if not (harvest and harvest.strain and harvest.strain.name) then return nil end
+    local word = harvest.strain.name
+    if CannabisMod.Weather then word = CannabisMod.Weather.purpleName(harvest, word) end
+    return stage .. " " .. word .. " (" .. tostring(harvest.type or Strains.typeOf(harvest.strain)) .. ")"
+end
+
 --- A fresh copy of a strain record (strains are shared by value, never by reference).
 function Strains.copy(strain)
     if not strain then return nil end

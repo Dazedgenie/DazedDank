@@ -300,7 +300,11 @@ local function convertToDried(container, item, rec)
     local added = container:AddItems(driedType, 1)
     local dried = added and added:size() > 0 and added:get(0)
     if not dried then return end
-    if harvest then dried:getModData().CannabisHarvest = harvest end
+    if harvest then
+        dried:getModData().CannabisHarvest = harvest
+        local name = Strains.plantName(harvest, "Dried")
+        if name then dried:setName(name) end
+    end
     container:Remove(item)
     sendRemoveItemFromContainer(container, item)
     sendAddItemsToContainer(container, added)
@@ -327,6 +331,9 @@ local function settleRack(container, key, square, now)
         if not rec then
             rec = { harvest = item:getModData().CannabisHarvest, hours = 0, moldy = false, sunLoss = 0 }
             db.plants[id] = rec
+            -- Plants harvested before they were named by strain pick their name up the first time they hang.
+            local name = Strains.plantName(rec.harvest, "Wet")
+            if name and item:getName() ~= name then pcall(item.setName, item, name) end
         end
         if rec.at == key and rec.seen == prev and elapsed > 0 then
             env = env or Drying.environment(square)

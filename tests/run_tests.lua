@@ -511,6 +511,7 @@ check("harvest gives wet plant of its type", wet and wet.fullType == C.WET_PLANT
 check("wet plant carries quality (" .. tostring(hd and hd.quality) .. ")", hd and hd.quality == 90 and hd.type == T.SATIVA)
 check("bud yield 4-8 scaled by genetics and strain (" .. tostring(hd and hd.budYield) .. ")", hd and hd.budYield >= 3 and hd.budYield <= 10)
 check("wet plant carries its strain", hd and hd.strain and hd.strain.name ~= nil)
+check("wet plant is named for its strain (" .. tostring(wet and wet.name) .. ")", wet and wet.name == "Wet " .. hd.strain.name .. " (" .. hd.type .. ")")
 check("harvest removes the plant from the world", plotA.removed == true and SFarmingSystem.instance:getLuaObjectAt(400, 400, 0) == nil and R.getPlant(400, 400, 0) == nil)
 check("unpollinated: no seeds", #farmer.inv.items == 1)
 
@@ -3423,6 +3424,12 @@ do
     local hCold = harvestOne(7501, { purple = true, coldYieldLoss = 0.25 })
     check("harvest carries purple (" .. hPlain.budYield .. " vs " .. hCold.budYield .. " buds)", hCold.purple == true and hPlain.purple == nil
         and hCold.budYield < hPlain.budYield and hCold.quality > hPlain.quality)
+    local St = CannabisMod.Strains
+    check("plant names: dried, purple, and none without a strain",
+        St.plantName({ type = "Indica", strain = St.copy(St.STARTERS[1]) }, "Dried") == "Dried Knox Kush (Indica)"
+        and St.plantName({ type = "Indica", purple = true, strain = St.copy(St.STARTERS[1]) }, "Wet") == "Wet Purple Knox Kush (Indica)"
+        and St.plantName({ type = "Indica", purple = true, strain = St.copy(St.STARTERS[2]) }, "Wet") == "Wet Muldraugh Purple (Indica)"
+        and St.plantName({ type = "Hybrid" }, "Wet") == nil)
 
     -- Purple carries from the dried plant into buds and joints.
     local pp = newPlayer(0, 0, 8)

@@ -1,6 +1,7 @@
 # Dazed Dank patch notes
 
 ## dd54 (Climate and UI redesign, in testing)
+- Changed: harvested whole plants carry their strain name, wet and dried: "Wet Knox Kush (Indica)", "Dried Purple Riverside Haze (Sativa)". Plants already harvested pick the name up the first time they hang on a rack. Buds and joints were already named by strain; a bud only says "Hybrid Bud" when its plant had no strain (from before strains existed, or debug kits).
 - Added: **High Tracker** (right-click anywhere). A small window showing whether you're high, in withdrawal or sober: the strain smoked, coming up / peak / coming down, strength now and at peak, time left, tolerance, dependency, whether the hit has turned anxious, and each stat change per hour with your current value.
 - Changed: the grow panel's **Refresh** button shows what happened: "..." while it asks, "Updated" when the room comes back, and "No reply" if the server never answers. A panel the server has no record of, or one in someone else's safehouse, now says so instead of doing nothing.
 - Fixed: the occupation and trait descriptions logged formatting errors. A bare "%" reads as a format code in the game's translations, so they say "percent" now.

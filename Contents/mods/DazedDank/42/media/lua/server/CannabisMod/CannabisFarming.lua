@@ -383,6 +383,8 @@ local function harvestCannabis(luaObject, player)
                     hermieLineage = plant.hermieLineage == true,
                     harvestedAt   = Registry.nowHours(),
                 }
+                local name = Strains.plantName(item:getModData().CannabisHarvest, "Wet")
+                if name then item:setName(name) end
             end)
 
             -- Pollinated (by a male or a hermie): seeds too.
