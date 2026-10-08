@@ -18,6 +18,7 @@
 - Fixed: a bar lamp (large basic or large pro) heated a grow room once per tile, so a 3-tile lamp gave three times its heat. It now counts once, shared across its tiles.
 - Fixed: the close button (X) on the Grow Room Panel and the plant Inspect window was hidden under the title bar. Both windows now draw their layout first and the buttons on top.
 - Added: a **Refresh** button on the Grow Room Panel title bar that asks for the room again.
+- Fixed: hovering the **Drip Irrigation Tank** filled the console with formatting errors. A bare "%" in its tooltip read as a format code; it now says "percent".
 - Fixed: a plant card's warning badge covered its Health row. The badge (or a green "all good") now sits on the bottom of the plant photo.
 - Fixed: "12 tiles ? 2 lamps" and "Sativa ? Haze" showed a question mark: the game font has no middle dot. Those spots use a bar now.
 - Fixed: you could still step into the gap between a blackout curtain and its door and vanish behind the curtain. Curtains now sit flush in the frame, so a player against the door always shows in front.
