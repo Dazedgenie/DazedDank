@@ -28,10 +28,12 @@ end
 --- cooler and circfan (how many are running).
 function Climate.balance(i)
     local vent = K.BASE_VENT + i.exhaust + i.intake
-    local t = i.outT + math.min(K.MAX_RISE, (i.lampHeat + count(i.heater) * K.HEATER_C) / vent)
+    local coolers = count(i.cooler)
+    -- Each running AC first carries out COOLER_CAPACITY of the lamp and heater heat, so a sealed lamp room can be held.
+    local gain = math.max(0, i.lampHeat + count(i.heater) * K.HEATER_C - coolers * (K.COOLER_CAPACITY or 0))
+    local t = i.outT + math.min(K.MAX_RISE, gain / vent)
     -- Cooling works whatever the weather: ACs pull heat out (down to a floor), circulation fans take the edge off.
     t = t - math.min(K.CIRC_FAN_MAX_C, count(i.circfan) * K.CIRC_FAN_C)
-    local coolers = count(i.cooler)
     if coolers > 0 and t > K.COOLER_FLOOR_C then t = math.max(K.COOLER_FLOOR_C, t - coolers * K.COOLER_C) end
     local h = i.outH + i.moisture / vent
     h = h + count(i.humidifier) * K.HUMIDIFIER - count(i.dehumidifier) * K.DEHUMIDIFIER - coolers * K.COOLER_DRY

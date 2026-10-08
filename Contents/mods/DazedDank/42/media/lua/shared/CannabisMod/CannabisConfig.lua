@@ -562,9 +562,10 @@ Config.Climate = {
     WET_PLANT_HUMIDITY = 2.0,                   -- per wet plant hanging on a rack
     HUMIDIFIER = 14, DEHUMIDIFIER = 14,         -- percentage points of humidity the machines move
     COOLER_C = 6, COOLER_DRY = 6,               -- a running wall AC takes this many C and humidity points off the room
+    COOLER_CAPACITY = 8,                        -- heat a running AC carries out first, in lamp-radius units (two large pro lamps)
     COOLER_FLOOR_C = 12,                        -- an AC won't pull a room below this
     CIRC_FAN_C = 1.5, CIRC_FAN_MAX_C = 3,       -- circulation fans break up hot spots: this much each, this much at most
-    COOLER_HEAT = -18,                          -- a running AC's pull on a Dazed Climate room, in C x squares per hour
+    COOLER_HEAT = -24,                          -- a running AC's pull on a Dazed Climate room, in C x squares per hour (two large pro lamps)
     MAX_RISE = 30,                              -- the most a room can climb above the outdoor temperature
     BASE_VENT = 0.3,                            -- air change a sealed room still has
     VENT = { exhaust = 1.2, intake = 0.6 },     -- air change per fan at full effect

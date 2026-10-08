@@ -883,7 +883,8 @@ function Rooms.scan(panelKey)
                 local name = sprite and sprite:getName()
                 local lamp = name and Config.Light.SPRITES[name]
                 if lamp and panelPowered and Light.isPowered(square) and Config.Timer.isOn(schedule, hour) then
-                    out.lampHeat = out.lampHeat + lamp.radius * K.LAMP_HEAT_PER_RADIUS
+                    -- A bar lamp is one lamp over several tiles, so each tile gives its share.
+                    out.lampHeat = out.lampHeat + lamp.radius * K.LAMP_HEAT_PER_RADIUS / (lamp.tiles or 1)
                 end
                 local gear = name and Config.Rooms.EQUIPMENT[name]
                 if gear then

@@ -2711,6 +2711,15 @@ end
         check("a wall AC cools a room whatever the weather and dries it a little", acT == 30 - K.COOLER_C and acH == 60 - K.COOLER_DRY)
         check("ACs stop at their floor", CL.balance(with({ cooler = 5 })) == K.COOLER_FLOOR_C
             and CL.balance(with({ outT = 8, cooler = 1 })) == 8)
+        local sealedLamps = { outT = 29, outH = 40, lampHeat = 8, moisture = 0, exhaust = 0, intake = 0 }
+        local hot2 = CL.balance(sealedLamps)
+        sealedLamps.cooler = 1
+        local held = CL.balance(sealedLamps)
+        check("one AC holds a sealed room with two large pro lamps", hot2 > 50 and held <= 29 - K.COOLER_C + 0.01)
+        sealedLamps.lampHeat, sealedLamps.cooler = 16, 1
+        local over = CL.balance(sealedLamps)
+        sealedLamps.cooler = 2
+        check("more lamps than the AC can carry warm the room; a second AC catches up", over > 40 and CL.balance(sealedLamps) <= 23.01)
         check("circulation fans take a little off, capped", CL.balance(with({ circfan = 1 })) == 30 - K.CIRC_FAN_C
             and CL.balance(with({ circfan = 5 })) == 30 - K.CIRC_FAN_MAX_C)
 
@@ -3198,7 +3207,7 @@ do
     check("lamp heat and AC cooling register with Dazed Climate once", #sources == 2 and sources[1].heat == LH.heat
         and sources[2].heat == LH.coolerHeat and sources[2].match == LH.isCooler)
 
-    -- Dank's own room model still adds a lamp's full radius per tile, as before lamp heat for Dazed Climate.
+    -- A bar lamp heats Dank's room once, shared across its tiles, the same as for Dazed Climate.
     for x = 7600, 7602 do fakeSquare(x, 7600, 0, false, true) end
     table.insert(fakeSquares["7600_7600_0"].objs, { sprite = "dazeddank_rooms_01_0", md = {} })
     table.insert(fakeSquares["7601_7600_0"].objs, { sprite = "dazeddank_plants_01_222", md = {} })
@@ -3206,7 +3215,7 @@ do
     local Rooms = CannabisMod.Rooms
     hourOfDay = 12
     check("scan room registers", Rooms.register(fakeSquares["7600_7600_0"], newPlayer(7600, 7600, 5), function() return false end))
-    check("bar lamp tiles each heat Dank's room by their radius", near(Rooms.scan("7600_7600_0").lampHeat, 2 * 4 * C.Climate.LAMP_HEAT_PER_RADIUS))
+    check("bar lamp tiles share their lamp's heat", near(Rooms.scan("7600_7600_0").lampHeat, 2 * 4 / 3 * C.Climate.LAMP_HEAT_PER_RADIUS))
     Rooms.remove("7600_7600_0")
 
     -- Outdoor plants feel the air.
