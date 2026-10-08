@@ -227,6 +227,21 @@ local function needs(option, ok, why)
     option.toolTip = tip
 end
 
+--- When the rockwool on a flood table (or the tables a flood reservoir feeds) dries, and whether a flood timer keeps it wet.
+local function wetnessOf(plot, square)
+    local obj = plot and plot.getIsoObject and plot:getIsoObject()
+    if not obj and square then
+        local objects = square:getObjects()
+        for i = 0, objects:size() - 1 do
+            local sprite = objects:get(i):getSprite()
+            if sprite and sprite:getName() == Config.Hydro.FLOOD_SPRITE then obj = objects:get(i) end
+        end
+    end
+    local md = obj and obj:getModData()
+    if not md then return nil, false end
+    return tonumber(md.DDWetUntil), md.DDWetTimer == true
+end
+
 --- Reservoir, medium and root options on a hydro plot, or (with no plot) on an RDWC control bucket or flood reservoir.
 function addHydroOptions(player, context, plot, kind, action, square)
     local inv = player:getInventory()
@@ -239,8 +254,13 @@ function addHydroOptions(player, context, plot, kind, action, square)
             needs(cp, inv:containsTypeRecurse(Config.Hydro.MEDIUM_ITEMS.pebbles), "Needs clay pebbles. Reusable; some seeds sown straight in fail.")
         end
     end
-    -- Ebb and Flow: flood the tables by hand from the reservoir or any table.
+    -- Ebb and Flow: how wet the rockwool is, then flood the tables by hand from the reservoir or any table.
     if kind == "ebb" then
+        local info = context:addOption(Config.Hydro.wetnessLabel(wetnessOf(plot, square)), player, nil)
+        local tip = ISInventoryPaneContextMenu.addToolTip()
+        tip.description = "Rockwool stays wet for about " .. Config.Hydro.EBB_WET_HOURS
+            .. " hours after a flood. Dry rockwool gives the roots nothing to drink."
+        info.toolTip = tip
         local flood = context:addOption("Flood Tables", player, function() action("floodTables") end)
         local tip = ISInventoryPaneContextMenu.addToolTip()
         tip.description = "Runs the flood pump: every table the reservoir feeds stays wet for about "

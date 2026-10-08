@@ -698,6 +698,16 @@ Config.Hydro = {
     EBB_LINK_HOURS = 1,                         -- how long a worked-out table network is trusted (changes clear it at once)
 }
 
+--- The right-click line for a flood table's rockwool: how wet it is as a percent of a fresh flood, and when it dries.
+function Config.Hydro.wetnessLabel(wetUntil, timer, now)
+    now = now or getGameTime():getWorldAgeHours()
+    local left = (tonumber(wetUntil) or 0) - now
+    if left <= 0 then return "Rockwool: dry, flood the tables" end
+    local pct = math.floor(math.min(1, left / Config.Hydro.EBB_WET_HOURS) * 100 + 0.5)
+    if timer then return string.format("Rockwool: %d%% wet (flood timer keeps it wet)", pct) end
+    return string.format("Rockwool: %d%% wet, dry in %d h", pct, math.ceil(left))
+end
+
 Config.Care = {
     START                 = 100,
     OVERWATER_PER_HOUR    = 0.5,

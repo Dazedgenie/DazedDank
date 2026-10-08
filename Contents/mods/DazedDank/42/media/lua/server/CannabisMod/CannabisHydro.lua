@@ -331,14 +331,48 @@ function Hydro.floodBlocker(r)
     return nil
 end
 
+--- Copy when an object's rockwool dries onto it, so a right-click on the client can show it. Sent only when it moves half an hour or more.
+local function markWet(obj, wetUntil, timer)
+    if not obj then return end
+    local md = obj:getModData()
+    local was = tonumber(md.DDWetUntil)
+    if was and math.abs(was - wetUntil) < 0.5 and (md.DDWetTimer == true) == (timer == true) then return end
+    md.DDWetUntil = wetUntil
+    md.DDWetTimer = timer or nil
+    pcall(obj.transmitModData, obj)
+end
+
+--- Show a flood table's wetness on its plot object.
+function Hydro.markTableWet(x, y, z, wetUntil, timer)
+    local luaObject = Farming.getVanilla(x, y, z)
+    local obj = luaObject and luaObject.getIsoObject and luaObject:getIsoObject()
+    markWet(obj, wetUntil, timer)
+end
+
+--- Show the wetness of the tables a flood reservoir feeds on the reservoir itself.
+function Hydro.markReservoirWet(r, wetUntil, timer)
+    local square = getCell():getGridSquare(r.x, r.y, r.z)
+    if not square then return end
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        if sprite and sprite:getName() == H.FLOOD_SPRITE then return markWet(obj, wetUntil, timer) end
+    end
+end
+
 function Hydro.flood(r, now)
     local keys = Hydro.ebbSitesOf(Config.tileKey(r.x, r.y, r.z))
     local blocked = Hydro.floodBlocker(r)
     if blocked then return blocked end
+    local timer = Hydro.hasFloodTimer(r)
     for _, k in ipairs(keys) do
         local x, y, z = k:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        Hydro.get(tonumber(x), tonumber(y), tonumber(z), "ebb").wetUntil = now + H.EBB_WET_HOURS
+        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        Hydro.get(x, y, z, "ebb").wetUntil = now + H.EBB_WET_HOURS
+        Hydro.markTableWet(x, y, z, now + H.EBB_WET_HOURS, timer)
     end
+    Hydro.markReservoirWet(r, now + H.EBB_WET_HOURS, timer)
     return "flooded"
 end
 
@@ -449,7 +483,10 @@ function Hydro.update(plant, now)
     local wet, wetHours = true, nil
     if ebb then
         local site = Hydro.get(plant.x, plant.y, plant.z, "ebb")
-        if Hydro.hasFloodTimer(r) and not Hydro.floodBlocker(r) then site.wetUntil = now + H.EBB_WET_HOURS end
+        local timed = Hydro.hasFloodTimer(r) and not Hydro.floodBlocker(r)
+        if timed then site.wetUntil = now + H.EBB_WET_HOURS end
+        Hydro.markTableWet(plant.x, plant.y, plant.z, site.wetUntil or 0, timed)
+        if timed then Hydro.markReservoirWet(r, site.wetUntil, true) end
         wetHours = math.max(0, (site.wetUntil or 0) - now)
         wet = wetHours > 0
         plant.warnings.mediumDry = (not wet) or nil

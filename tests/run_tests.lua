@@ -57,6 +57,10 @@ function Plot:saveData() end
 function Plot:harvestThis() self.state = "harvested" end
 function Plot:initNew() self.state, self.nbOfGrow, self.typeOfSeed, self.waterLvl = "plow", -1, "none", 0 end
 function Plot:getSquare() return nil end
+function Plot:getIsoObject()
+    self.iso = self.iso or { md = {}, getModData = function(o) return o.md end, transmitModData = function(o) o.sent = (o.sent or 0) + 1 end }
+    return self.iso
+end
 local function newPlot(x, y, z)
     local p = setmetatable({ x = x, y = y, z = z, state = "plow", nbOfGrow = -1, typeOfSeed = "none", waterLvl = 60 }, Plot)
     plots[#plots + 1] = p; return p
@@ -1965,7 +1969,7 @@ do
     HY._reset({})
     HY.forgetLinks()
     local res = fakeSquare(999, 1000, 0, false, true)
-    res.objs[1] = HC.FLOOD_SPRITE
+    res.objs[1] = { sprite = HC.FLOOD_SPRITE, md = {} }
     local function tableAt(x, y)
         local sq = fakeSquare(x, y, 0, false, true)
         GB.makePlot(sq, "ebb")
@@ -2007,6 +2011,14 @@ do
     fire("OnClientCommand", "CannabisMod", "floodTables", grower, { x = 1001, y = 1000, z = 0 })
     check("flooding wets every table the reservoir feeds", sent[#sent].data.text:find("Flooded 4 table sites")
         and HY.get(1003, 1000, 0, "ebb").wetUntil == 200 + HC.EBB_WET_HOURS)
+    local tableMd = SFarmingSystem.instance:getLuaObjectAt(ep.x, ep.y, ep.z):getIsoObject().md
+    check("a flood shows on each table for a right-click", tableMd.DDWetUntil == 200 + HC.EBB_WET_HOURS and not tableMd.DDWetTimer)
+    local resMd
+    for _, o in ipairs(res.objs) do if type(o) == "table" and o.sprite == HC.FLOOD_SPRITE then resMd = o.md end end
+    check("and on the flood reservoir", resMd and resMd.DDWetUntil == 200 + HC.EBB_WET_HOURS)
+    check("wetness reads as a percent and the hours left", C.Hydro.wetnessLabel(212, false, 203) == "Rockwool: 75% wet, dry in 9 h"
+        and C.Hydro.wetnessLabel(212, false, 212) == "Rockwool: dry, flood the tables"
+        and C.Hydro.wetnessLabel(220, true, 210):find("flood timer"))
     HY.update(ep, 205)
     check("a flooded table waters the plant and it drinks", not ep.warnings.mediumDry and ep.water == HC.PLOT_WATER and r.level < 30
         and ep.hydro.ebb and ep.hydro.wetHours == 7)
@@ -2019,6 +2031,10 @@ do
     check("a flood timer fits on the reservoir", r.floodTimer and grower.inv:count(HC.FLOOD_TIMER_ITEM) == 0)
     HY.update(ep, 214)
     check("with a timer and power the tables stay wet", not ep.warnings.mediumDry and ep.hydro.floodTimer)
+    check("the table shows the timer keeping it wet", tableMd.DDWetTimer == true and tableMd.DDWetUntil == 214 + HC.EBB_WET_HOURS)
+    local sentBefore = SFarmingSystem.instance:getLuaObjectAt(ep.x, ep.y, ep.z):getIsoObject().sent
+    HY.update(ep, 214 + 1 / 6)
+    check("the table's wetness isn't re-sent every ten minutes", SFarmingSystem.instance:getLuaObjectAt(ep.x, ep.y, ep.z):getIsoObject().sent == sentBefore)
     res.power = false
     HY.update(ep, 220)
     check("after a power cut the rockwool is still wet for a while", not ep.warnings.mediumDry)
