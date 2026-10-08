@@ -3799,5 +3799,155 @@ do
     check("the curing jar item takes buds only", text:find("item CuringJar%s*{[^}]*AcceptItemFunction%s*=%s*DazedDankAccept%.Buds") ~= nil)
 end
 
+-- ---- Occupations and traits ---------------------------------------------
+;(function()
+    local reg = {}
+    CharacterTrait = { register = function(id) reg[id] = "trait"; return id end }
+    CharacterProfession = { register = function(id) reg[id] = reg[id] or "profession"; return id end }
+    dofile(MOD .. "../registries.lua")
+    local Tr = CannabisMod.Traits
+    local function traitPlayer(x, y, level, list)
+        local p = newPlayer(x, y, level)
+        local has = {}
+        for _, k in ipairs(list) do has[DazedDankTraits[k]] = true end
+        p.hasTrait = function(_, t) return has[t] == true end
+        p.getUsername = function() return "trait" .. x end
+        return p
+    end
+    SandboxVars = { CannabisMod = { MoldChance = 0 } }
+    local plain, tech = traitPlayer(1, 1, 3, {}), traitPlayer(2, 2, 3, { "cultivationtech", "greenthumb" })
+    check("traits: has reads the player's traits", Tr.has(tech, "cultivationtech") and not Tr.has(plain, "cultivationtech"))
+    check("traits: rooting bonus stacks Tech and Green Thumb", Tr.rootingBonus(tech) == 15 and Tr.rootingBonus(plain) == 0)
+    SandboxVars = { CannabisMod = { MoldChance = 0, TraitsAndOccupations = false } }
+    check("traits: the sandbox switch turns every effect off", not Tr.has(tech, "cultivationtech") and Tr.rootingBonus(tech) == 0)
+    SandboxVars = { CannabisMod = { MoldChance = 0 } }
+
+    -- Reading: the Tech reads 2 levels up short of genetics; the Breeder reads genetics and hermie lines.
+    local techRead, breedRead = Tr.reading(tech), { boost = 0, genetics = true, buds = false }
+    check("traits: Tech opens a tier 2 levels up", I.tierOpen(5, 3, techRead) and not I.tierOpen(6, 3, techRead))
+    check("traits: Tech never opens genetics early", not I.tierOpen(I.GENETICS_LEVEL, 8, techRead) and I.tierOpen(I.GENETICS_LEVEL, 9, techRead))
+    check("traits: Breeder reads genetics at any level", I.tierOpen(I.GENETICS_LEVEL, 0, breedRead) and not I.tierOpen(5, 0, breedRead))
+    local seed = { type = T.SATIVA, sex = "female", strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[1]), hermieLineage = true }
+    local seedText = I.seedLabel(seed, 3, breedRead)
+    check("traits: Breeder sees a seed's traits and hermie line", seedText:find("hermie line") and seedText:find(":"))
+    check("traits: others don't see a hermie line", not I.seedLabel(seed, 10):find("hermie line"))
+
+    -- Rooting, curing and seeds
+    check("traits: rooting bonus adds to the odds", G.rootingOdds(5, { moist = true, bonus = 10 }) == G.rootingOdds(5, { moist = true }) + 10)
+    check("traits: a Budtender's cure goes to +15%", G.curedQuality(80, 5000, false, false, 0.15) == 92 and G.curedQuality(80, 5000) == 88)
+    local mom, dad = { type = T.INDICA, strain = CannabisMod.Strains.STARTERS[1] }, { type = T.SATIVA, strain = CannabisMod.Strains.STARTERS[5] }
+    local range = C.SEEDS_PER_POLLINATED_PLANT
+    local fewest, most = 99, 0
+    for _ = 1, 40 do
+        local n = #G.seedsFromPollination(mom, dad, { extra = 1, noise = 5, luck = 75 })
+        fewest, most = math.min(fewest, n), math.max(most, n)
+    end
+    check("traits: a Breeder gets one extra seed", fewest >= range.min + 1 and most <= range.max + 1)
+    local St = CannabisMod.Strains
+    local a, b = St.copy(St.STARTERS[1]), St.copy(St.STARTERS[5])
+    local plainSum, breedSum, plainSpread, breedSpread = 0, 0, 0, 0
+    local mid = ((a.pot or 50) + (b.pot or 50)) / 2
+    for _ = 1, 400 do
+        local p1, p2 = St.blend(a, b, true), St.blend(a, b, true, { noise = 5, luck = 75 })
+        plainSum, breedSum = plainSum + p1.pot, breedSum + p2.pot
+        plainSpread, breedSpread = plainSpread + math.abs(p1.ind - (a.ind + b.ind) / 2), breedSpread + math.abs(p2.ind - (a.ind + b.ind) / 2)
+    end
+    check("traits: Breeder crosses lean toward more potency", breedSum > plainSum)
+    check("traits: Breeder crosses vary less", breedSpread < plainSpread)
+
+    -- Trim Hand stops at a wet plant unless told to trim anyway.
+    local trimmer2 = traitPlayer(300, 300, 8, { "trimhand" })
+    local sc = newItem("Base.Scissors"); sc.tags[ItemTag.SCISSORS] = true; trimmer2.inv:addExisting(sc)
+    local wet = trimmer2.inv:addExisting(newItem(C.WET_PLANT_ITEMS.Indica))
+    wet:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 2, genetics = 80 }
+    fire("OnClientCommand", "CannabisMod", "trimPlant", trimmer2, { id = wet:getID() })
+    check("traits: Trim Hand won't trim a wet plant without asking", sent[#sent].data.text:find("too wet")
+        and trimmer2.inv:count(C.Drying.BUD_ITEM) == 0)
+    fire("OnClientCommand", "CannabisMod", "trimPlant", trimmer2, { id = wet:getID(), force = true })
+    check("traits: Trim Plant Anyway trims it", trimmer2.inv:count(C.Drying.BUD_ITEM) == 2)
+    local wet2 = plain.inv:addExisting(newItem(C.WET_PLANT_ITEMS.Indica))
+    wet2:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 1 }
+    local sc2 = newItem("Base.Scissors"); sc2.tags[ItemTag.SCISSORS] = true; plain.inv:addExisting(sc2)
+    fire("OnClientCommand", "CannabisMod", "trimPlant", plain, { id = wet2:getID() })
+    check("traits: anyone else trims wet plants as before", plain.inv:count(C.Drying.BUD_ITEM) == 1)
+
+    -- Lightweight and Chronic
+    local U = CannabisMod.Use
+    local u1, u2 = U.new(), U.new()
+    local s1 = U.dose(u1, 100, 1, "joint")
+    local s2 = U.dose(u2, 100, 1, "joint", { mult = Tr.LIGHTWEIGHT_STRENGTH })
+    check("traits: Lightweight highs hit 50% harder", math.abs(s2 - s1 * 1.5) < 1e-6 and math.abs(u2.tol - u1.tol * 1.5) < 1e-6)
+    local light = traitPlayer(1500, 1500, 1, { "lightweight" })
+    local lj = newItem(C.Smoking.JOINT_ITEM); light.inv:addExisting(lj)
+    lj:getModData().DDJoint = { type = "Indica", quality = 50, moldy = false }
+    local heavy = traitPlayer(1501, 1501, 1, {})
+    local hj = newItem(C.Smoking.JOINT_ITEM); heavy.inv:addExisting(hj)
+    hj:getModData().DDJoint = { type = "Indica", quality = 50, moldy = false }
+    fire("OnClientCommand", "CannabisMod", "smoke", light, { id = lj:getID(), method = "joint" })
+    local ls = sent[#sent].data.strength
+    fire("OnClientCommand", "CannabisMod", "smoke", heavy, { id = hj:getID(), method = "joint" })
+    check("traits: a Lightweight smoker gets the stronger dose", sent[#sent].cmd == "smoked" and ls > sent[#sent].data.strength * 1.4)
+    local chronic = traitPlayer(1502, 1502, 1, { "chronic" })
+    fire("OnClientCommand", "CannabisMod", "chronicStart", chronic, {})
+    local cu = CannabisMod.Smoking.data().users["trait1502"]
+    check("traits: a Chronic starts hooked", cu and cu.dep == Tr.CHRONIC_DEP and cu.tol == Tr.CHRONIC_TOL and sent[#sent].cmd == "useState")
+    fire("OnClientCommand", "CannabisMod", "chronicStart", plain, {})
+    check("traits: chronicStart does nothing without the trait", CannabisMod.Smoking.data().users["trait1"] == nil)
+
+    -- Green Thumb softens care penalties on plants they planted.
+    check("traits: Green Thumb care constant is a reduction", Tr.GREEN_THUMB_CARE < 1)
+
+    -- Scripts: every id is registered, every recipe exists, every UI key is translated.
+    local function readAll(path) local f = io.open(path, "r"); local t = f and f:read("*a") or ""; if f then f:close() end; return t end
+    local chars = readAll(MOD .. "../scripts/CannabisCharacters.txt")
+    local recipes = readAll(MOD .. "../scripts/CannabisRecipes.txt") .. readAll(MOD .. "../scripts/CannabisItems.txt")
+    local ui = readAll(MOD .. "shared/Translate/EN/UI.json")
+    local missingId, missingRecipe, missingKey, defs = {}, {}, {}, 0
+    for id in chars:gmatch("character_%a+_definition%s+([%w:]+)") do
+        defs = defs + 1
+        if not reg[id] then missingId[#missingId + 1] = id end
+    end
+    for list in chars:gmatch("GrantedRecipes%s*=%s*([^,\n]+)") do
+        for name in list:gmatch("[^;%s]+") do
+            if not recipes:find("craftRecipe%s+" .. name .. "%f[%W]") then missingRecipe[#missingRecipe + 1] = name end
+        end
+    end
+    for key in chars:gmatch("UI%w*Name%s*=%s*([%w_]+)") do if not ui:find('"' .. key .. '"', 1, true) then missingKey[#missingKey + 1] = key end end
+    for key in chars:gmatch("UIDescription%s*=%s*([%w_]+)") do if not ui:find('"' .. key .. '"', 1, true) then missingKey[#missingKey + 1] = key end end
+    check("traits: 3 occupations and 7 traits defined", defs == 10)
+    check("traits: every definition id is registered (" .. table.concat(missingId, ",") .. ")", #missingId == 0)
+    check("traits: every granted recipe exists (" .. table.concat(missingRecipe, ",") .. ")", #missingRecipe == 0)
+    check("traits: every UI key is translated (" .. table.concat(missingKey, ",") .. ")", #missingKey == 0)
+    for _, icon in ipairs({ "textures/profession_dd_cultivationtech.png", "textures/profession_dd_budtender.png", "textures/profession_dd_breeder.png",
+        "ui/traits/trait_greenthumb.png", "ui/traits/trait_trimhand.png", "ui/traits/trait_chronic.png", "ui/traits/trait_lightweight.png" }) do
+        local f = io.open(MOD .. "../" .. icon, "rb")
+        check("traits: icon " .. icon .. " exists", f ~= nil)
+        if f then f:close() end
+    end
+
+    -- Character creation hides our entries when the switch is off and leaves the rest alone.
+    local vanillaCalls = 0
+    CharacterCreationProfession = {
+        isTraitEnabled = function(self, t) vanillaCalls = vanillaCalls + 1; return true end,
+        populateProfessionList = function(self, list)
+            list.items = { { item = { getType = function() return "base:farmer" end } },
+                           { item = { getType = function() return DazedDankProfessions.breeder end } } }
+        end,
+    }
+    dofile(MOD .. "client/CannabisMod/CannabisCreation.lua")
+    local Cr, scr = CannabisMod.Creation, CharacterCreationProfession
+    local ours, theirs = { getType = function() return DazedDankTraits.chronic end }, { getType = function() return "base:smoker" end }
+    check("creation: our traits show with the switch on", scr:isTraitEnabled(ours) and scr:isTraitEnabled(theirs))
+    SandboxVars = { CannabisMod = { MoldChance = 0, TraitsAndOccupations = false } }
+    local list = {}; scr:populateProfessionList(list)
+    check("creation: switch off hides our traits only", not scr:isTraitEnabled(ours) and scr:isTraitEnabled(theirs))
+    check("creation: switch off hides our occupations only", #list.items == 1 and list.items[1].item:getType() == "base:farmer")
+    SandboxVars = { CannabisMod = { MoldChance = 0 } }
+    list = {}; scr:populateProfessionList(list)
+    check("creation: switch on keeps our occupations", #list.items == 2)
+    DazedDankTraits, DazedDankProfessions, CharacterCreationProfession = nil, nil, nil
+    SandboxVars = nil
+end)()
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -4,6 +4,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisNet"
@@ -247,7 +248,7 @@ local function domeSync(dome, player)
             local data = Seeds.getCuttingData(item)
             local chance, hours = Genetics.rootingOdds(level, {
                 gel = data.gel, dome = true, tempC = tempC, hasLight = hasLight,
-                wiltHours = Seeds.ageHours(item),
+                wiltHours = Seeds.ageHours(item), bonus = CannabisMod.Traits.rootingBonus(player),
             })
             -- A cutting that already rotted can't root.
             local ok, rotten = pcall(function() return item:isRotten() end)

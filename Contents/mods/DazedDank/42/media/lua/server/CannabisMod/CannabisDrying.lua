@@ -12,6 +12,7 @@ require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
+require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisClimate"
 require "CannabisMod/CannabisWeather"
 
@@ -48,7 +49,7 @@ Events.OnInitGlobalModData.Add(onInitGlobalModData)
 --- Test hook: the registry tables.
 function Drying.data() return db end
 
-local BUD_FIELDS = { "type", "quality", "cureHours", "moldy", "moldBaked", "moist", "moisture", "seeded", "genetics", "purple" }
+local BUD_FIELDS = { "type", "quality", "cureHours", "moldy", "moldBaked", "moist", "moisture", "seeded", "genetics", "purple", "cureBonus" }
 
 --- A bud's moisture (%) from its plant's drying hours: about 75% wet off the plant, 12% fully dry, down to 6% when over-dried.
 function Drying.moistureFromHours(hours)
@@ -398,7 +399,7 @@ end
 --- The name a bud goes by for its quality now, like the names trimming gives.
 local function budName(data)
     if data.moldy then return "Moldy " .. strainWord(data) .. " Bud" end
-    local q = Genetics.curedQuality(data.quality, data.cureHours, data.moldy, data.moldBaked)
+    local q = Genetics.curedQuality(data.quality, data.cureHours, data.moldy, data.moldBaked, data.cureBonus)
     return Config.qualityTier(q) .. " " .. strainWord(data) .. " Bud"
 end
 Drying.budName = budName
@@ -685,8 +686,11 @@ local function burpCure(player, container, cureKey, label)
     end
     info.lastBurp = Registry.nowHours()
     info.touched = info.lastBurp
+    local budtender = CannabisMod.Traits.has(player, "budtender")
     for _, item in ipairs(budsIn(container)) do
-        local rec = db.buds[item:getID()]
+        -- A Budtender's care lifts the whole cure, so their burp marks each bud for the bigger bonus.
+        local rec = budtender and cureRecord(item) or db.buds[item:getID()]
+        if rec and budtender then rec.cureBonus = CannabisMod.Traits.BUDTENDER_CURE end
         if rec and rec.moist and (rec.cureHours or 0) >= 24 then
             rec.moist = false
             rec.moisture = math.min(Drying.moistureOf(rec), 15)
@@ -753,6 +757,11 @@ commands.trimPlant = function(player, args)
     local quality = Genetics.driedQuality(harvest.quality, rec)
     local count = math.max(1, harvest.budYield or 1)
     local moist = rec.hours < Config.dryHours() * Cure.MOIST_BELOW
+    -- A Trim Hand stops before trimming a wet plant unless they chose to trim it anyway.
+    if moist and not args.force and CannabisMod.Traits.has(player, "trimhand") then
+        Net.notify(player, "It's still too wet to cure safely. Hang it longer, or use Trim Plant Anyway")
+        return
+    end
 
     local container = plant:getContainer()
     if container then
@@ -819,7 +828,8 @@ local function clientBud(data)
     if type(data) ~= "table" or not KNOWN_TYPES[data.type] or type(data.quality) ~= "number" then return nil end
     return { type = data.type, strain = Strains.sanitize(data.strain), quality = Config.clamp(data.quality, 0, 200),
              cureHours = tonumber(data.cureHours) or 0, moldy = data.moldy == true, moldBaked = data.moldBaked == true,
-             moist = data.moist == true, moisture = tonumber(data.moisture), purple = data.purple == true or nil }
+             moist = data.moist == true, moisture = tonumber(data.moisture), purple = data.purple == true or nil,
+             cureBonus = tonumber(data.cureBonus) and Config.clamp(tonumber(data.cureBonus), 0, CannabisMod.Traits.BUDTENDER_CURE) or nil }
 end
 
 --- What a bud is worth, by Agriculture level.
@@ -835,8 +845,10 @@ commands.inspectBud = function(player, args)
         Net.notify(player, "Just a bud")
         return
     end
-    local level = SC.agricultureLevel(player)
-    local q = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked)
+    local reading = CannabisMod.Traits.reading(player)
+    -- A Budtender reads a bud completely, whatever their Agriculture.
+    local level = reading.buds and 10 or SC.agricultureLevel(player)
+    local q = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked, rec.cureBonus)
     local parts = { rec.strain and (strainWord(rec) .. " (" .. rec.type .. ")") or rec.type }
     local moisture = Drying.moistureOf(rec)
     parts[#parts + 1] = string.format("moisture %d%%", math.floor(moisture + 0.5))
@@ -848,7 +860,7 @@ commands.inspectBud = function(player, args)
     else
         parts[#parts + 1] = "no mold, low mold risk"
     end
-    if level >= 6 and rec.strain then parts[#parts + 1] = Strains.describe(rec.strain) end
+    if (level >= 6 or reading.genetics) and rec.strain then parts[#parts + 1] = Strains.describe(rec.strain) end
     if level >= 4 then parts[#parts + 1] = Config.qualityTier(q) .. " quality" end
     if level >= 8 then parts[#parts + 1] = "quality " .. q end
     if level >= 3 then parts[#parts + 1] = string.format("cured %.0f days", (rec.cureHours or 0) / 24) end

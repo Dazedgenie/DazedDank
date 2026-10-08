@@ -282,6 +282,7 @@ function Layout.build(data, fontH, measure)
     end
     if data.pollinated ~= nil then fact("Pollinated", data.pollinated and "Yes" or "No", data.pollinated and COLORS.warn) end
     if data.hermieSigns then fact("Hermie signs", "Yes", COLORS.bad) end
+    if data.hermieLine then fact("Line", "Hermie line", COLORS.bad) end
     if #facts > 0 then
         local fy = openCard()
         label("Care", L, fy, "icon_care"); fy = fy + small + 6

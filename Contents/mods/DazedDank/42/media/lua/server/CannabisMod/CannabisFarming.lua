@@ -7,6 +7,7 @@ require "Farming/SFarmingSystem"
 require "Farming/SPlantGlobalObject"
 require "Farming/TimedActions/ISSeedActionNew"
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisNet"
@@ -284,6 +285,8 @@ function ISSeedActionNew:complete()
         if isOurLivePlant(luaObject) then
             -- Cuttings (rooted or not) skip the seedling stage.
             local plant = Registry.addPlant(p.x, p.y, p.z, data, { fromCutting = kind ~= "seed" })
+            -- A Green Thumb's plants take less from care mistakes for life, whoever tends them later.
+            if CannabisMod.Traits.has(self.character, "greenthumb") then plant.greenThumb = true end
             if kind == "cutting" then
                 -- A fresh cutting stuck straight into soil still has to root.
                 -- Roll it now; the registry settles it when the time is up
@@ -293,7 +296,7 @@ function ISSeedActionNew:complete()
                     gel = data.gel, soil = true, tempC = tempC, hasLight = hasLight,
                     moist = (Config.isHydro(Registry.getBag(p.x, p.y, p.z)) and CannabisMod.Hydro
                         and CannabisMod.Hydro.isMoist(p.x, p.y, p.z)) or (luaObject.waterLvl or 0) >= Config.Water.LOW,
-                    wiltHours = ageHours,
+                    wiltHours = ageHours, bonus = CannabisMod.Traits.rootingBonus(self.character),
                 })
                 Registry.startRooting(plant, hours, Config.rollPercent(chance))
             end
@@ -389,7 +392,10 @@ local function harvestCannabis(luaObject, player)
                     strain        = plant.fatherStrain or Strains.fromType(plant.fatherType or plant.type, plant.x),
                     hermieLineage = plant.fatherHermieLineage == true,
                 }
-                local seedList = Genetics.seedsFromPollination(plant, father)
+                local Traits = CannabisMod.Traits
+                local breeder = Traits.has(player, "breeder") and
+                    { extra = Traits.BREEDER_EXTRA_SEEDS, noise = Traits.BREEDER_NOISE, luck = Traits.BREEDER_LUCK } or nil
+                local seedList = Genetics.seedsFromPollination(plant, father, breeder)
                 Farming.giveItems(player, Config.SEED_ITEM, #seedList, function(item, n)
                     Seeds.setData(item, seedList[n])
                 end)

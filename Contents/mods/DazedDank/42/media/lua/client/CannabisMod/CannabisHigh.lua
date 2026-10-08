@@ -3,6 +3,7 @@
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisUse"
 require "CannabisMod/CannabisNet"
+require "CannabisMod/CannabisTraits"
 
 local Config = CannabisMod.Config
 local Use    = CannabisMod.Use
@@ -108,7 +109,15 @@ Events.EveryHours.Add(function() eachLocalPlayer(requestState) end)
 Events.OnCreatePlayer.Add(function(index, player)
     local saved = player and player:getModData().DazedHigh
     if saved and saved.endsAt and saved.endsAt > worldHours() then state.high = saved end
-    if player then requestState(player) end
+    if not player then return end
+    -- A Chronic asks once per character to start hooked; the flag is saved with the character.
+    local data = player:getModData()
+    if not data.DazedChronicStart and CannabisMod.Traits.has(player, "chronic") then
+        data.DazedChronicStart = true
+        sendClientCommand(player, Config.COMMAND_MODULE, "chronicStart", {})
+        return
+    end
+    requestState(player)
 end)
 
 local FEELINGS = {

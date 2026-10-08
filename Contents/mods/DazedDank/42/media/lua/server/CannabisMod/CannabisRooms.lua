@@ -635,7 +635,7 @@ function Rooms.info(panelKey, player)
         x = room.x, y = room.y, z = room.z, name = room.name, schedule = room.schedule, mode = room.mode,
         tiles = count, lamps = lamps, hour = hour, openings = Rooms.openingsOf(panelKey),
         reservoirs = Rooms.reservoirRows(panelKey), equipment = Rooms.equipmentRows(panelKey), floodTimer = room.floodTimer == true,
-        plants = Rooms.plantRows(panelKey, player and CannabisMod.ServerCommands.agricultureLevel(player) or 0),
+        plants = Rooms.plantRows(panelKey, player and CannabisMod.ServerCommands.agricultureLevel(player) or 0, CannabisMod.Traits.reading(player)),
         log = room.log or {}, now = getGameTime():getWorldAgeHours(),
         powered = Rooms.panelPowered(room, panelSquare), debugCut = room.debugCut == true,
         climate = {
@@ -776,7 +776,7 @@ function Rooms.equipmentRows(panelKey)
 end
 
 --- The rows of the Plants tab: each plant in the room, with only what the viewer's Agriculture level lets them read.
-function Rooms.plantRows(panelKey, level)
+function Rooms.plantRows(panelKey, level, reading)
     local Registry, Info = CannabisMod.Registry, CannabisMod.Info
     local set = tiles[panelKey]
     local rows = {}
@@ -784,7 +784,7 @@ function Rooms.plantRows(panelKey, level)
     local now = Registry.nowHours()
     for key, plant in Registry.each() do
         if set[key] and not plant.dead then
-            local d = Info.buildVisible(plant, level, now)
+            local d = Info.buildVisible(plant, level, now, reading)
             local water = d.water
             if type(water) == "number" then water = string.format("%d%%", water) end
             rows[#rows + 1] = {

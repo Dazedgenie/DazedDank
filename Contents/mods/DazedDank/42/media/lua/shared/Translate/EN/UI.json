@@ -1,0 +1,22 @@
+{
+    "UI_prof_DD_CultivationTech": "Cultivation Tech",
+    "UI_profdesc_DD_CultivationTech": "Grew cannabis for a living. Knows every Grower's Handbook and Hydroponics Monthly recipe, spots plant sex, root rot and stress sooner, and roots cuttings 10% more often.",
+    "UI_prof_DD_Budtender": "Budtender",
+    "UI_profdesc_DD_Budtender": "Worked the dispensary counter. Knows the rolling papers, curing jar and curing barrel recipes, reads everything about a bud at a glance, and cures buds up to +15% instead of +10%.",
+    "UI_prof_DD_Breeder": "Botanist / Breeder",
+    "UI_profdesc_DD_Breeder": "Bred plants for their genetics. Reads strain traits on any seed, cutting, plant or bud, spots hermie lines, gets one extra seed per pollination, and breeds truer, luckier crosses.",
+    "UI_trait_DD_CultivationTech": "Trained Eye",
+    "UI_trait_DD_CultivationTechDesc": "Reads cannabis plants as if Agriculture were 2 levels higher, short of their genetics. Cuttings root 10% more often.",
+    "UI_trait_DD_Budtender": "Bud Connoisseur",
+    "UI_trait_DD_BudtenderDesc": "Inspect Bud shows everything at any Agriculture level. Buds you jar or burp cure up to +15%.",
+    "UI_trait_DD_Breeder": "Pheno Hunter",
+    "UI_trait_DD_BreederDesc": "Reads strain traits and hermie lines at any Agriculture level. Pollinations you harvest give one extra seed; crosses vary less, and a big jump goes your way 3 times in 4.",
+    "UI_trait_DD_GreenThumb": "Green Thumb",
+    "UI_trait_DD_GreenThumbDesc": "Cannabis you plant takes 15% less from care mistakes, and cuttings root 5% more often.",
+    "UI_trait_DD_TrimHand": "Trim Hand",
+    "UI_trait_DD_TrimHandDesc": "Trims plants twice as fast, and won't trim a plant that's still too wet to cure safely without asking first.",
+    "UI_trait_DD_Chronic": "Chronic",
+    "UI_trait_DD_ChronicDesc": "Starts already dependent on cannabis with some tolerance. Withdrawal sets in about a day after the last smoke.",
+    "UI_trait_DD_Lightweight": "Lightweight",
+    "UI_trait_DD_LightweightDesc": "Highs hit 50% harder and last longer, side effects included. Tolerance builds 50% faster."
+}

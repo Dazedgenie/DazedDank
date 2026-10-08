@@ -5,6 +5,7 @@
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisDomeContainer"
 require "CannabisMod/CannabisInfo"
+require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/ISTakeCannabisCuttingAction"
@@ -42,7 +43,7 @@ end
 local DISPLAY_ORDER = {
     "name", "container", "stageRough", "rooting", "stage", "hoursLeft", "waterRough", "water",
     "lastNutrient", "type", "sex", "light", "healthBand", "stressBand",
-    "warnings", "harvestWindow", "pollinated", "hermieSigns",
+    "warnings", "harvestWindow", "pollinated", "hermieSigns", "hermieLine",
     "generation", "geneticsBand", "qualityEstimate",
 }
 
@@ -52,7 +53,7 @@ local LABELS = {
     waterRough = "Watering", water = "Water", lastNutrient = "Last nutrient",
     type = "Type", sex = "Sex", light = "Light", healthBand = "Health",
     stressBand = "Stress", warnings = "Warnings", harvestWindow = "Harvest window",
-    pollinated = "Pollinated", hermieSigns = "Hermie signs", generation = "Generation",
+    pollinated = "Pollinated", hermieSigns = "Hermie signs", hermieLine = "Hermie line", generation = "Generation",
     geneticsBand = "Genetics", qualityEstimate = "Est. quality", rooting = "Rooting",
 }
 
@@ -573,21 +574,22 @@ local function firstItem(entry)
 end
 
 --- Agriculture-gated description of a seed or cutting.
-local function describePlantable(item, level)
+local function describePlantable(item, level, reading)
     local kind = Seeds.kind(item)
     local data = Seeds.getPlantData(item)
     if kind == "seed" then
-        return Info.seedLabel(data, level)
+        return Info.seedLabel(data, level, reading)
     end
     local name = (kind == "rooted") and "Rooted cutting" or "Cutting"
     local parts = {}
-    if level >= Config.SEED_INSPECT_LEVEL then
+    if Info.tierOpen(Config.SEED_INSPECT_LEVEL, level, reading) then
         parts[#parts + 1] = data.strain and (data.strain.name .. " (" .. data.type .. ")") or data.type
     end
-    if level >= 9 then
+    if Info.tierOpen(Info.GENETICS_LEVEL, level, reading) then
         parts[#parts + 1] = "generation " .. tostring(data.generation)
         if data.strain then parts[#parts + 1] = CannabisMod.Strains.describe(data.strain) end
     end
+    if reading and reading.genetics and data.hermieLineage then parts[#parts + 1] = "hermie line" end
     if kind == "cutting" then
         parts[#parts + 1] = data.gel and "dipped in gel" or "no gel"
         parts[#parts + 1] = string.format("cut %dh ago", math.floor(Seeds.ageHours(item)))
@@ -686,7 +688,7 @@ local function onFillInventoryObjectContextMenu(playerNum, context, items)
             -- Seeds and cuttings: inspect
             if kind then
                 context:addOption(kind == "seed" and "Inspect Seed" or "Inspect Cutting", player, function(p)
-                    p:setHaloNote(describePlantable(item, p:getPerkLevel(Perks.Farming)))
+                    p:setHaloNote(describePlantable(item, p:getPerkLevel(Perks.Farming), CannabisMod.Traits.reading(p)))
                 end)
             end
 
@@ -701,10 +703,17 @@ local function onFillInventoryObjectContextMenu(playerNum, context, items)
 
             -- Wet whole plant: trim into buds (needs scissors or a sharp knife)
             if Config.isHangingPlant(fullType) then
+                -- A Trim Hand works twice as fast, and gets a separate option to trim a wet plant anyway.
+                local trimHand = CannabisMod.Traits.has(player, "trimhand")
+                local ticks = trimHand and math.floor(200 * CannabisMod.Traits.TRIM_SPEED) or 200
                 local opt = context:addOption("Trim Plant", player, function(p)
-                    ISTimedActionQueue.add(ISCannabisItemAction:new(p, item, "trimPlant", 200))
+                    ISTimedActionQueue.add(ISCannabisItemAction:new(p, item, "trimPlant", ticks))
+                end)
+                local anyway = trimHand and context:addOption("Trim Plant Anyway (still wet)", player, function(p)
+                    ISTimedActionQueue.add(ISCannabisItemAction:new(p, item, "trimPlant", ticks, { force = true }))
                 end)
                 if not Seeds.findCuttingTool(player) then
+                    if anyway then anyway.notAvailable = true end
                     opt.notAvailable = true
                     local tip = ISToolTip:new()
                     tip:initialise()

@@ -239,6 +239,11 @@ builders.hermieSigns = function(plant)
     return plant.isHermie == true
 end
 
+-- A Breeder sees whether the plant comes from a hermie line, so it can be culled before it spreads.
+builders.hermieLine = function(plant)
+    return plant.hermieLineage == true
+end
+
 builders.generation = function(plant)
     return plant.generation or 0
 end
@@ -256,15 +261,27 @@ end
 -- Public function
 -- --------------------------------------------------------------------------
 
---- Build the table of info a player at `level` may see.
+Info.GENETICS_LEVEL = 9   -- the tier whose fields only Agriculture or a Breeder unlocks, never a Tech's boost
+
+--- True when a tier is open to a player at `level` reading with `reading` (CannabisTraits.reading).
+function Info.tierOpen(tierLevel, level, reading)
+    if level >= tierLevel then return true end
+    if not reading then return false end
+    if reading.genetics and tierLevel == Info.GENETICS_LEVEL then return true end
+    return (reading.boost or 0) > 0 and tierLevel < Info.GENETICS_LEVEL and level + reading.boost >= tierLevel
+end
+
+--- Build the table of info a player at `level` may see; `reading` adds what their occupation lets them read.
 --- @param plant full plant record (server side)
 --- @param level player's Agriculture level
 --- @param nowHours current game time in hours
+--- @param reading optional { boost, genetics } from CannabisTraits.reading
 --- @return table of field -> value, plus `level` so the UI knows the tier
-function Info.buildVisible(plant, level, nowHours)
+function Info.buildVisible(plant, level, nowHours, reading)
     local out = { level = level }
+    if reading and reading.genetics then out.hermieLine = builders.hermieLine(plant) end
     for _, tier in ipairs(Config.InfoTiers) do
-        if level >= tier.level then
+        if Info.tierOpen(tier.level, level, reading) then
             for _, field in ipairs(tier.fields) do
                 local build = builders[field]
                 if build then
@@ -278,12 +295,13 @@ end
 
 --- What a player sees when inspecting a SEED item (not a planted plant).
 --- Below Agriculture 3 the type and sex are hidden.
-function Info.seedLabel(seedData, level)
-    if level < Config.SEED_INSPECT_LEVEL or not seedData then
+function Info.seedLabel(seedData, level, reading)
+    if not seedData or not Info.tierOpen(Config.SEED_INSPECT_LEVEL, level, reading) then
         return "Unknown cannabis seed"
     end
     local strain = seedData.strain and seedData.strain.name
     local label = (strain and (strain .. " (" .. seedData.type .. ")") or seedData.type) .. " seed (" .. seedData.sex .. ")"
-    if level >= 9 and seedData.strain then label = label .. ": " .. CannabisMod.Strains.describe(seedData.strain) end
+    if Info.tierOpen(Info.GENETICS_LEVEL, level, reading) and seedData.strain then label = label .. ": " .. CannabisMod.Strains.describe(seedData.strain) end
+    if reading and reading.genetics and seedData.hermieLineage then label = label .. " (hermie line)" end
     return label
 end

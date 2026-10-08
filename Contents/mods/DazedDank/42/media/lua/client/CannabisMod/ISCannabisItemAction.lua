@@ -18,16 +18,20 @@ function ISCannabisItemAction:start()
 end
 
 function ISCannabisItemAction:perform()
-    sendClientCommand(self.character, Config.COMMAND_MODULE, self.command, { id = self.item:getID() })
+    local args = { id = self.item:getID() }
+    for k, v in pairs(self.extra or {}) do args[k] = v end
+    sendClientCommand(self.character, Config.COMMAND_MODULE, self.command, args)
     ISBaseTimedAction.perform(self)
 end
 
 --- @param item the inventory item acted on; command: the server command; ticks: how long it takes
-function ISCannabisItemAction:new(character, item, command, ticks)
+--- @param extra optional extra fields sent with the command
+function ISCannabisItemAction:new(character, item, command, ticks, extra)
     local o = ISBaseTimedAction.new(self, character)
     o.character = character
     o.item = item
     o.command = command
+    o.extra = extra
     o.maxTime = ticks or 100
     if character:isTimedActionInstant() then o.maxTime = 1 end
     return o

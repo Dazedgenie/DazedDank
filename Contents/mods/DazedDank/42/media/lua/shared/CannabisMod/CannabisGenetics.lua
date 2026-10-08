@@ -89,10 +89,11 @@ end
 --- Make the full set of seeds a pollinated female drops at harvest.
 --- @param mother the female plant record
 --- @param father the male (or hermie) plant record that pollinated her
+--- @param breeder optional { extra, noise, luck } when a Breeder harvests: more seeds and a tighter, luckier cross
 --- @return list of seed tables
-function Genetics.seedsFromPollination(mother, father)
+function Genetics.seedsFromPollination(mother, father, breeder)
     local range = Config.SEEDS_PER_POLLINATED_PLANT
-    local count = Config.randInt(range.min, range.max)
+    local count = Config.randInt(range.min, range.max) + (breeder and breeder.extra or 0)
     count = math.max(1, math.floor(count * Config.sandbox("HarvestQuantity") + 0.5))
 
     -- If EITHER parent carries a hermie line, the seeds do too.
@@ -103,7 +104,7 @@ function Genetics.seedsFromPollination(mother, father)
     local seeds = {}
     for i = 1, count do
         -- Only the first seed claims a name; its siblings share it, so a batch never uses up numbers.
-        local strain = (i == 1) and Strains.cross(ma, fa) or Strains.crossTraits(ma, fa)
+        local strain = (i == 1) and Strains.cross(ma, fa, breeder) or Strains.crossTraits(ma, fa, breeder)
         if i > 1 then strain.name = seeds[1].strain.name end
         seeds[i] = Genetics.newSeed(strain, { hermieLineage = hermie })
     end
@@ -165,7 +166,7 @@ end
 
 --- Work out a cutting's rooting chance and rooting time.
 --- @param level player's Agriculture level (0-10)
---- @param opts { gel, dome, tempC, hasLight, moist, wiltHours, soil }
+--- @param opts { gel, dome, tempC, hasLight, moist, wiltHours, soil, bonus } (bonus: percent from the grower's traits)
 --- @return chance (percent), hours (time until the roll)
 function Genetics.rootingOdds(level, opts)
     local r = Config.Rooting
@@ -177,6 +178,7 @@ function Genetics.rootingOdds(level, opts)
     if opts.gel  then chance = chance + r.GEL_BONUS end
     if opts.dome then chance = chance + r.DOME_BONUS end
     if opts.soil then chance = chance + r.SOIL_PENALTY end
+    chance = chance + (tonumber(opts.bonus) or 0)
 
     -- Wilting: free for a few hours, then the chance drops per hour.
     local wilt = (opts.wiltHours or 0) - r.WILT_GRACE_HOURS
@@ -275,10 +277,10 @@ function Genetics.driedQuality(base, rec)
     return math.floor(Config.clamp(q, 0, math.max(100, base or 0)) + 0.5)
 end
 
---- Quality after curing: up to +10% over FULL_DAYS in a jar. Mold ruins it.
-function Genetics.curedQuality(quality, cureHours, moldy, moldBaked)
+--- Quality after curing: up to +10% over FULL_DAYS in a jar (`bonus` overrides it, e.g. a Budtender's +15%). Mold ruins it.
+function Genetics.curedQuality(quality, cureHours, moldy, moldBaked, bonus)
     local c = Config.Curing
-    local q = (quality or 0) * (1 + c.BONUS * Config.clamp((cureHours or 0) / (Config.cureDays() * 24), 0, 1))
+    local q = (quality or 0) * (1 + (tonumber(bonus) or c.BONUS) * Config.clamp((cureHours or 0) / (Config.cureDays() * 24), 0, 1))
     if moldy and not moldBaked then q = q * Config.Drying.MOLDY_MULT end
     -- Curing can't lift ordinary buds past 100; Top Shelf buds cure up to the RDWC ceiling.
     return math.floor(Config.clamp(q, 0, Config.maxQuality((quality or 0) > 100)) + 0.5)

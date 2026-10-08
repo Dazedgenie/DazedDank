@@ -198,6 +198,14 @@ option CannabisMod.LightLeaks
     translation = CannabisMod_LightLeaks,
 }
 
+option CannabisMod.TraitsAndOccupations
+{
+    type = boolean,
+    default = true,
+    page = CannabisMod,
+    translation = CannabisMod_TraitsAndOccupations,
+}
+
 option CannabisMod.DoorLeak
 {
     type = integer,

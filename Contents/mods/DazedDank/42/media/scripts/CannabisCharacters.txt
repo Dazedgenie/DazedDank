@@ -1,0 +1,111 @@
+module DazedDank
+{
+    character_profession_definition dazeddank:cultivationtech
+    {
+        CharacterProfession = dazeddank:cultivationtech,
+        Cost = -4,
+        UIName = UI_prof_DD_CultivationTech,
+        UIDescription = UI_profdesc_DD_CultivationTech,
+        IconPathName = profession_dd_cultivationtech,
+        GrantedTraits = dazeddank:cultivationtech,
+        XPBoosts = Farming=2;Electricity=1;Maintenance=1,
+        GrantedRecipes = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeGrowBagXL;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDMakeCuringBarrel;DDSwapPapers;DDMakeDWCBucket;DDMakeDWCBucketXL;DDMakeClayPebbles;DDMakeRDWCSite;DDMakeRDWCControl;DDMakeFloodTable;DDMakeFloodReservoir;DDMakeFloodTimer,
+    }
+
+    character_profession_definition dazeddank:budtender
+    {
+        CharacterProfession = dazeddank:budtender,
+        Cost = 2,
+        UIName = UI_prof_DD_Budtender,
+        UIDescription = UI_profdesc_DD_Budtender,
+        IconPathName = profession_dd_budtender,
+        GrantedTraits = dazeddank:budtender,
+        XPBoosts = Farming=1;SmallBlade=1,
+        GrantedRecipes = DDSwapPapers;DDMakeCuringJar;DDMakeCuringBarrel,
+    }
+
+    character_profession_definition dazeddank:breeder
+    {
+        CharacterProfession = dazeddank:breeder,
+        Cost = -4,
+        UIName = UI_prof_DD_Breeder,
+        UIDescription = UI_profdesc_DD_Breeder,
+        IconPathName = profession_dd_breeder,
+        GrantedTraits = dazeddank:breeder,
+        XPBoosts = Farming=2;PlantScavenging=1,
+    }
+
+    character_trait_definition dazeddank:cultivationtech
+    {
+        IsProfessionTrait = true,
+        DisabledInMultiplayer = false,
+        CharacterTrait = dazeddank:cultivationtech,
+        Cost = 0,
+        UIName = UI_trait_DD_CultivationTech,
+        UIDescription = UI_trait_DD_CultivationTechDesc,
+    }
+
+    character_trait_definition dazeddank:budtender
+    {
+        IsProfessionTrait = true,
+        DisabledInMultiplayer = false,
+        CharacterTrait = dazeddank:budtender,
+        Cost = 0,
+        UIName = UI_trait_DD_Budtender,
+        UIDescription = UI_trait_DD_BudtenderDesc,
+    }
+
+    character_trait_definition dazeddank:breeder
+    {
+        IsProfessionTrait = true,
+        DisabledInMultiplayer = false,
+        CharacterTrait = dazeddank:breeder,
+        Cost = 0,
+        UIName = UI_trait_DD_Breeder,
+        UIDescription = UI_trait_DD_BreederDesc,
+    }
+
+    character_trait_definition dazeddank:greenthumb
+    {
+        IsProfessionTrait = false,
+        DisabledInMultiplayer = false,
+        CharacterTrait = dazeddank:greenthumb,
+        Cost = 4,
+        UIName = UI_trait_DD_GreenThumb,
+        UIDescription = UI_trait_DD_GreenThumbDesc,
+        XPBoosts = Farming=1,
+        MutuallyExclusiveTraits = base:gardener,
+    }
+
+    character_trait_definition dazeddank:trimhand
+    {
+        IsProfessionTrait = false,
+        DisabledInMultiplayer = false,
+        CharacterTrait = dazeddank:trimhand,
+        Cost = 2,
+        UIName = UI_trait_DD_TrimHand,
+        UIDescription = UI_trait_DD_TrimHandDesc,
+    }
+
+    character_trait_definition dazeddank:chronic
+    {
+        IsProfessionTrait = false,
+        DisabledInMultiplayer = false,
+        CharacterTrait = dazeddank:chronic,
+        Cost = -3,
+        UIName = UI_trait_DD_Chronic,
+        UIDescription = UI_trait_DD_ChronicDesc,
+        MutuallyExclusiveTraits = base:smoker;dazeddank:lightweight,
+    }
+
+    character_trait_definition dazeddank:lightweight
+    {
+        IsProfessionTrait = false,
+        DisabledInMultiplayer = false,
+        CharacterTrait = dazeddank:lightweight,
+        Cost = -2,
+        UIName = UI_trait_DD_Lightweight,
+        UIDescription = UI_trait_DD_LightweightDesc,
+        MutuallyExclusiveTraits = dazeddank:chronic,
+    }
+}

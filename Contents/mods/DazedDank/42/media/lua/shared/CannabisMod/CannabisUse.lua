@@ -33,18 +33,20 @@ function Use.potency(quality, moldy, strain)
 end
 
 --- Take one dose. Returns strength (after tolerance) and how many game hours it lasts.
-function Use.dose(user, now, potency, method)
+--- opts.mult (optional) scales both the strength and the tolerance gained, for a Lightweight.
+function Use.dose(user, now, potency, method, opts)
     Use.decay(user, now)
+    local mult = (opts and tonumber(opts.mult)) or 1
     local m = Config.Smoking.METHODS[method] or Config.Smoking.METHODS.joint
     local reduction = U.TOL_MAX_REDUCTION * user.tol / 100
-    local strength = potency * m.potency * (1 - reduction)
+    local strength = potency * m.potency * (1 - reduction) * mult
     local hours = Config.Smoking.BASE_HOURS * Config.clamp(strength, 0.3, 1.5)
 
     local regular = user.lastUse and (now - user.lastUse) <= U.DEP_REGULAR_HOURS
     if Config.sandbox("DependencyEnabled") then
         user.dep = Config.clamp(user.dep + U.DEP_GAIN * Config.sandbox("DependencyRate") * (regular and 1 or U.DEP_OCCASIONAL), 0, 100)
     end
-    user.tol = Config.clamp(user.tol + U.TOL_GAIN * Config.sandbox("ToleranceRate") * m.tolerance * Config.clamp(potency, 0.5, 1.2), 0, 100)
+    user.tol = Config.clamp(user.tol + U.TOL_GAIN * Config.sandbox("ToleranceRate") * m.tolerance * Config.clamp(potency, 0.5, 1.2) * mult, 0, 100)
     user.lastUse = now
     user.doses = (user.doses or 0) + 1
     return strength, hours

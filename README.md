@@ -216,6 +216,22 @@ All under the **Dazed Dank** page of the sandbox settings:
 | Reservoir Use Rate | 1.0 | how fast hydro reservoirs drain, use nutrients and go stale |
 | Hydro Quality Bonus | 0.15 | how far above 100 RDWC quality can reach |
 | Pumps Need Power | on | hydro pumps only run with power |
+| Grower Occupations and Traits | on | the three occupations and four traits below (off = hidden at character creation and no effect) |
+
+### Occupations and traits
+
+| Occupation | Points | What it brings |
+|------------|--------|----------------|
+| Cultivation Tech | -4 | Agriculture +2, Electrical +1, Maintenance +1. Knows every Grower's Handbook and Hydroponics Monthly recipe. Reads plants as if Agriculture were 2 higher (not genetics). Cuttings root 10% more often. |
+| Budtender | +2 | Agriculture +1, Short Blade +1. Knows rolling papers, curing jar and barrel. Inspect Bud shows everything. Buds they jar or burp cure up to +15%. |
+| Botanist / Breeder | -4 | Agriculture +2, Foraging +1. Reads strain traits and hermie lines on any seed, cutting, plant or bud. One extra seed per pollination harvested; crosses vary less (±5) and big jumps in potency, yield and flower time go their way 3 times in 4. |
+
+| Trait | Points | Effect |
+|-------|--------|--------|
+| Green Thumb | 4 | Agriculture +1. Cannabis they plant takes 15% less from care mistakes; cuttings root 5% more often. Excludes Gardener. |
+| Trim Hand | 2 | Trims twice as fast. Won't trim a plant still too wet to cure safely; **Trim Plant Anyway** does it. |
+| Chronic | -3 | Starts with dependency 45 and tolerance 30. Excludes Smoker and Lightweight. |
+| Lightweight | -2 | Highs are 50% stronger and last longer; tolerance builds 50% faster. Excludes Chronic. |
 
 ### Hydroponics: DWC (deep water culture)
 
