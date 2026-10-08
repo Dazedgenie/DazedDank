@@ -582,7 +582,7 @@ local function describePlantable(item, level, reading)
     end
     local name = (kind == "rooted") and "Rooted cutting" or "Cutting"
     local parts = {}
-    if Info.tierOpen(Config.SEED_INSPECT_LEVEL, level, reading) then
+    if Info.seedReadable(level, reading) then
         parts[#parts + 1] = data.strain and (data.strain.name .. " (" .. data.type .. ")") or data.type
     end
     if Info.tierOpen(Info.GENETICS_LEVEL, level, reading) then

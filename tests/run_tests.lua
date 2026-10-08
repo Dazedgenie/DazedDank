@@ -3875,6 +3875,8 @@ end
     local seedText = I.seedLabel(seed, 3, breedRead)
     check("traits: Breeder sees a seed's traits and hermie line", seedText:find("hermie line") and seedText:find(":"))
     check("traits: others don't see a hermie line", not I.seedLabel(seed, 10):find("hermie line"))
+    check("traits: a Breeder reads a seed's strain and sex at Agriculture 0", I.seedLabel(seed, 0, breedRead):find("Knox Kush") ~= nil
+        and I.seedLabel(seed, 0) == "Unknown cannabis seed")
 
     -- Rooting, curing and seeds
     check("traits: rooting bonus adds to the odds", G.rootingOdds(5, { moist = true, bonus = 10 }) == G.rootingOdds(5, { moist = true }) + 10)
@@ -4039,8 +4041,8 @@ end)()
         and count("Knox Kush (Indica), Male") == 1 and count("Riverside Haze (Sativa), Female") == 2)
     groups = I.seedGroups(items, 1, nil, dataOf)
     check("sow: below the inspect level every seed is one unknown group", #groups == 1 and groups[1].label == "Unknown cannabis seed" and #groups[1].items == 5)
-    groups = I.seedGroups(items, 3, { boost = 0, genetics = true }, dataOf)
-    check("sow: a Breeder tells hermie lines apart", count("Riverside Haze (Sativa), Female, hermie line") == 1
+    groups = I.seedGroups(items, 0, { boost = 0, genetics = true }, dataOf)
+    check("sow: a Breeder tells hermie lines apart at any level", count("Riverside Haze (Sativa), Female, hermie line") == 1
         and count("Riverside Haze (Sativa), Female") == 1)
 end)()
 

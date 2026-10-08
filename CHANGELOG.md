@@ -1,6 +1,7 @@
 # Dazed Dank patch notes
 
 ## dd54 (Climate and UI redesign, in testing)
+- Fixed: a Botanist / Breeder now reads a seed's or cutting's strain and sex at any Agriculture level, as the occupation says (it used to show "Unknown cannabis seed" below Agriculture 3).
 - Added: **choose which seed to sow.** In Sow Seed, the cannabis row opens a list of the seeds you carry, grouped by what you can read of them ("Knox Kush (Indica), Female : 2"). Below Agriculture 3 they all show as one "Unknown cannabis seed" group. After the first plot, clicking more plots keeps sowing from the group you picked.
 - Changed: the debug **Give drying kit** option gives 3 wet plants, each a random starter strain and named for it, instead of 2 plain Indica plants.
 - Changed: **old blackout curtains are cleared out.** Any still hanging are taken down as their squares load, their light-blocking records are dropped at game start, and curtains in your inventory and bags are removed when you load in (a message says how many). The Hang Blackout Curtain option is gone; hang a vanilla sheet instead.
