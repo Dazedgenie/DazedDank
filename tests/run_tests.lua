@@ -3954,5 +3954,35 @@ end
     SandboxVars = nil
 end)()
 
+-- ---- High Tracker report --------------------------------------------------
+;(function()
+    require "CannabisMod/CannabisHighReport"
+    local Rp = CannabisMod.HighReport
+    local function find(rows, label) for _, r in ipairs(rows) do if r[1] == label then return r[2] end end end
+    local heading, rows = Rp.build({ tolerance = 12, dependency = 30 }, 100)
+    check("tracker: sober with tolerance and dependency", heading == "Sober" and find(rows, "Tolerance") == "12 / 100"
+        and find(rows, "Dependency") == "30 / 100" and find(rows, "Stress") == nil)
+    local high = { type = "Indica", strength = 1.0, startedAt = 100, endsAt = 102.5,
+        strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[1]) }
+    heading, rows = Rp.build({ high = high }, 100.1, { STRESS = 0.4 })
+    check("tracker: coming up partway to full strength", heading == "High" and find(rows, "Phase") == "Coming up"
+        and find(rows, "Strength"):find("^0%.40 now, 1%.00 peak") ~= nil)
+    check("tracker: shows the strain and time left", find(rows, "Smoked") == "Knox Kush (Indica)" and find(rows, "Time left") == "2h 24m")
+    check("tracker: stress rate with the current value", find(rows, "Stress"):find("^%-") ~= nil and find(rows, "Stress"):find("now 40%%") ~= nil)
+    heading, rows = Rp.build({ high = high }, 101)
+    check("tracker: peak", find(rows, "Phase") == "Peak" and find(rows, "Strength"):find("^1%.00 now") ~= nil)
+    heading, rows = Rp.build({ high = high }, 102.3)
+    check("tracker: coming down", find(rows, "Phase") == "Coming down")
+    local racy = { type = "Sativa", strength = 1.3, startedAt = 0, endsAt = 3, strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[5]) }
+    heading, rows = Rp.build({ high = racy }, 1)
+    check("tracker: flags an anxious hit", find(rows, "Anxious") ~= nil)
+    heading, rows = Rp.build({ withdrawal = 0.5, tolerance = 0, dependency = 80 }, 50)
+    check("tracker: withdrawal shows its level and effects", heading == "Withdrawal" and find(rows, "Withdrawal") == "50%"
+        and find(rows, "Stress"):find("^%+") ~= nil)
+    heading = Rp.build({ high = high, withdrawal = 0.3 }, 200)
+    check("tracker: an ended high falls back to withdrawal", heading == "Withdrawal")
+    check("tracker: durations", Rp.duration(0.5) == "30m" and Rp.duration(1.25) == "1h 15m")
+end)()
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -129,6 +129,9 @@ Numbers live in `Config.Topping`, `Config.Cuttings` and `Config.Mother`.
     If a stat doesn't move, tell me which: effects use game stat names I
     couldn't check offline and skip any that don't exist.
 
+
+**High Tracker:** right-click anywhere and pick **High Tracker** for a live readout of the current high or withdrawal, tolerance, dependency and the stat changes per hour.
+
 ### Placement range preview
 
 While placing a grow lamp or the drying fan, the floor squares it affects

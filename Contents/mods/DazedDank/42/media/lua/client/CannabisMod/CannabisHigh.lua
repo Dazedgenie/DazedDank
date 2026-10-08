@@ -4,6 +4,7 @@ require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisUse"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisTraits"
+require "CannabisMod/CannabisHighReport"
 
 local Config = CannabisMod.Config
 local Use    = CannabisMod.Use
@@ -12,7 +13,6 @@ local Net    = CannabisMod.Net
 local High = {}
 CannabisMod.High = High
 
-local ONSET_HOURS, COMEDOWN_HOURS = 0.25, 0.5
 local state = { high = nil, withdrawal = 0 }
 High.state = state
 
@@ -48,10 +48,7 @@ end
 
 --- Strength of the current high now, easing in and out.
 function High.currentStrength(high, now)
-    if not high then return 0 end
-    local elapsed, remaining = now - high.startedAt, high.endsAt - now
-    if remaining <= 0 then return 0 end
-    return high.strength * math.min(1, elapsed / ONSET_HOURS) * math.min(1, remaining / COMEDOWN_HOURS)
+    return CannabisMod.HighReport.strength(high, now)
 end
 
 --- One game minute of effects for one player.
@@ -138,6 +135,7 @@ Net.clientHandlers.smoked = function(args)
                    strength = args.strength, startedAt = now, endsAt = now + args.hours }
     pcall(function() player:getModData().DazedHigh = state.high end)
     state.withdrawal = 0
+    state.tolerance, state.dependency = args.tolerance, args.dependency
     local msg
     if args.moldy then
         msg = "It's harsh and musty. That was a bad idea"
