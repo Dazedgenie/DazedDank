@@ -65,7 +65,7 @@ def main(renders=None):
     sheet["tiles"][INDEX] = [
         ("IsMoveAble", ""), ("CustomName", "Drip Irrigation Tank"), ("GroupName", "Dazed Dank"),
         ("CustomItem", "CannabisMod.DripTank"), ("PickUpLevel", "0"), ("PickUpWeight", "30"),
-        ("Material", "Plastic"), ("CanScrap", ""), ("solidtrans", ""),
+        ("Material", "Plastic"), ("CanScrap", ""), ("IsLow", ""), ("solidtrans", ""),
     ]
 
     icon_src = renders and renders / "icons" / "Item_DripTank.png"
