@@ -2472,6 +2472,24 @@ end
     R.tick(1102)
     check("penalty option off: no extra stress", flower.stress == 0)
     SandboxVars = nil
+
+    -- Debug: cutting power at the panel works like a real outage, with the grid still on.
+    hourOfDay = 10
+    R.tick(1200)
+    local panelObj = fakeSquares["500_500_0"].objs[#fakeSquares["500_500_0"].objs]
+    fire("OnClientCommand", "CannabisMod", "debugRoomPower", owner, { x = 500, y = 500, z = 0, cut = true })
+    check("debug cut: the room loses power at once and the lamps go dark",
+        R.poweredAt(501, 501, 0) == false and R.roomAt(500, 500, 0).powered == false and lampA.objs[1].md.DDRoomOff == true
+        and CannabisMod.Light.lampsAt(501, 502, 0).cap == nil)
+    check("debug cut: the panel object knows, so the menu offers to restore", panelObj.md.DDPowerCut == true)
+    R.tick(1201)
+    check("debug cut holds through the ten-minute check while the grid is on", R.roomAt(500, 500, 0).powered == false)
+    fire("OnClientCommand", "CannabisMod", "debugRoomPower", owner, { x = 500, y = 500, z = 0, cut = false })
+    check("debug restore: power and lamp glow come back", R.poweredAt(501, 501, 0) == true and lampA.objs[1].md.DDRoomOff == nil
+        and R.roomAt(500, 500, 0).powered == nil and panelObj.md.DDPowerCut == nil)
+    local cutLogged = false
+    for _, e in ipairs(R.roomAt(500, 500, 0).log or {}) do if e.text == "Power cut (debug)" then cutLogged = true end end
+    check("the debug cut is logged as such", cutLogged)
     CannabisMod.Registry.removePlant(501, 502, 0); CannabisMod.Registry.removePlant(500, 504, 0); CannabisMod.Registry.removePlant(504, 502, 0)
     R.remove("500_500_0")
     R.outdoor = oldOutdoor

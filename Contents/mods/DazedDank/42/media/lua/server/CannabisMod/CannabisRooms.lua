@@ -214,6 +214,15 @@ local function isPanelObject(obj)
     return name ~= nil and Config.Rooms.PANEL_SPRITES[name] ~= nil
 end
 
+--- The panel object on a square, or nil.
+function Rooms.panelObject(square)
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        if isPanelObject(objects:get(i)) then return objects:get(i) end
+    end
+    return nil
+end
+
 --- True when a panel object stands on the square.
 local function panelOn(square)
     local objects = square:getObjects()
@@ -291,12 +300,18 @@ function Rooms.logTile(key, text, now)
     if room then Rooms.log(room, text, now) end
 end
 
+--- Whether a room's panel has power on its square; a debug power cut counts as none.
+function Rooms.panelPowered(room, square)
+    if room.debugCut then return false end
+    return square ~= nil and CannabisMod.Light.isPowered(square) == true
+end
+
 --- Whether the room covering a tile has power at its panel: nil when no room covers it, false during an outage.
 function Rooms.poweredAt(x, y, z)
     local room = Rooms.roomAt(x, y, z)
     if not room then return nil end
     local square = getCell():getGridSquare(room.x, room.y, room.z)
-    if square then return CannabisMod.Light.isPowered(square) == true end
+    if square then return Rooms.panelPowered(room, square) end
     return room.powered ~= false
 end
 
@@ -392,6 +407,24 @@ commands.roomSetSchedule = function(player, args)
     Rooms.log(room, "Lights set to " .. args.schedule)
     Rooms.sync(Config.tileKey(room.x, room.y, room.z), player)
     Net.notify(player, room.name .. " lights set to " .. args.schedule)
+    commands.requestRoom(player, args)
+end
+
+--- Debug: cut or restore a grow room's power at its panel, to test outages without touching the grid.
+commands.debugRoomPower = function(player, args)
+    if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then return end
+    local room = panelFor(player, args)
+    if not room then return end
+    local key = Config.tileKey(room.x, room.y, room.z)
+    room.debugCut = args.cut == true or nil
+    local square = getCell():getGridSquare(room.x, room.y, room.z)
+    local panel = square and Rooms.panelObject(square)
+    if panel then
+        panel:getModData().DDPowerCut = room.debugCut
+        pcall(panel.transmitModData, panel)
+    end
+    Rooms.checkPower(room, square, tiles[key] or {}, getGameTime():getWorldAgeHours(), getGameTime():getHour(), false)
+    Net.notify(player, room.name .. (room.debugCut and ": power cut (debug)" or ": power back (debug)"))
     commands.requestRoom(player, args)
 end
 
@@ -511,7 +544,7 @@ function Rooms.info(panelKey, player)
                     end
                 end
                 if def then
-                    local powered = CannabisMod.Light.isPowered(square)
+                    local powered = CannabisMod.Light.isPowered(square) and not room.debugCut
                     lamps[#lamps + 1] = {
                         name = def.name, x = tonumber(x), y = tonumber(y), z = tonumber(z),
                         powered = powered, lit = powered and Config.Timer.isOn(schedule, hour),
@@ -531,7 +564,7 @@ function Rooms.info(panelKey, player)
         reservoirs = Rooms.reservoirRows(panelKey), equipment = Rooms.equipmentRows(panelKey), floodTimer = room.floodTimer == true,
         plants = Rooms.plantRows(panelKey, player and CannabisMod.ServerCommands.agricultureLevel(player) or 0),
         log = room.log or {}, now = getGameTime():getWorldAgeHours(),
-        powered = panelSquare ~= nil and CannabisMod.Light.isPowered(panelSquare),
+        powered = Rooms.panelPowered(room, panelSquare), debugCut = room.debugCut == true,
         climate = {
             enabled = Config.sandbox("RoomClimate") == true,
             temp = room.temp, hum = room.hum, outT = room.outT, outH = room.outH,
@@ -973,6 +1006,30 @@ local function outagePenalty(set, litHours)
     return hit
 end
 
+--- Note a power loss or return at a room's panel, and switch its lamps' glow to match. `tick` counts a lit hour lost.
+function Rooms.checkPower(room, square, set, now, hour, tick)
+    local powered = Rooms.panelPowered(room, square)
+    local schedule = nil
+    if room.schedule ~= "24/0" then schedule = room.schedule end
+    if not powered and room.powered ~= false then
+        room.powered, room.outage = false, { since = now, litHours = 0 }
+        Rooms.log(room, room.debugCut and "Power cut (debug)" or "Power lost", now)
+    end
+    if tick and not powered and room.outage and Config.Timer.isOn(schedule, hour) then
+        room.outage.litHours = room.outage.litHours + 1 / 6
+    end
+    if powered and room.powered == false then
+        local lit = room.outage and room.outage.litHours or 0
+        local hit = 0
+        if Config.sandbox("RoomPowerPenalty") then hit = outagePenalty(set, lit) end
+        Rooms.log(room, string.format("Power restored: %.1f lit hours lost%s", lit, hit > 0 and (", " .. hit .. " flowering plants stressed") or ""), now)
+        room.powered, room.outage = nil, nil
+    end
+    if CannabisMod.Timers and CannabisMod.Timers.markRoomPower then
+        CannabisMod.Timers.markRoomPower(set, room.powered == false)
+    end
+end
+
 --- Every ten minutes: notice power going and coming back, count the lit hours lost, and pass the state on to the lamps.
 function Rooms.tick(now)
     now = now or getGameTime():getWorldAgeHours()
@@ -992,26 +1049,7 @@ function Rooms.tick(now)
         local square = cell:getGridSquare(room.x, room.y, room.z)
         local set = tiles[key]
         if square and set then
-            local powered = CannabisMod.Light.isPowered(square) == true
-            local schedule = nil
-            if room.schedule ~= "24/0" then schedule = room.schedule end
-            if not powered and room.powered ~= false then
-                room.powered, room.outage = false, { since = now, litHours = 0 }
-                Rooms.log(room, "Power lost", now)
-            end
-            if not powered and room.outage and Config.Timer.isOn(schedule, hour) then
-                room.outage.litHours = room.outage.litHours + 1 / 6
-            end
-            if powered and room.powered == false then
-                local lit = room.outage and room.outage.litHours or 0
-                local hit = 0
-                if Config.sandbox("RoomPowerPenalty") then hit = outagePenalty(set, lit) end
-                Rooms.log(room, string.format("Power restored: %.1f lit hours lost%s", lit, hit > 0 and (", " .. hit .. " flowering plants stressed") or ""), now)
-                room.powered, room.outage = nil, nil
-            end
-            if CannabisMod.Timers and CannabisMod.Timers.markRoomPower then
-                CannabisMod.Timers.markRoomPower(set, room.powered == false)
-            end
+            Rooms.checkPower(room, square, set, now, hour, true)
             Rooms.updateClimate(key, byRoom[key], outdoor, true, now)
         end
     end
