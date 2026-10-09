@@ -924,6 +924,14 @@ do
     check("lamp index: a lamp taken away stops lighting", select(1, L.measure(plant)) == 0)
     sq.objs[1] = "dazeddank_plants_01_198"
     check("lamp index: the emptied tile left the index", select(1, L.measure(plant)) == 0)
+    -- The hourly full read finds a lamp that raised no event.
+    local found = false
+    for _ = 1, L.FULL_SCAN_TICKS do
+        L.beginTick()
+        if select(1, L.measure(plant)) == 100 then found = true end
+        L.endTick()
+    end
+    check("lamp index: an unannounced lamp is found within an hour of ticks", found and select(1, L.measure(plant)) == 100)
     sq.objs[1] = nil
 end
 

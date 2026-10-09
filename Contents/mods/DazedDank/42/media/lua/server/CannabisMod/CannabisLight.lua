@@ -31,8 +31,8 @@ local function scheduleAt(x, y, z)
     return Timers and Timers.scheduleAt(x, y, z) or nil
 end
 
--- Placed lamps by tile: lampIndex[z][x][y] = true, fed by square loads and placements and checked against the square
--- when read, so a lamp that was taken away drops out. Ground lamp items raise no event, so squares are still read for them.
+-- Placed lamps by tile: lampIndex[z][x][y] = true, fed by square loads, placements and an hourly full read, and checked
+-- against the square when read so a lamp taken away drops out. Ground lamp items raise no event, so squares are still read for them.
 local lampIndex = {}
 
 --- Note a placed lamp on a tile so the light scan reads that square.
@@ -73,19 +73,27 @@ end)
 -- During the plant tick every plant asks about the same squares, so each square's lamps are read once per tick.
 -- tickCache[z][x][y] = list of { def, schedule, powered }, or false for a square with none (nil = not read yet).
 local tickCache = nil
+-- Every FULL_SCAN_TICKS plant ticks the scan also reads unindexed squares, in case a placement raised no event.
+Light.FULL_SCAN_TICKS = 6
+local tickCount, fullScan = 0, false
 
 --- Start sharing square reads between plants (the Registry calls this at the top of its tick).
-function Light.beginTick() tickCache = {} end
+function Light.beginTick()
+    tickCache = {}
+    fullScan = tickCount % Light.FULL_SCAN_TICKS == 0
+    tickCount = tickCount + 1
+end
 
 --- Stop sharing, so later reads see the world as it is.
-function Light.endTick() tickCache = nil end
+function Light.endTick() tickCache, fullScan = nil, false end
 
 --- The lamps on one square, as a list of { def, schedule, powered }, or false when there are none.
 local function readSquare(square, x, y, z)
     local found = false
     local sprites, items = Config.Light.SPRITES, Config.Light.ITEMS
     -- Only a tile the index knows can hold a placed lamp; one whose lamp has gone leaves the index.
-    if indexed(x, y, z) then
+    local known = indexed(x, y, z)
+    if known or fullScan then
         local any = false
         local objects = square:getObjects()
         for i = 0, objects:size() - 1 do
@@ -97,7 +105,8 @@ local function readSquare(square, x, y, z)
                 found[#found + 1] = { def = def, schedule = scheduleAt(x, y, z), powered = isPowered(square) and roomPowered(x, y, z) }
             end
         end
-        if not any then forget(x, y, z) end
+        if not any and known then forget(x, y, z) end
+        if any and not known then Light.noteLamp(x, y, z) end
     end
     -- Loose lamp items lying on the ground have no timer.
     local worldItems = square:getWorldObjects()
