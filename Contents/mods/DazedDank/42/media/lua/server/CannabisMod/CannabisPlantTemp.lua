@@ -97,6 +97,12 @@ function PlantTemp.rollPurple(plant)
         plant.purple = true
         -- Repaint the plant so the colour shows.
         if CannabisMod.Farming then CannabisMod.Farming.onStageChanged(plant) end
+        -- A grow room's log notes it; outside a room logTile does nothing.
+        local Rooms = CannabisMod.Rooms
+        if Rooms and Rooms.logTile and plant.x then
+            local s = Strains.of(plant)
+            Rooms.logTile(Config.tileKey(plant.x, plant.y, plant.z), ((s and s.name) or "A plant") .. " turned purple")
+        end
     end
 end
 
