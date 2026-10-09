@@ -14,7 +14,29 @@ local function tex(name)
     return t or nil
 end
 
+--- A texture by its full path, looked up once.
+Draw.texture = tex
+
+-- Card corner texture paths, built once instead of per card.
+local FILL_TL, FILL_TR = "media/ui/DazedDank/cardfill_tl.png", "media/ui/DazedDank/cardfill_tr.png"
+local FILL_BL, FILL_BR = "media/ui/DazedDank/cardfill_bl.png", "media/ui/DazedDank/cardfill_br.png"
+local LINE_TL, LINE_TR = "media/ui/DazedDank/cardline_tl.png", "media/ui/DazedDank/cardline_tr.png"
+local LINE_BL, LINE_BR = "media/ui/DazedDank/cardline_bl.png", "media/ui/DazedDank/cardline_br.png"
+local CIRCLE = "media/ui/DazedDank/circle.png"
+-- UI image name -> its full path, so Draw.tex builds each path once.
+local PATHS = {}
+
 local R = 8   -- card corner radius, the size of the corner textures
+
+--- One rounded corner of a card: its fill, then its border line when the card has one.
+local function corner(el, fillName, lineName, cx, cy, f, b)
+    local t = tex(fillName)
+    if t then el:drawTextureScaled(t, cx, cy, R, R, 1, f[1], f[2], f[3]) end
+    if b then
+        local tl = tex(lineName)
+        if tl then el:drawTextureScaled(tl, cx, cy, R, R, 1, b[1], b[2], b[3]) end
+    end
+end
 
 --- A rounded card: fill and a 1 px border, drawn on any ISUIElement `el` in its own coordinates.
 function Draw.card(el, x, y, w, h, fill, border)
@@ -22,14 +44,11 @@ function Draw.card(el, x, y, w, h, fill, border)
     el:drawRect(x + R, y, w - 2 * R, h, 1, f[1], f[2], f[3])
     el:drawRect(x, y + R, R, h - 2 * R, 1, f[1], f[2], f[3])
     el:drawRect(x + w - R, y + R, R, h - 2 * R, 1, f[1], f[2], f[3])
-    for _, c in ipairs({ { "tl", x, y }, { "tr", x + w - R, y }, { "bl", x, y + h - R }, { "br", x + w - R, y + h - R } }) do
-        local t = tex("media/ui/DazedDank/cardfill_" .. c[1] .. ".png")
-        if t then el:drawTextureScaled(t, c[2], c[3], R, R, 1, f[1], f[2], f[3]) end
-        if b then
-            local tl = tex("media/ui/DazedDank/cardline_" .. c[1] .. ".png")
-            if tl then el:drawTextureScaled(tl, c[2], c[3], R, R, 1, b[1], b[2], b[3]) end
-        end
-    end
+    local x2, y2 = x + w - R, y + h - R
+    corner(el, FILL_TL, LINE_TL, x, y, f, b)
+    corner(el, FILL_TR, LINE_TR, x2, y, f, b)
+    corner(el, FILL_BL, LINE_BL, x, y2, f, b)
+    corner(el, FILL_BR, LINE_BR, x2, y2, f, b)
     if b then
         el:drawRect(x + R, y, w - 2 * R, 1, 1, b[1], b[2], b[3])
         el:drawRect(x + R, y + h - 1, w - 2 * R, 1, 1, b[1], b[2], b[3])
@@ -40,7 +59,12 @@ end
 
 --- One of the rendered UI images in media/ui/DazedDank, by name, stretched to the box.
 function Draw.tex(el, name, x, y, w, h, a)
-    local t = tex("media/ui/DazedDank/" .. name .. ".png")
+    local path = PATHS[name]
+    if not path then
+        path = "media/ui/DazedDank/" .. name .. ".png"
+        PATHS[name] = path
+    end
+    local t = tex(path)
     if t then el:drawTextureScaled(t, x, y, w, h, a or 1, 1, 1, 1) end
 end
 
@@ -49,12 +73,12 @@ function Draw.pill(el, x, y, w, h, color)
     local c = color
     if w <= 0 or h <= 0 then return end
     if w <= h then
-        local t = tex("media/ui/DazedDank/circle.png")
+        local t = tex(CIRCLE)
         if t then el:drawTextureScaled(t, x, y, w, h, 1, c[1], c[2], c[3]) end
         return
     end
     el:drawRect(x + h / 2, y, w - h, h, 1, c[1], c[2], c[3])
-    local t = tex("media/ui/DazedDank/circle.png")
+    local t = tex(CIRCLE)
     if t then
         el:drawTextureScaled(t, x, y, h, h, 1, c[1], c[2], c[3])
         el:drawTextureScaled(t, x + w - h, y, h, h, 1, c[1], c[2], c[3])

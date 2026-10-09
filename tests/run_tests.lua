@@ -4286,5 +4286,23 @@ end)()
     getTimestampMs = oldTs
 end)()
 
+-- ---- Card drawing reuses its corner textures ---------------------------------------
+;(function()
+    local looked, oldGetTexture = {}, getTexture
+    getTexture = function(name) looked[name] = (looked[name] or 0) + 1 return { name = name } end
+    dofile(MOD .. "client/CannabisMod/CannabisUIDraw.lua")
+    local Dw = CannabisMod.UIDraw
+    local drawn = {}
+    local el = { drawRect = function() end, drawTextureScaled = function(_, t, x, y) drawn[#drawn + 1] = t.name .. "@" .. x .. "," .. y end }
+    Dw.card(el, 10, 20, 100, 50, { 1, 1, 1 }, { 0, 0, 0 })
+    Dw.card(el, 10, 20, 100, 50, { 1, 1, 1 }, { 0, 0, 0 })
+    Dw.tex(el, "circle", 0, 0, 4, 4); Dw.tex(el, "circle", 0, 0, 4, 4)
+    check("card: corners in order, fill then line", drawn[1] == "media/ui/DazedDank/cardfill_tl.png@10,20"
+        and drawn[2] == "media/ui/DazedDank/cardline_tl.png@10,20" and drawn[8] == "media/ui/DazedDank/cardline_br.png@102,62")
+    check("card: each texture is looked up once", looked["media/ui/DazedDank/cardfill_tl.png"] == 1
+        and looked["media/ui/DazedDank/circle.png"] == 1 and #drawn == 18)
+    getTexture = oldGetTexture
+end)()
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

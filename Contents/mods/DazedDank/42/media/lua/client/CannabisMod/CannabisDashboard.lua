@@ -75,7 +75,7 @@ function DashPanel:prerender()
         elseif op.kind == "plant" then
             pcall(Draw.plant, self, op.x, op.y, op.w, op.h, op.sprite, op.pot, op.lift, op.fit)
         elseif op.kind == "equip" then
-            local t = ICONS[op.equipKind] and getTexture(ICONS[op.equipKind])
+            local t = ICONS[op.equipKind] and Draw.texture(ICONS[op.equipKind])
             -- Full tiles keep the icon at the left under the mode pill; narrow ones centre a smaller icon.
             local size = math.min(36, op.w - 12)
             local ix = op.w >= 70 and op.x + 8 or op.x + (op.w - size) / 2
