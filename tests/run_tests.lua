@@ -1586,7 +1586,7 @@ do
     check("lamp light reaches past its growing area", LL.radius(basic) > basic.radius and LL.radius(C.Light.SPRITES["dazeddank_plants_01_235"]) >= 6)
 end
 
--- Lamp glow: the scan reads a row per tick, follows power and the timer, and clears lamps that are gone or left behind.
+-- Lamp glow: known lamps are re-read about once a second, follow power and the timer, and clear when gone or left behind.
 do
     local LL = CannabisMod.LampLights
     local lit, litCount = {}, 0
@@ -1595,23 +1595,26 @@ do
         addLamppost = function(_, l) lit[l] = true; litCount = litCount + 1 end,
         removeLamppost = function(_, l) if lit[l] then lit[l] = nil; litCount = litCount - 1 end end,
     }
-    local oldCell, oldPlayer, oldLight, oldHour = getCell, getPlayer, IsoLightSource, hourOfDay
+    local oldCell, oldPlayer, oldLight, oldHour, oldTs = getCell, getPlayer, IsoLightSource, hourOfDay, getTimestampMs
     local px, py = 1000.5, 1000.5
+    local clock = 0
+    getTimestampMs = function() return clock end
     getCell = function() return cellObj end
     getPlayer = function() return { getX = function() return px end, getY = function() return py end, getZ = function() return 0 end } end
     IsoLightSource = { new = function() return { setActive = function() end } end }
     local lampSq = fakeSquare(1005, 998, 0, false, true)
     lampSq.objs = { { sprite = "dazeddank_plants_01_197", md = { DDTimer = "12/12" } } }
     hourOfDay = 12
-    for _ = 1, 28 do LL.step() end
-    check("lamp glow: rows above the lamp don't light it yet", litCount == 0)
-    LL.step()
-    check("lamp glow: the lamp's row lights it (one source per layer)", litCount == LL.LAYERS.basic)
-    for _ = 1, 32 do LL.step() end
-    check("lamp glow: a finished pass keeps a lamp it saw", litCount == LL.LAYERS.basic)
-    hourOfDay = 20
     LL.update()
-    check("lamp glow: off in the timer's dark hours", litCount == 0)
+    check("lamp glow: a lamp no event announced isn't lit yet", litCount == 0)
+    fire("LoadGridsquare", lampSq)
+    LL.update()
+    check("lamp glow: a loaded lamp lights (one source per layer)", litCount == LL.LAYERS.basic)
+    LL.update()
+    check("lamp glow: a recheck keeps a lamp it saw", litCount == LL.LAYERS.basic)
+    hourOfDay = 20
+    LL.step()
+    check("lamp glow: an hour change rechecks at once and goes dark in the timer's off hours", litCount == 0)
     hourOfDay = 12
     LL.update()
     lampSq.power = false
@@ -1619,16 +1622,33 @@ do
     check("lamp glow: off without power", litCount == 0)
     lampSq.power = true
     LL.update()
+    clock = 500
+    lampSq.power = false
+    LL.step()
+    check("lamp glow: rechecks wait about a second", litCount == LL.LAYERS.basic)
+    clock = 1600
+    LL.step()
+    check("lamp glow: and then catch up", litCount == 0)
+    lampSq.power = true
+    LL.update()
     px = 1100.5
     LL.update()
     check("lamp glow: off once the player walks out of range", litCount == 0)
     px = 1000.5
     LL.update()
+    check("lamp glow: back on walking back", litCount == LL.LAYERS.basic)
     lampSq.objs = {}
     LL.update()
     check("lamp glow: off when the lamp is picked up", litCount == 0)
-    fakeSquares["1005_998_0"] = nil
-    getCell, getPlayer, IsoLightSource, hourOfDay = oldCell, oldPlayer, oldLight, oldHour
+    -- A lamp that arrived without any event is found by the slow safety sweep.
+    local quiet = fakeSquare(1001, 1002, 0, false, true)
+    quiet.objs = { { sprite = "dazeddank_plants_01_198", md = {} } }
+    for _ = 1, (2 * LL.SCAN_RADIUS + 2) * LL.DISCOVER_EVERY do LL.step() end
+    check("lamp glow: the safety sweep finds an unannounced lamp", litCount == LL.LAYERS.pro)
+    quiet.objs = {}
+    LL.update()
+    fakeSquares["1005_998_0"], fakeSquares["1001_1002_0"] = nil, nil
+    getCell, getPlayer, IsoLightSource, hourOfDay, getTimestampMs = oldCell, oldPlayer, oldLight, oldHour, oldTs
 end
 
 -- Male plant sprites
