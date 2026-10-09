@@ -7,6 +7,7 @@ require "Farming/SPlantGlobalObject"
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisCrop"
+require "CannabisMod/CannabisWorld"
 
 local Config = CannabisMod.Config
 local Registry = CannabisMod.Registry
@@ -63,8 +64,13 @@ end
 -- A plant layer left on a square whose plot is gone (removed some way we don't hook) is cleared a little after the
 -- square loads, once the farming system has its plots.
 local orphanCheck = {}
-Events.LoadGridsquare.Add(function(square)
-    if Config.overlayOn(square) then orphanCheck[#orphanCheck + 1] = { square = square, at = getTimestampMs() + 5000 } end
+CannabisMod.World.onSquareLoad("plant layer check", function(square, hits)
+    for i = 1, hits.n do
+        if hits.info[i].overlay then
+            orphanCheck[#orphanCheck + 1] = { square = square, at = getTimestampMs() + 5000 }
+            return
+        end
+    end
 end)
 Events.OnTick.Add(function()
     if #orphanCheck == 0 or getTimestampMs() < orphanCheck[1].at then return end

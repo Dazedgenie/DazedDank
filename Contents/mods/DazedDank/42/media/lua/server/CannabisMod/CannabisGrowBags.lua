@@ -9,6 +9,7 @@ require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
+require "CannabisMod/CannabisWorld"
 
 local Config   = CannabisMod.Config
 local Net      = CannabisMod.Net
@@ -409,16 +410,14 @@ Events.OnTick.Add(function()
 end)
 
 -- Where the furniture is placed on the server (and in single player).
-Events.OnObjectAdded.Add(function(obj)
-    local ok, x, y, z, isBag, name = pcall(function()
-        local sprite = obj:getSprite()
-        local sq = obj:getSquare()
-        local n = sprite and sprite:getName()
-        return sq:getX(), sq:getY(), sq:getZ(), n and Config.bagFromFurnSprite(n) ~= nil, n
-    end)
-    if ok and isBag then queueConvert(x, y, z) end
+CannabisMod.World.onObjectAdded("bag placing", function(obj, name, info)
+    if not (info.furn or info.flood) then return end
+    local sq = obj:getSquare()
+    if not sq then return end
+    local x, y, z = sq:getX(), sq:getY(), sq:getZ()
+    if info.furn then queueConvert(x, y, z) end
     -- A new flood reservoir changes which tables are fed.
-    if ok and name == Config.Hydro.FLOOD_SPRITE and CannabisMod.Hydro then
+    if info.flood and CannabisMod.Hydro then
         CannabisMod.Hydro.forgetLinks()
         CannabisMod.Hydro.syncFloodObject(x, y, z)
     end

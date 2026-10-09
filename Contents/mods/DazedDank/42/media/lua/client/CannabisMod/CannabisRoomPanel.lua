@@ -6,6 +6,7 @@ require "ISUI/ISButton"
 require "ISUI/ISTextBox"
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisNet"
+require "CannabisMod/CannabisWorld"
 require "CannabisMod/CannabisDashboard"
 
 local Config = CannabisMod.Config
@@ -88,21 +89,16 @@ Net.clientHandlers.roomInfo = RoomPanel.show
 local REFRESH_RANGE = 40
 local refreshAt = nil
 
-local function onLampChanged(obj)
-    if not (window and window.at and window:isVisible()) then return end
-    local ok, near = pcall(function()
-        local sprite = obj:getSprite()
-        local name = sprite and sprite:getName()
-        if not (name and (Config.Light.SPRITES[name] or Config.Rooms.EQUIPMENT[name])) then return false end
-        local sq = obj:getSquare()
-        return sq ~= nil and sq:getZ() == window.at.z and math.abs(sq:getX() - window.at.x) <= REFRESH_RANGE
-            and math.abs(sq:getY() - window.at.y) <= REFRESH_RANGE
-    end)
+local function onLampChanged(obj, name, info)
+    if not (info.lamp or info.gear) or not (window and window.at and window:isVisible()) then return end
+    local sq = obj:getSquare()
+    local near = sq ~= nil and sq:getZ() == window.at.z and math.abs(sq:getX() - window.at.x) <= REFRESH_RANGE
+        and math.abs(sq:getY() - window.at.y) <= REFRESH_RANGE
     -- The removal event fires before the object leaves the square, so wait a moment before asking.
-    if ok and near then refreshAt = getTimestampMs() + 300 end
+    if near then refreshAt = getTimestampMs() + 300 end
 end
-if Events.OnObjectAboutToBeRemoved then Events.OnObjectAboutToBeRemoved.Add(onLampChanged) end
-Events.OnObjectAdded.Add(onLampChanged)
+CannabisMod.World.onObjectRemoved("panel refresh", onLampChanged)
+CannabisMod.World.onObjectAdded("panel refresh", onLampChanged)
 
 Events.OnTick.Add(function()
     if not refreshAt or getTimestampMs() < refreshAt then return end

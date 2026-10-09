@@ -13,9 +13,11 @@ require "CannabisMod/CannabisInfo"
 require "CannabisMod/CannabisClimate"
 require "CannabisMod/CannabisWeather"
 require "CannabisMod/CannabisDrying"
+require "CannabisMod/CannabisWorld"
 require "Moveables/ISMoveableSpriteProps"
 
 local Config = CannabisMod.Config
+local World = CannabisMod.World
 local Net = CannabisMod.Net
 local commands = CannabisMod.ServerCommands.handlers
 local isNear = CannabisMod.ServerCommands.isNear
@@ -559,9 +561,8 @@ function Rooms.adoptPanel(obj)
     return (Rooms.register(square, nil)) == true
 end
 
-Events.OnObjectAdded.Add(function(obj)
-    local ok, isPanel = pcall(isPanelObject, obj)
-    if ok and isPanel then Rooms.onPlaced(obj) end
+World.onObjectAdded("panel placing", function(obj, name, info)
+    if info.panel then Rooms.onPlaced(obj) end
 end)
 
 --- Every square of the lamp on `square`: all tiles of a bar lamp, or just this one.
@@ -1267,12 +1268,8 @@ end
 
 --- True when an object is a blackout curtain overlay.
 function Rooms.isCurtainObject(obj)
-    local ok, name = pcall(function() return obj:getSprite():getName() end)
-    if not (ok and name) then return false end
-    for _, set in pairs(Config.Rooms.CURTAIN_SPRITES) do
-        for _, sprite in pairs(set) do if sprite == name then return true end end
-    end
-    return false
+    local name = World.safeSpriteName(obj)
+    return name ~= nil and World.CURTAINS[name] == true
 end
 
 --- Remove every curtain overlay on a square; returns how many went.
@@ -1317,7 +1314,11 @@ function Rooms.clearCurtainItems(player)
     return removed
 end
 
-Events.LoadGridsquare.Add(function(square) pcall(Rooms.clearCurtainsOn, square) end)
+World.onSquareLoad("retired curtains", function(square, hits)
+    for i = 1, hits.n do
+        if hits.info[i].curtain then Rooms.clearCurtainsOn(square) return end
+    end
+end)
 Events.OnGameStart.Add(function()
     local n = Rooms.forgetCurtains()
     if n > 0 then print("[DazedDank] forgot " .. n .. " retired blackout curtain record(s)") end

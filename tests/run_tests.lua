@@ -4046,5 +4046,29 @@ end)()
         and count("Riverside Haze (Sativa), Female") == 1)
 end)()
 
+-- ---- Shared sprite dispatcher ----------------------------------------------
+;(function()
+    local W = CannabisMod.World
+    local lampName = "dazeddank_plants_01_197"
+    check("dispatcher: lamp sprite reads as a lamp", W.info(lampName) and W.info(lampName).lamp == C.Light.SPRITES[lampName])
+    check("dispatcher: vanilla sprites are rejected", W.info("furniture_shelving_01_0") == nil and W.info(nil) == nil)
+    check("dispatcher: overlay, bag, panel and curtain flags", W.info(C.overlaySprite(2, 1, 3, "sprite")).overlay
+        and W.info(C.bagEmptySprite("dwc", true)).bag == "dwc" and W.info("dazeddank_rooms_01_0").panel == "S"
+        and W.info("dazeddank_rooms_01_4").curtain and W.info(C.Hydro.FLOOD_SPRITE).flood)
+    check("splitSprite memo returns both parts every time", select(2, C.splitSprite("dazeddank_hydro_01_113")) == 113
+        and select(2, C.splitSprite("dazeddank_hydro_01_113")) == 113 and C.splitSprite("vegetation_01_1") == nil)
+    -- Each object's sprite is read once per load, however many handlers look at the square.
+    local reads, seen = 0, {}
+    local function obj(name) return { getSprite = function() reads = reads + 1 return { getName = function() return name end } end } end
+    local list = { obj(lampName), obj("floors_01_1"), obj(C.Drying.BARREL_SPRITE) }
+    local sq = { getObjects = function() return { size = function() return #list end, get = function(_, i) return list[i + 1] end } end }
+    W.onSquareLoad("test a", function(_, hits) seen[#seen + 1] = hits.n end)
+    W.onSquareLoad("test b", function(_, hits) seen[#seen + 1] = hits.name[1] end)
+    reads = 0
+    W.dispatchLoad(sq)
+    check("dispatcher: one sprite read per object", reads == 3)
+    check("dispatcher: handlers see only our objects", seen[1] == 2 and seen[2] == lampName)
+end)()
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

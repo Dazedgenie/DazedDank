@@ -8,6 +8,7 @@ require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisGrowBags"
 require "CannabisMod/CannabisRooms"
 require "CannabisMod/CannabisRegistry"
+require "CannabisMod/CannabisWorld"
 
 local Config   = CannabisMod.Config
 local Farming  = CannabisMod.Farming
@@ -50,12 +51,11 @@ function Adopt.kindOf(obj)
     return nil
 end
 
---- Queue a freshly loaded square if anything on it is ours.
-function Adopt.onLoad(square)
-    local objects = square and square:getObjects()
-    if not objects then return end
-    for i = 0, objects:size() - 1 do
-        if Adopt.kindOf(objects:get(i)) then
+--- Queue a freshly loaded square if a bag, bucket, table or panel stands on it (`hits` from the shared square pass).
+function Adopt.onLoad(square, hits)
+    for i = 1, hits.n do
+        local info = hits.info[i]
+        if info.bag or info.furn or info.panel then
             Adopt.queue[#Adopt.queue + 1] = { x = square:getX(), y = square:getY(), z = square:getZ(), wait = Adopt.WAIT_TICKS }
             return
         end
@@ -114,7 +114,7 @@ function Adopt.tick()
     end
 end
 
-Events.LoadGridsquare.Add(function(square) pcall(Adopt.onLoad, square) end)
+CannabisMod.World.onSquareLoad("crash recovery", Adopt.onLoad)
 Events.OnTick.Add(Adopt.tick)
 
 return Adopt

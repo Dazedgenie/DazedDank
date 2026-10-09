@@ -252,13 +252,31 @@ function Config.sheetOf(bag)
     return (def and def.sheet) or Config.SPRITE_SHEET
 end
 
+-- Sprite name -> { sheet, n }, or false when it isn't one of ours; names are bounded by the tile sheets in play.
+local splitCache = {}
+
 --- Split a sprite name into its sheet and tile number, or nil when it isn't one of ours.
 function Config.splitSprite(spriteName)
     if type(spriteName) ~= "string" then return nil end
-    local sheet, n = spriteName:match("^(.-)_(%d+)$")
-    if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET and sheet ~= Config.ROOMS_SHEET
-        and sheet ~= Config.OVERLAY_SHEET and sheet ~= Config.OVERLAY_SHEET_XL then return nil end
-    return sheet, tonumber(n)
+    local hit = splitCache[spriteName]
+    if hit == nil then
+        local sheet, n = spriteName:match("^(.-)_(%d+)$")
+        if sheet ~= Config.SPRITE_SHEET and sheet ~= Config.HYDRO_SHEET and sheet ~= Config.ROOMS_SHEET
+            and sheet ~= Config.OVERLAY_SHEET and sheet ~= Config.OVERLAY_SHEET_XL then
+            hit = false
+        else
+            hit = { sheet, tonumber(n) }
+        end
+        splitCache[spriteName] = hit
+    end
+    if not hit then return nil end
+    return hit[1], hit[2]
+end
+
+--- True if a sprite name is a plant layer from either overlay sheet.
+function Config.isOverlaySprite(spriteName)
+    local sheet = Config.splitSprite(spriteName)
+    return sheet == Config.OVERLAY_SHEET or sheet == Config.OVERLAY_SHEET_XL
 end
 
 -- Furniture sprite name -> bag kind, built on first use (the bag table never changes while playing).
@@ -335,8 +353,7 @@ function Config.overlayOn(square)
         local obj = objects:get(i)
         local sprite = obj:getSprite()
         local name = sprite and sprite:getName()
-        local sheet = name and Config.splitSprite(name)
-        if sheet == Config.OVERLAY_SHEET or sheet == Config.OVERLAY_SHEET_XL then return obj, name end
+        if name and Config.isOverlaySprite(name) then return obj, name end
     end
     return nil
 end

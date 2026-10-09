@@ -7,6 +7,7 @@ require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisHydro"
+require "CannabisMod/CannabisWorld"
 
 local Config   = CannabisMod.Config
 local Registry = CannabisMod.Registry
@@ -125,6 +126,8 @@ function Drip.onObjectAdded(obj)
 end
 
 Events.EveryTenMinutes.Add(Drip.tick)
-Events.OnObjectAdded.Add(function(obj) pcall(Drip.onObjectAdded, obj) end)
+CannabisMod.World.onObjectAdded("drip tank placing", function(obj, name, info)
+    if info.drip then Drip.onObjectAdded(obj) end
+end)
 
 return Drip
