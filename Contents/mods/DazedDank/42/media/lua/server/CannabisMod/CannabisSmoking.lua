@@ -142,7 +142,7 @@ commands.smoke = function(player, args)
     end
     Net.toPlayer(player, "smoked", {
         type = info.type, strain = info.strain, moldy = info.moldy, strength = strength, hours = hours,
-        tolerance = user.tol, dependency = user.dep, method = method,
+        tolerance = user.tol, dependency = user.dep, method = method, to = Net.targetOf(player),
     })
 end
 
@@ -151,7 +151,7 @@ commands.requestUseState = function(player, args)
     local user = userOf(player)
     Use.decay(user, now())
     Net.toPlayer(player, "useState", {
-        withdrawal = Use.withdrawal(user, now()), tolerance = user.tol, dependency = user.dep,
+        withdrawal = Use.withdrawal(user, now()), tolerance = user.tol, dependency = user.dep, to = Net.targetOf(player),
     })
 end
 

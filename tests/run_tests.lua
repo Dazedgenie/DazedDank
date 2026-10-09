@@ -4363,5 +4363,33 @@ do
     getTimestampMs, sendClientCommand = oldTs, oldSend
 end
 
+
+-- ---- Fix F: split-screen players each have their own high ----
+do
+    local oldGSP = getSpecificPlayer
+    local function local_(num, oid)
+        return { md = {}, notes = {}, getPlayerNum = function() return num end, getOnlineID = function() return oid end,
+            getModData = function(self) return self.md end, setHaloNote = function(self, t) self.notes[#self.notes + 1] = t end,
+            isDead = function() return false end }
+    end
+    local p0, p1 = local_(0, 5), local_(1, 7)
+    getSpecificPlayer = function(i) if i == 0 then return p0 elseif i == 1 then return p1 end return nil end
+    dofile(MOD .. "client/CannabisMod/CannabisHigh.lua")
+    local H, N = CannabisMod.High, CannabisMod.Net
+    local reply = { type = "Indica", strength = 0.8, hours = 2, tolerance = 1, dependency = 2 }
+    N.clientHandlers.smoked(reply, p1)
+    check("F: a single-player reply naming player 2 highs only player 2", H.stateFor(1).high ~= nil and H.stateFor(0).high == nil
+        and #p1.notes == 1 and #p0.notes == 0)
+    N.clientHandlers.useState({ withdrawal = 0.5, tolerance = 3, dependency = 4, to = 5 })
+    check("F: a multiplayer reply goes to the player its online ID names", H.stateFor(0).withdrawal == 0.5 and H.stateFor(1).withdrawal == 0
+        and H.stateFor(0).tolerance == 3 and H.state == H.stateFor(0))
+    local srv = newPlayer(1, 1, 0)
+    srv.getOnlineID = function() return 7 end
+    srv.getUsername = function() return "split2" end
+    fire("OnClientCommand", "CannabisMod", "requestUseState", srv, {})
+    check("F: the server's use-state reply names its player", sent[#sent].cmd == "useState" and sent[#sent].data.to == 7)
+    getSpecificPlayer = oldGSP
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

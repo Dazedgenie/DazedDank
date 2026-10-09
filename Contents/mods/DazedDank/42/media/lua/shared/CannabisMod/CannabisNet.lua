@@ -22,11 +22,18 @@ function Net.toPlayer(player, command, args)
         sendServerCommand(player, Config.COMMAND_MODULE, command, args)
         return
     end
-    -- Single player: same game, call the client handler directly.
+    -- Single player: same game, call the client handler directly, naming the player for split-screen.
     local handler = Net.clientHandlers[command]
     if handler then
-        handler(args)
+        handler(args, player)
     end
+end
+
+--- The ID a client uses to tell which of its local (split-screen) players a reply is for, or nil.
+function Net.targetOf(player)
+    local ok, id = pcall(function() return player:getOnlineID() end)
+    if ok then return id end
+    return nil
 end
 
 --- Show a short floating message over a player, from server code.

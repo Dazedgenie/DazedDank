@@ -34,7 +34,8 @@ end
 function TrackerWindow:render()
     ISCollapsableWindow.render(self)
     if self.isCollapsed then return end
-    local player = getSpecificPlayer(0)
+    local index = self.playerNum or 0
+    local player = getSpecificPlayer(index)
     if not player then return end
     -- Ask the server for fresh tolerance and dependency now and then while the window is open.
     local ms = getTimestampMs()
@@ -44,7 +45,7 @@ function TrackerWindow:render()
     end
     if not self.rowsAt or ms - self.rowsAt >= Tracker.REBUILD_MS or ms < self.rowsAt then
         self.rowsAt = ms
-        self.heading, self.rows = Report.build(CannabisMod.High.state, getGameTime():getWorldAgeHours(), currentStats(player))
+        self.heading, self.rows = Report.build(CannabisMod.High.stateFor(index), getGameTime():getWorldAgeHours(), currentStats(player))
     end
     local heading, rows = self.heading, self.rows
     self:drawText(heading, 10, TOP, 1, 0.85, 0.4, 1, UIFont.Medium)
@@ -64,10 +65,11 @@ function TrackerWindow:close()
     if window == self then window = nil end
 end
 
---- Open the tracker, or close it when it's already open.
-function Tracker.toggle()
+--- Open the tracker for local player `playerNum`, or close it when it's already open.
+function Tracker.toggle(playerNum)
     if window then window:close() return end
     window = TrackerWindow:new(80, 200, W, 200)
+    window.playerNum = type(playerNum) == "number" and playerNum or 0
     window:initialise()
     window:setTitle("High Tracker")
     window.resizable = false

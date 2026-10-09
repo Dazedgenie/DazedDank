@@ -13,13 +13,47 @@ local Net    = CannabisMod.Net
 local High = {}
 CannabisMod.High = High
 
-local state = { high = nil, withdrawal = 0 }
-High.state = state
+-- states[playerIndex] = { high, withdrawal, tolerance, dependency }, one per split-screen player.
+local states = {}
+
+--- The high and withdrawal state of local player `index` (0-3), created on first use.
+function High.stateFor(index)
+    index = index or 0
+    local st = states[index]
+    if not st then
+        st = { high = nil, withdrawal = 0, lastLog = 0 }
+        states[index] = st
+    end
+    return st
+end
+-- Player 0's state, kept for readers that only know the first player.
+High.state = High.stateFor(0)
+
+--- The local index (0-3) of a player object, or 0 when it can't be read.
+local function indexOf(player)
+    local ok, n = pcall(function() return player:getPlayerNum() end)
+    if ok and type(n) == "number" and n >= 0 and n <= 3 then return n end
+    return 0
+end
+High.indexOf = indexOf
+
+--- The local player a server reply is for, and their index: the player passed in single player, else the one whose online ID the reply names.
+function High.targetOf(args, player)
+    if player then return player, indexOf(player) end
+    local id = args and args.to
+    if id ~= nil then
+        for i = 0, 3 do
+            local p = getSpecificPlayer(i)
+            local ok, pid = pcall(function() return p and p:getOnlineID() end)
+            if ok and pid == id then return p, i end
+        end
+    end
+    return getSpecificPlayer(0), 0
+end
 
 local function worldHours() return getGameTime():getWorldAgeHours() end
 
 local missing = {}
-local lastLog = 0
 
 --- Writes a [DazedDank] tracing line to console.txt in debug mode, so effects can be checked from the log.
 local function log(text) Config.debugLog(text) end
@@ -51,8 +85,9 @@ function High.currentStrength(high, now)
     return CannabisMod.HighReport.strength(high, now)
 end
 
---- One game minute of effects for one player.
-function High.tickPlayer(player, now)
+--- One game minute of effects for one player; `index` is their local player number (read from the player when left out).
+function High.tickPlayer(player, now, index)
+    local state = High.stateFor(index or indexOf(player))
     local step = 1 / 60
     local high = state.high
     local effects
@@ -68,14 +103,14 @@ function High.tickPlayer(player, now)
     end
     if not effects then return end
     -- In debug mode, log a snapshot every ten game minutes: what was asked for and what the stat did.
-    local report = (now - lastLog) >= (10 / 60) and Config.debugOn()
+    local report = (now - state.lastLog) >= (10 / 60) and Config.debugOn()
     local parts = {}
     for stat, perHour in pairs(effects) do
         local before, after = applyStat(player, stat, perHour * step)
         if report and before then parts[#parts + 1] = string.format("%s %.4f->%.4f", stat, before, after) end
     end
     if report then
-        lastLog = now
+        state.lastLog = now
         log((high and "high" or "withdrawal") .. " tick: " .. table.concat(parts, ", "))
     end
 end
@@ -87,13 +122,18 @@ local function eachLocalPlayer(fn)
     end
 end
 
--- Nothing to do while sober and not craving, which is most of the time.
+-- Each player is skipped while sober and not craving, which is most of the time.
 Events.EveryOneMinute.Add(function()
-    if not state.high and state.withdrawal <= 0 then return end
-    local now = worldHours()
+    local now = nil
     for i = 0, 3 do
-        local p = getSpecificPlayer(i)
-        if p and not p:isDead() then High.tickPlayer(p, now) end
+        local st = states[i]
+        if st and (st.high or st.withdrawal > 0) then
+            local p = getSpecificPlayer(i)
+            if p and not p:isDead() then
+                now = now or worldHours()
+                High.tickPlayer(p, now, i)
+            end
+        end
     end
 end)
 
@@ -105,7 +145,7 @@ Events.EveryHours.Add(function() eachLocalPlayer(requestState) end)
 -- Pick the high back up after a reload, and ask for the withdrawal numbers.
 Events.OnCreatePlayer.Add(function(index, player)
     local saved = player and player:getModData().DazedHigh
-    if saved and saved.endsAt and saved.endsAt > worldHours() then state.high = saved end
+    if saved and saved.endsAt and saved.endsAt > worldHours() then High.stateFor(index).high = saved end
     if not player then return end
     -- A Chronic asks once per character to start hooked; the flag is saved with the character.
     local data = player:getModData()
@@ -123,9 +163,10 @@ local FEELINGS = {
     Hybrid = "Easy and warm",
 }
 
-Net.clientHandlers.smoked = function(args)
-    local player = getSpecificPlayer(0)
+Net.clientHandlers.smoked = function(args, target)
+    local player, index = High.targetOf(args, target)
     if not player then return end
+    local state = High.stateFor(index)
     local now = worldHours()
     if Config.debugOn() then
         log(string.format("smoked reply: %s strength %.2f for %.2fh, moldy=%s, tolerance %s, dependency %s", tostring(args.type),
@@ -147,14 +188,15 @@ Net.clientHandlers.smoked = function(args)
     player:setHaloNote(msg)
 end
 
-Net.clientHandlers.useState = function(args)
+Net.clientHandlers.useState = function(args, target)
+    local player, index = High.targetOf(args, target)
+    local state = High.stateFor(index)
     local before = state.withdrawal
     state.withdrawal = args.withdrawal or 0
     if Config.debugOn() then
         log(string.format("use state: withdrawal %.2f, tolerance %s, dependency %s", state.withdrawal, tostring(args.tolerance), tostring(args.dependency)))
     end
     if before < 0.1 and state.withdrawal >= 0.1 and not state.high then
-        local player = getSpecificPlayer(0)
         if player then player:setHaloNote("You're craving a smoke") end
     end
     state.tolerance, state.dependency = args.tolerance, args.dependency
