@@ -3654,6 +3654,28 @@ do
     Plot.getIsoObject, Plot.addObject = oldGetIso, nil
 end
 
+-- ---- Orphaned plant layers are cleared from a queue a few seconds after load --------
+do
+    local clock = 0
+    local oldTs, oldGet = getTimestampMs, SFarmingSystem.instance.getLuaObjectOnSquare
+    getTimestampMs = function() return clock end
+    SFarmingSystem.instance.getLuaObjectOnSquare = function() return nil end
+    local orphan = fakeSquare(9100, 9100, 0, false, true)
+    orphan.objs[1] = C.overlaySprite(3, 1, 2, "sprite")
+    local kept = fakeSquare(9102, 9100, 0, false, true)
+    kept.objs[1] = C.overlaySprite(3, 1, 2, "sprite")
+    fire("LoadGridsquare", orphan)
+    clock = 1000
+    fire("LoadGridsquare", kept)
+    clock = 5500
+    CannabisMod.PotPlants.checkOrphans()
+    check("orphan queue: a layer with no plot goes once its wait is over", #orphan.objs == 0 and #kept.objs == 1)
+    clock = 6500
+    CannabisMod.PotPlants.checkOrphans()
+    check("orphan queue: later entries follow in order", #kept.objs == 0)
+    getTimestampMs, SFarmingSystem.instance.getLuaObjectOnSquare = oldTs, oldGet
+end
+
 end)()
 
 -- ---- Cannabis in pots: the pot stays, the plant is a raised layer ------------

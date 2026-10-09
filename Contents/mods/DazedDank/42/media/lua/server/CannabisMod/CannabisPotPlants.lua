@@ -57,34 +57,55 @@ end
 local originalSetSpriteName = SPlantGlobalObject.setSpriteName
 function SPlantGlobalObject:setSpriteName(spriteName)
     originalSetSpriteName(self, spriteName)
+    -- Other crops only matter when a plant layer is still on their square (a replanted cannabis plot).
+    if self.typeOfSeed ~= CROP then
+        local square = self.getSquare and self:getSquare()
+        if not (square and Config.overlayOn(square)) then return end
+    end
     local ok, err = pcall(PotPlants.sync, self)
     if not ok then print("[DazedDank] plant-in-pot layer failed: " .. tostring(err)) end
 end
 
 -- A plant layer left on a square whose plot is gone (removed some way we don't hook) is cleared a little after the
--- square loads, once the farming system has its plots.
-local orphanCheck = {}
+-- square loads, once the farming system has its plots. A queue of { x, y, z, at } read from `head`, oldest first.
+local orphanCheck, head, tail = {}, 1, 0
+
 CannabisMod.World.onSquareLoad("plant layer check", function(square, hits)
     for i = 1, hits.n do
         if hits.info[i].overlay then
-            orphanCheck[#orphanCheck + 1] = { square = square, at = getTimestampMs() + 5000 }
+            tail = tail + 1
+            orphanCheck[tail] = { x = square:getX(), y = square:getY(), z = square:getZ(), at = getTimestampMs() + 5000 }
             return
         end
     end
 end)
-Events.OnTick.Add(function()
-    if #orphanCheck == 0 or getTimestampMs() < orphanCheck[1].at then return end
-    local now, due = getTimestampMs(), {}
-    while orphanCheck[1] and orphanCheck[1].at <= now do due[#due + 1] = table.remove(orphanCheck, 1) end
-    local system = SFarmingSystem and SFarmingSystem.instance
-    for _, e in ipairs(due) do
-        local current = Config.overlayOn(e.square)
-        local plot = system and system.getLuaObjectOnSquare and system:getLuaObjectOnSquare(e.square)
-        if current and system and not (plot and plot.typeOfSeed == CROP and plot.state ~= "plow") then
-            print("[DazedDank] removed a plant layer with no plant under it at " .. e.square:getX() .. "," .. e.square:getY())
-            lift(e.square, current)
-        end
+
+--- Clear the layer on one queued tile if its plot is gone.
+local function checkOrphan(e, system)
+    local square = getCell():getGridSquare(e.x, e.y, e.z)
+    if not square then return end
+    local current = Config.overlayOn(square)
+    local plot = system and system.getLuaObjectOnSquare and system:getLuaObjectOnSquare(square)
+    if current and system and not (plot and plot.typeOfSeed == CROP and plot.state ~= "plow") then
+        print("[DazedDank] removed a plant layer with no plant under it at " .. e.x .. "," .. e.y)
+        lift(square, current)
     end
-end)
+end
+
+--- Work through the queued tiles whose wait is over.
+function PotPlants.checkOrphans()
+    if head > tail then return end
+    local now = getTimestampMs()
+    if now < orphanCheck[head].at then return end
+    local system = SFarmingSystem and SFarmingSystem.instance
+    while head <= tail and orphanCheck[head].at <= now do
+        local e = orphanCheck[head]
+        orphanCheck[head] = nil
+        head = head + 1
+        pcall(checkOrphan, e, system)
+    end
+    if head > tail then head, tail = 1, 0 end
+end
+Events.OnTick.Add(PotPlants.checkOrphans)
 
 return PotPlants
