@@ -233,4 +233,17 @@ function Timers.cleanup()
 end
 
 CannabisMod.TenMinutes.set("timersCleanup", Timers.cleanup)
-Events.OnGameStart.Add(Timers.cleanup)
+-- Set once the start-up cleanup has run with the saved timers loaded.
+local started = false
+
+--- Forget that start-up ran (tests use this to replay a server start).
+function Timers._resetStart() started = false end
+
+--- Start-up cleanup; OnGameStart doesn't fire on a dedicated server, so OnServerStarted runs it there, once.
+function Timers.onStart()
+    if started or not timers then return end
+    started = true
+    Timers.cleanup()
+end
+Events.OnGameStart.Add(Timers.onStart)
+if Events.OnServerStarted then Events.OnServerStarted.Add(Timers.onStart) end

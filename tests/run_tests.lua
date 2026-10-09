@@ -4320,5 +4320,23 @@ do
     check("C: wetCountIn counts wet plants, not dried ones", CannabisMod.Drying.wetCountIn(rack) == 2)
 end
 
+
+-- ---- Fix D: a dedicated server (no OnGameStart) still runs the start-up passes, once ----
+do
+    local Rooms, TM = CannabisMod.Rooms, CannabisMod.Timers
+    local oldRebuild, oldCleanup, oldForget = Rooms.rebuild, TM.cleanup, Rooms.forgetCurtains
+    local rebuilt, cleaned, forgot = 0, 0, 0
+    Rooms.rebuild = function() rebuilt = rebuilt + 1 end
+    Rooms.forgetCurtains = function() forgot = forgot + 1 return 0 end
+    TM.cleanup = function() cleaned = cleaned + 1 end
+    Rooms._resetStart(); TM._resetStart()
+    fire("OnServerStarted")
+    check("D: server start rebuilds rooms, forgets curtains and cleans timers", rebuilt == 1 and forgot == 1 and cleaned == 1)
+    fire("OnGameStart")
+    fire("OnServerStarted")
+    check("D: a second start event doesn't run them again", rebuilt == 1 and forgot == 1 and cleaned == 1)
+    Rooms.rebuild, TM.cleanup, Rooms.forgetCurtains = oldRebuild, oldCleanup, oldForget
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

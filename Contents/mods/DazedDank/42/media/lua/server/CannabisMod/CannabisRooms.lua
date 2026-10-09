@@ -1455,10 +1455,6 @@ World.onSquareLoad("retired curtains", function(square, hits)
         if hits.info[i].curtain then Rooms.clearCurtainsOn(square) return end
     end
 end)
-Events.OnGameStart.Add(function()
-    local n = Rooms.forgetCurtains()
-    if n > 0 then print("[DazedDank] forgot " .. n .. " retired blackout curtain record(s)") end
-end)
 
 --- Sent by each client as its player loads: their old curtains are taken away.
 commands.retireCurtains = function(player, args)
@@ -1469,4 +1465,19 @@ end
 -- Room shapes are filled again after nearby construction and every few hours; doors and windows are read every ten minutes.
 CannabisMod.TenMinutes.set("roomsRebuild", function() Rooms.refresh() end)
 CannabisMod.TenMinutes.set("roomsTick", function() Rooms.tick() end)
-Events.OnGameStart.Add(function() Rooms.rebuild() end)
+-- Set once the start-up pass has run with the saved tables loaded, so OnGameStart and OnServerStarted don't both run it.
+local started = false
+
+--- Forget that start-up ran (tests use this to replay a server start).
+function Rooms._resetStart() started = false end
+
+--- Start-up: drop retired curtain records and build every room. OnGameStart doesn't fire on a dedicated server, so OnServerStarted runs it there.
+function Rooms.onStart()
+    if started or not panels then return end
+    started = true
+    local n = Rooms.forgetCurtains()
+    if n > 0 then print("[DazedDank] forgot " .. n .. " retired blackout curtain record(s)") end
+    Rooms.rebuild()
+end
+Events.OnGameStart.Add(Rooms.onStart)
+if Events.OnServerStarted then Events.OnServerStarted.Add(Rooms.onStart) end
