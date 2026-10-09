@@ -4,6 +4,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisGrowBags"
 require "CannabisMod/CannabisRooms"
@@ -135,6 +136,6 @@ end
 CannabisMod.World.onSquareLoad("crash recovery", Adopt.onLoad)
 CannabisMod.World.onSquareLoad("bag redraw", Adopt.onLoadBag, true)
 Events.EveryHours.Add(Adopt.hourly)
-Events.OnTick.Add(Adopt.tick)
+CannabisMod.Ticker.every(1, Adopt.tick, "crash recovery")
 
 return Adopt

@@ -2,6 +2,7 @@
 -- the item-transfer action.
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisSeeds"
 require "TimedActions/ISInventoryTransferAction"
 
@@ -122,7 +123,7 @@ function Dome.squareArgs(dome, player)
 end
 
 local originalPerform = ISInventoryTransferAction.perform
-local pending = nil  -- { player, domeId, args, ticks }
+Dome.SYNC_DELAY_MS = 1500  -- about the 90 ticks the move takes to reach the server
 
 function ISInventoryTransferAction:perform()
     local dome = Dome.itemOf(self.destContainer)
@@ -130,18 +131,11 @@ function ISInventoryTransferAction:perform()
     if dome and self.character then
         local args = Dome.squareArgs(dome, self.character)
         args.domeId = dome:getID()
-        pending = { player = self.character, args = args, ticks = 90 }
+        local player = self.character
+        -- Give the item move a moment to reach the server, then ask it to start the rooting clock; a newer move restarts the wait.
+        CannabisMod.Ticker.after(Dome.SYNC_DELAY_MS, function()
+            sendClientCommand(player, Config.COMMAND_MODULE, "domeSync", args)
+        end, "domeSync")
     end
     return result
 end
-
--- Give the item move a moment to reach the server, then ask it to start the
--- rooting clock for whatever is in the dome.
-Events.OnTick.Add(function()
-    if not pending then return end
-    pending.ticks = pending.ticks - 1
-    if pending.ticks <= 0 then
-        sendClientCommand(pending.player, Config.COMMAND_MODULE, "domeSync", pending.args)
-        pending = nil
-    end
-end)

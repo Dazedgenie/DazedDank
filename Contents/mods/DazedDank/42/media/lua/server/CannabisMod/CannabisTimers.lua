@@ -3,6 +3,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
@@ -245,5 +246,5 @@ function Timers.cleanup()
     for _, key in ipairs(gone) do timers[key] = nil end
 end
 
-Events.EveryTenMinutes.Add(Timers.cleanup)
+CannabisMod.TenMinutes.set("timersCleanup", Timers.cleanup)
 Events.OnGameStart.Add(Timers.cleanup)

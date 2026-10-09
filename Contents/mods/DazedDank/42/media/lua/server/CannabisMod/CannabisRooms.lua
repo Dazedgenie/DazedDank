@@ -4,6 +4,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisServerCommands"
 require "CannabisMod/CannabisLight"
@@ -1495,5 +1496,6 @@ commands.retireCurtains = function(player, args)
 end
 
 -- Room shapes are filled again after nearby construction and every few hours; doors and windows are read every ten minutes.
-Events.EveryTenMinutes.Add(function() Rooms.refresh() Rooms.tick() end)
+CannabisMod.TenMinutes.set("roomsRebuild", function() Rooms.refresh() end)
+CannabisMod.TenMinutes.set("roomsTick", function() Rooms.tick() end)
 Events.OnGameStart.Add(function() Rooms.rebuild() end)

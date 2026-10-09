@@ -2,6 +2,7 @@
 -- Lights are client-side visuals, rebuilt from the lamps near the player and switched by power and the lamp's timer.
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisWorld"
 
 local Config = CannabisMod.Config
@@ -195,10 +196,10 @@ CannabisMod.World.onObjectRemoved("lamp glow", function(obj, name, info)
     if info.lamp then nextAt = 0 end
 end)
 
-Events.OnTick.Add(function()
+CannabisMod.Ticker.every(1, function()
     local ok, err = pcall(LampLights.step)
     if not ok then
         sweep = nil
         warnOnce(err)
     end
-end)
+end, "lamp glow")

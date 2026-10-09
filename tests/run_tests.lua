@@ -4253,5 +4253,38 @@ end)()
         and C.isDriedPlant(C.DRIED_PLANT_ITEMS.Indica) and C.isHangingPlant(C.WET_PLANT_ITEMS.Hybrid) and not C.isHangingPlant("Base.Apple"))
 end)()
 
+-- ---- Ten-minute order and the shared ticker ---------------------------------------
+;(function()
+    local TM, TK = CannabisMod.TenMinutes, CannabisMod.Ticker
+    local order, saved = {}, {}
+    for _, name in ipairs(TM.ORDER) do
+        saved[name] = TM.steps[name]
+        TM.steps[name] = function() order[#order + 1] = name end
+    end
+    TM.steps.timersCleanup = function() order[#order + 1] = "timersCleanup" error("boom") end
+    fire("EveryTenMinutes")
+    for name, fn in pairs(saved) do TM.steps[name] = fn end
+    check("ten-minute steps run once each, in their fixed order, past a failing one", table.concat(order, ",")
+        == "roomsRebuild,timersCleanup,hydroCleanup,plants,roomsTick,drip,drying,domes")
+    check("every server file hands its step to the dispatcher", saved.plants and saved.roomsRebuild and saved.timersCleanup
+        and saved.hydroCleanup and saved.roomsTick and saved.drip and saved.drying and saved.domes)
+    local clock, oldTs = 0, getTimestampMs
+    getTimestampMs = function() return clock end
+    local ran, every = {}, 0
+    TK.after(300, function() ran[#ran + 1] = "a" end, "k")
+    TK.after(200, function() ran[#ran + 1] = "b" end)
+    clock = 100
+    TK.after(300, function() ran[#ran + 1] = "a2" end, "k")
+    TK.every(3, function() every = every + 1 end, "test every")
+    clock = 250; TK.tick()
+    clock = 350; TK.tick()
+    check("ticker: a delayed job runs once its time comes", ran[1] == "b" and #ran == 1)
+    clock = 400; TK.tick()
+    check("ticker: a keyed job replaced by a newer call runs once, late", #ran == 2 and ran[2] == "a2")
+    check("ticker: every(3) runs on every third tick", every == 1)
+    TK.repeating[#TK.repeating] = nil
+    getTimestampMs = oldTs
+end)()
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

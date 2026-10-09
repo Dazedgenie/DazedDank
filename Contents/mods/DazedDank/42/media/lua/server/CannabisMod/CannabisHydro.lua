@@ -5,6 +5,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisRegistry"
@@ -1141,7 +1142,7 @@ function Hydro.cleanup()
     for _, key in ipairs(gone) do dropRecord(key) end
     if #gone > 0 then Hydro.forgetLinks() end
 end
-Events.EveryTenMinutes.Add(Hydro.cleanup)
+CannabisMod.TenMinutes.set("hydroCleanup", Hydro.cleanup)
 
 --- A kit for testing hydro: DWC buckets, an RDWC control with two sites, rockwool, clay pebbles, nutrients and bleach.
 commands.debugHydroKit = function(player, args)

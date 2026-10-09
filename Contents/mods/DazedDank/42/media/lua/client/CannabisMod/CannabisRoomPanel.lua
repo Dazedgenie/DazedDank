@@ -5,6 +5,7 @@ require "ISUI/ISPanel"
 require "ISUI/ISButton"
 require "ISUI/ISTextBox"
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisWorld"
 require "CannabisMod/CannabisDashboard"
@@ -26,7 +27,7 @@ function RoomPanel.highlight(x, y, z)
     marks[#marks + 1] = { x = x, y = y, z = z, untilMs = getTimestampMs() + 4000 }
 end
 
-Events.OnTick.Add(function()
+CannabisMod.Ticker.every(1, function()
     if #marks == 0 then return end
     local now, cell = getTimestampMs(), getCell()
     for i = #marks, 1, -1 do
@@ -42,7 +43,7 @@ Events.OnTick.Add(function()
             table.remove(marks, i)
         end
     end
-end)
+end, "equipment highlight")
 
 local function send(player, command, args)
     sendClientCommand(player, Config.COMMAND_MODULE, command, args)
@@ -87,7 +88,6 @@ Net.clientHandlers.roomInfo = RoomPanel.show
 
 -- Keep an open panel current: a lamp or piece of equipment placed or taken down near it asks for fresh room info.
 local REFRESH_RANGE = 40
-local refreshAt = nil
 
 local function onLampChanged(obj, name, info)
     if not (info.lamp or info.gear) or not (window and window.at and window:isVisible()) then return end
@@ -95,19 +95,18 @@ local function onLampChanged(obj, name, info)
     local near = sq ~= nil and sq:getZ() == window.at.z and math.abs(sq:getX() - window.at.x) <= REFRESH_RANGE
         and math.abs(sq:getY() - window.at.y) <= REFRESH_RANGE
     -- The removal event fires before the object leaves the square, so wait a moment before asking.
-    if near then refreshAt = getTimestampMs() + 300 end
+    if near then CannabisMod.Ticker.after(300, RoomPanel.refreshNow, "roomRefresh") end
 end
 CannabisMod.World.onObjectRemoved("panel refresh", onLampChanged)
 CannabisMod.World.onObjectAdded("panel refresh", onLampChanged)
 
-Events.OnTick.Add(function()
-    if not refreshAt or getTimestampMs() < refreshAt then return end
-    refreshAt = nil
+--- Ask the server for fresh room info for the open panel.
+function RoomPanel.refreshNow()
     local player = getPlayer()
     if player and window and window.at and window:isVisible() then
         send(player, "requestRoom", { x = window.at.x, y = window.at.y, z = window.at.z })
     end
-end)
+end
 
 --- True when the object is a door or a window frame.
 local function isFrame(obj)

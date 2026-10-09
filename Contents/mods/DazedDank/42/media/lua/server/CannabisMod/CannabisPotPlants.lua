@@ -5,6 +5,7 @@ if isClient() then return end
 
 require "Farming/SPlantGlobalObject"
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisCrop"
 require "CannabisMod/CannabisWorld"
@@ -106,6 +107,6 @@ function PotPlants.checkOrphans()
     end
     if head > tail then head, tail = 1, 0 end
 end
-Events.OnTick.Add(PotPlants.checkOrphans)
+CannabisMod.Ticker.every(1, PotPlants.checkOrphans, "plant layer check")
 
 return PotPlants

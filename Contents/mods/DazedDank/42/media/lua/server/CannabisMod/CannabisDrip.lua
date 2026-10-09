@@ -4,6 +4,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisHydro"
@@ -130,7 +131,7 @@ function Drip.onObjectAdded(obj)
     if r then r.dripTick = Registry.nowHours() end
 end
 
-Events.EveryTenMinutes.Add(Drip.tick)
+CannabisMod.TenMinutes.set("drip", Drip.tick)
 CannabisMod.World.onObjectAdded("drip tank placing", function(obj, name, info)
     if info.drip then Drip.onObjectAdded(obj) end
 end)

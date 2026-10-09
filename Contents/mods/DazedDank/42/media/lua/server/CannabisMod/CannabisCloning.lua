@@ -4,6 +4,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisSeeds"
@@ -286,7 +287,7 @@ function Cloning.holdDomes()
     end
     for _, id in ipairs(gone) do liveDomes[id] = nil end
 end
-Events.EveryTenMinutes.Add(Cloning.holdDomes)
+CannabisMod.TenMinutes.set("domes", Cloning.holdDomes)
 
 --- Count cuttings by state. Returns pending, rooted, failed, hours until the
 --- next one finishes.

@@ -5,6 +5,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisWorld"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisStrains"
@@ -564,7 +565,7 @@ function Drying.tick()
     end
 end
 
-Events.EveryTenMinutes.Add(Drying.tick)
+CannabisMod.TenMinutes.set("drying", Drying.tick)
 
 --- Records that hold nothing the item doesn't, untouched for RECORD_KEEP_DAYS, can go.
 --- Kept: old-style bud records, cure progress, drying progress and anything at a station still in use. Returns how many went.

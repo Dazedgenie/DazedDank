@@ -4,6 +4,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisRegistry"
@@ -397,7 +398,7 @@ local function queueConvert(x, y, z, ticks)
     pendingConvert[#pendingConvert + 1] = { x = x, y = y, z = z, ticks = ticks }
 end
 
-Events.OnTick.Add(function()
+CannabisMod.Ticker.every(1, function()
     if #pendingConvert == 0 then return end
     for i = #pendingConvert, 1, -1 do
         local job = pendingConvert[i]
@@ -406,7 +407,7 @@ Events.OnTick.Add(function()
             table.remove(pendingConvert, i)
         end
     end
-end)
+end, "bag converting")
 
 -- Where the furniture is placed on the server (and in single player).
 CannabisMod.World.onObjectAdded("bag placing", function(obj, name, info)

@@ -5,6 +5,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisStrains"
@@ -578,4 +579,4 @@ local function onEveryTenMinutes()
     tickFemales = nil
     if not ok then print("[DazedDank] plant tick failed: " .. tostring(err)) end
 end
-Events.EveryTenMinutes.Add(onEveryTenMinutes)
+CannabisMod.TenMinutes.set("plants", onEveryTenMinutes)
