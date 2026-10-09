@@ -25,17 +25,31 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
         return false
     end
 
-    --- isFreeTile for a ceiling lamp: only a blocker that isn't floor gear we know of stops it.
+    --- isFreeTile for a ceiling lamp: only a blocker that isn't floor gear we know of stops it. Returns false plus the blocking sprite name.
     local function freeForLamp(_, sq)
-        if not sq or sq:has(IsoFlagType.canBeCut) or sq:has("tree") then return false end
+        if not sq then return false, "no square" end
+        if sq:has(IsoFlagType.canBeCut) then return false, "brush" end
+        if sq:has("tree") then return false, "tree" end
         if not sq:has("BlocksPlacement") or sq:has(IsoFlagType.canBeRemoved) then return true end
         local objects = sq:getObjects()
         for i = 0, objects:size() - 1 do
             local sprite = objects:get(i):getSprite()
             local props = sprite and sprite:getProperties()
-            if props and props:has("BlocksPlacement") and not passable(sprite:getName() or "") then return false end
+            local name = sprite and sprite:getName() or ""
+            if props and props:has("BlocksPlacement") and not passable(name) then return false, name end
         end
         return true
+    end
+
+    --- True when a ceiling grow lamp's sprite is already on this square.
+    local function hasCeilingLamp(sq)
+        local objects = sq:getObjects()
+        for i = 0, objects:size() - 1 do
+            local sprite = objects:get(i):getSprite()
+            local lamp = sprite and Config.Light.SPRITES[sprite:getName() or ""]
+            if lamp and not lamp.floor then return true end
+        end
+        return false
     end
 
     -- One console line per refused square (at most every 2 s), so a lamp that won't place can be traced in console.txt.
@@ -61,20 +75,58 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
         print("[DazedDank] lamp can't go at " .. key .. " (" .. why .. "): " .. table.concat(parts, " "))
     end
 
+    --- The reason one covered square refuses a ceiling lamp, or nil when it is fine.
+    local function squareRefusal(props, sq)
+        if not sq then return "no square" end
+        if not sq:getFloor() then return "no floor" end
+        if sq:has(IsoFlagType.water) then return "water" end
+        if sq:isVehicleIntersecting() then return "vehicle in the way" end
+        if not indoorsOffTable(sq) then return "outdoors or on a table" end
+        local free, blocker = freeForLamp(nil, sq)
+        if not free then return "blocked by " .. tostring(blocker) end
+        if hasCeilingLamp(sq) then return "lamp already here" end
+        if props.isSquareAtTopOfStairs and props:isSquareAtTopOfStairs(sq) then return "top of stairs" end
+        return nil
+    end
+
+    --- True when the player has the skill and tool vanilla asks for to place this; allowed when the checks can't run.
+    local function playerCanPlace(props, character)
+        if not (character and instanceof(character, "IsoPlayer")) then return true end
+        if ISMoveableDefinitions and ISMoveableDefinitions.cheat then return true end
+        if character.isMovablesCheat and character:isMovablesCheat() then return true end
+        if not (props.hasRequiredSkill and props.hasTool) then return true end
+        local hasSkill = props:hasRequiredSkill(character, "place")
+        local hasTool = not props.placeTool or props:hasTool(character, "place")
+        return (hasSkill and hasTool) and true or false
+    end
+
+    --- Our own placement check for a ceiling lamp, so vanilla's refusals over low hydro gear no longer apply.
+    local function lampCanPlace(props, character, square)
+        if not square then return false end
+        for _, sq in ipairs(Preview.coveredSquares(props, square)) do
+            local ok, why = pcall(squareRefusal, props, sq)
+            if not ok then why = "check failed: " .. tostring(why) end
+            if why then
+                trace(sq, why)
+                return false
+            end
+        end
+        local ok, allowed = pcall(playerCanPlace, props, character)
+        if ok and not allowed then
+            trace(square, "needs skill or tool")
+            return false
+        end
+        return true
+    end
+
     -- Runs every frame while any furniture is being placed, so other items fall through after two table lookups.
     function ISMoveableSpriteProps:canPlaceMoveable(character, square, item)
         Preview.note(self, square)
         local lamp = Config.Light.SPRITES[self.spriteName]
         if lamp and not lamp.floor then
-            -- Ceiling lamps hang high, so vanilla lets them go over low gear like the RDWC control bucket and flood reservoir.
+            -- Ceiling lamps hang high; other code reads isHigh.
             self.isHigh = true
-            for _, sq in ipairs(Preview.coveredSquares(self, square)) do
-                local ok, inside = pcall(indoorsOffTable, sq)
-                if not (ok and inside) then
-                    trace(sq, "outdoors or on a table")
-                    return false
-                end
-            end
+            return lampCanPlace(self, character, square)
         end
         -- Hydro systems are indoor gear: the reservoir and pumps need shelter.
         local kind = Config.bagFromFurnSprite(self.spriteName)
@@ -82,14 +134,6 @@ if ISMoveableSpriteProps and ISMoveableSpriteProps.canPlaceMoveable then
                 or self.spriteName == Config.Hydro.FLOOD_SPRITE then
             local ok, inside = pcall(indoors, square)
             if not (ok and inside) then return false end
-        end
-        if lamp and not lamp.floor then
-            -- Swap in the lamp's free-tile test for this one check, then put the class's back.
-            self.isFreeTile = freeForLamp
-            local ok, result = pcall(originalCanPlace, self, character, square, item)
-            self.isFreeTile = nil
-            if not (ok and result) then trace(square, ok and "game refused" or tostring(result)) end
-            return ok and result or false
         end
         return originalCanPlace(self, character, square, item)
     end

@@ -4348,6 +4348,120 @@ do
 end
 
 
+-- ---- Fix: sowing a chosen seed group no longer calls vanilla's file-local isJoypadCharacter ----
+do
+    local old = { ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState }
+    local queued, seed = {}, newItem(C.SEED_ITEM)
+    S.setData(seed, { type = T.INDICA, sex = C.SEX.FEMALE, genetics = 100 })
+    ISFarmingMenu = { walkToPlant = function() return true end, isSeedValid = function() end,
+        onSeedSquareSelected = function() end,
+        doSeedMenu = function(_, context)
+            local m = context:getNew(context)
+            m.options = { { param1 = C.CROP_TYPE, param4 = "Cannabis", onSelect = function() end } }
+            m.numOptions = 1
+        end }
+    ISFarmingCursorMouse = { new = function() return {} end }
+    ISInventoryPaneContextMenu = { transferIfNeeded = function() end }
+    ISTimedActionQueue = { add = function(a) queued[#queued + 1] = a end }
+    ISSeedActionNew = { new = function(_, ...) return { ... } end }
+    getCell = function() return { setDrag = function() end } end
+    dofile(MOD .. "client/CannabisMod/CannabisSowMenu.lua")
+    local picked
+    local classMethods = { getNew = function() return { addOption = function(_, _, _, fn, ...) picked = picked or { fn = fn, args = { ... } } end } end,
+        addSubMenu = function() end }
+    local context = setmetatable({}, { __index = classMethods })
+    local player = { getInventory = function() return { getAllTypeRecurse = function() return { size = function() return 1 end, get = function() return seed end } end } end,
+        getPerkLevel = function() return 5 end, getPlayerNum = function() return 0 end }
+    ISFarmingMenu:doSeedMenu(context, {}, nil, player)
+    check("sow: the cannabis row offers the carried seed group", picked ~= nil)
+    for _, joy in ipairs({ "nil", "empty", "pad" }) do
+        JoypadState = joy == "nil" and nil or { players = joy == "pad" and { true } or {} }
+        queued = {}
+        local ok, err = pcall(picked.fn, player, table.unpack(picked.args))
+        check("sow: choosing a seed group doesn't crash with JoypadState " .. joy .. (ok and "" or (" (" .. tostring(err) .. ")")), ok)
+        check("sow: a keyboard player queues the seed action (" .. joy .. ")", (joy == "pad") == (#queued == 0))
+    end
+    ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState = table.unpack(old, 1, 7)
+end
+
+
+-- ---- Fix: a ceiling grow lamp checks its own squares instead of asking vanilla ----
+do
+    local oldProps, oldFlag, oldInst, oldTs = ISMoveableSpriteProps, IsoFlagType, instanceof, getTimestampMs
+    local oldPrint = print
+    print = function(msg, ...) if not tostring(msg):find("lamp can't go", 1, true) then oldPrint(msg, ...) end end
+    local vanillaCalls = 0
+    ISMoveableSpriteProps = { canPlaceMoveable = function() vanillaCalls = vanillaCalls + 1 return false end }
+    IsoFlagType = { canBeCut = "canBeCut", canBeRemoved = "canBeRemoved", water = "water" }
+    getTimestampMs = function() return 0 end
+    local n = 0
+    --- A square holding the named sprites; flags is a set of square-level flags, props maps sprite name to its property set.
+    local function sq(sprites, opts)
+        opts = opts or {}
+        n = n + 1
+        local s = { x = 9700 + n, y = 9700, z = 0 }
+        local flagSet = opts.flags or {}
+        local objs = {}
+        for i, name in ipairs(sprites) do
+            local props = (opts.props or {})[name] or {}
+            objs[i] = { getSprite = function() return { getName = function() return name end,
+                getProperties = function() return { has = function(_, f) return props[f] == true end } end } end }
+            for f in pairs(props) do flagSet[f] = true end
+        end
+        function s:getX() return self.x end
+        function s:getY() return self.y end
+        function s:getZ() return self.z end
+        function s:isOutside() return opts.outside == true end
+        function s:getFloor() if opts.noFloor then return nil end return {} end
+        function s:isVehicleIntersecting() return opts.vehicle == true end
+        function s:has(f) return flagSet[f] == true end
+        function s:getObjects() return { size = function() return #objs end, get = function(_, i) return objs[i + 1] end } end
+        return s
+    end
+    dofile(MOD .. "client/CannabisMod/CannabisLampPlacement.lua")
+    local place = ISMoveableSpriteProps.canPlaceMoveable
+    local LAMP, FLOOR_LAMP = "dazeddank_plants_01_197", "dazeddank_plants_01_234"
+    local function lamp(square, character)
+        return place({ spriteName = LAMP }, character, square, nil)
+    end
+    check("lamp: allowed over the RDWC control bucket (IsLow)", lamp(sq({ "dazeddank_hydro_01_113" }, { props = { ["dazeddank_hydro_01_113"] = { IsLow = true } } })) == true)
+    check("lamp: allowed over a flood table site tile", lamp(sq({ "dazeddank_hydro_01_123" })) == true)
+    check("lamp: allowed over a Dazed Dank pot that blocks placement", lamp(sq({ "dazeddank_plants_01_3" }, { props = { ["dazeddank_plants_01_3"] = { BlocksPlacement = true } } })) == true)
+    check("lamp: allowed on an empty indoor square", lamp(sq({})) == true)
+    check("lamp: refused outdoors", lamp(sq({}, { outside = true })) == false)
+    check("lamp: refused on a table", lamp(sq({ "furniture_tables_01_0" }, { props = { ["furniture_tables_01_0"] = { IsTable = true } } })) == false)
+    check("lamp: refused over a vanilla BlocksPlacement object", lamp(sq({ "furniture_storage_01_0" }, { props = { ["furniture_storage_01_0"] = { BlocksPlacement = true } } })) == false)
+    check("lamp: refused where a ceiling lamp already hangs", lamp(sq({ LAMP })) == false)
+    check("lamp: a floor flood light doesn't count as a lamp already there", lamp(sq({ FLOOR_LAMP })) == true)
+    check("lamp: refused with no floor", lamp(sq({}, { noFloor = true })) == false)
+    check("lamp: refused over water", lamp(sq({}, { flags = { water = true } })) == false)
+    check("lamp: refused with a vehicle in the way", lamp(sq({}, { vehicle = true })) == false)
+    check("lamp: refused with no square", lamp(nil) == false)
+    local top = { spriteName = LAMP, isSquareAtTopOfStairs = function() return true end }
+    check("lamp: refused at the top of stairs", place(top, nil, sq({}), nil) == false)
+    check("lamp: the ceiling lamp path never asks vanilla", vanillaCalls == 0)
+    -- Skill and tool check for a real player.
+    instanceof = function(o, name) return name == "IsoPlayer" and o.isPlayer == true end
+    local hand = { isPlayer = true, isMovablesCheat = function() return false end }
+    local needy = { spriteName = LAMP, placeTool = "Screwdriver", hasRequiredSkill = function() return true end, hasTool = function() return false end }
+    check("lamp: refused when the player lacks the tool", place(needy, hand, sq({}), nil) == false)
+    needy.hasTool = function() return true end
+    check("lamp: allowed when the player has skill and tool", place(needy, hand, sq({}), nil) == true)
+    needy.hasRequiredSkill = function() return false end
+    check("lamp: refused when the player lacks the skill", place(needy, hand, sq({}), nil) == false)
+    hand.isMovablesCheat = function() return true end
+    check("lamp: movables cheat skips the skill check", place(needy, hand, sq({}), nil) == true)
+    -- Everything that isn't a ceiling lamp still goes to vanilla.
+    vanillaCalls = 0
+    place({ spriteName = "some_couch_01" }, nil, sq({}), nil)
+    place({ spriteName = FLOOR_LAMP }, nil, sq({}), nil)
+    check("lamp: non-lamp and floor-lamp sprites still call vanilla", vanillaCalls == 2)
+    check("lamp: the hydro control stays indoors-only", place({ spriteName = C.Hydro.CONTROL_SPRITE }, nil, sq({}, { outside = true }), nil) == false and vanillaCalls == 2)
+    print = oldPrint
+    ISMoveableSpriteProps, IsoFlagType, instanceof, getTimestampMs = oldProps, oldFlag, oldInst, oldTs
+end
+
+
 -- ---- Fix B: one broken plant no longer stops the rest of the plant tick ----
 do
     local good = {}

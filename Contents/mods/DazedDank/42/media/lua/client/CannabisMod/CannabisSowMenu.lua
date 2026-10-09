@@ -42,6 +42,11 @@ local function carriedSeeds(player)
     return out
 end
 
+--- True for a gamepad player. Vanilla's own isJoypadCharacter is file-local, so this repeats it, safe when JoypadState is missing.
+local function isJoypadCharacter(player)
+    return JoypadState ~= nil and JoypadState.players ~= nil and JoypadState.players[player:getPlayerNum() + 1] ~= nil
+end
+
 --- The player's seed groups, as the Sow list shows them.
 local function seedGroups(player)
     return Info.seedGroups(carriedSeeds(player), player:getPerkLevel(Perks.Farming), CannabisMod.Traits.reading(player), Seeds.getData)
