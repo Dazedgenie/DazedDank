@@ -30,12 +30,63 @@ CannabisMod.Hydro = Hydro
 -- record is also its reservoir). A reservoir record: { kind, x, y, z, level, strength, nutrient, changedAt, tainted, rot, lastTick }.
 local res = nil
 
+-- Kept beside res so nothing has to walk every record: drips[tileKey] = each drip tank record,
+-- and sites[controlKey] = { [siteKey] = true } for each RDWC site linked to that control bucket.
+local drips, sites = {}, {}
+local EMPTY = {}
+
+local function addSite(controlKey, siteKey)
+    local set = sites[controlKey]
+    if not set then set = {} sites[controlKey] = set end
+    set[siteKey] = true
+end
+
+local function removeSite(controlKey, siteKey)
+    local set = sites[controlKey]
+    if set then set[siteKey] = nil end
+end
+
+--- Build both indexes from the saved records (after load or a reset).
+local function indexAll()
+    drips, sites = {}, {}
+    for key, r in pairs(res or EMPTY) do
+        if r.isDrip then drips[key] = r end
+        if r.link then addSite(r.link, key) end
+    end
+end
+
+--- Set or clear an RDWC site's link, keeping the site index in step.
+local function setLink(site, siteKey, link)
+    if site.link then removeSite(site.link, siteKey) end
+    site.link = link
+    if link then addSite(link, siteKey) end
+end
+
+--- Flag a record as a drip tank and list it.
+local function markDrip(r)
+    r.isDrip = true
+    drips[Config.tileKey(r.x, r.y, r.z)] = r
+end
+
+--- Take a record out of the saved table and both indexes.
+local function dropRecord(key)
+    local r = res and res[key]
+    if not r then return end
+    drips[key] = nil
+    if r.link then removeSite(r.link, key) end
+    res[key] = nil
+end
+
 Events.OnInitGlobalModData.Add(function()
     res = ModData.getOrCreate(Config.MODDATA_KEY .. "_Hydro")
+    indexAll()
 end)
 
 --- Replace the saved table (tests use this to start clean).
-function Hydro._reset(tbl) res = tbl or {} end
+function Hydro._reset(tbl)
+    res = tbl or {}
+    indexAll()
+end
 
 --- The record for a tile, made on first use as an empty, fresh reservoir.
 function Hydro.get(x, y, z, kind)
@@ -53,7 +104,7 @@ end
 
 --- Forget a tile's record (its bucket was picked up or its plot is gone).
 function Hydro.clear(x, y, z)
-    if res then res[Config.tileKey(x, y, z)] = nil end
+    dropRecord(Config.tileKey(x, y, z))
     Hydro.forgetSiteCounts()
     Hydro.forgetLinks()
 end
@@ -67,16 +118,18 @@ function Hydro.forgetSiteCounts() siteCountsAt = nil end
 --- How many site buckets are linked to the control bucket with this tile key.
 function Hydro.sitesOf(controlKey)
     local now = Registry.nowHours()
-    if siteCountsAt ~= now then
-        siteCounts, siteCountsAt = {}, now
-        for _, r in pairs(res or {}) do
+    if siteCountsAt ~= now then siteCounts, siteCountsAt = {}, now end
+    local n = siteCounts[controlKey]
+    if n == nil then
+        n = 0
+        for siteKey in pairs(sites[controlKey] or EMPTY) do
+            local r = res and res[siteKey]
             -- A record whose bucket is gone (no RDWC bag on its tile) no longer holds a place.
-            if r.link and r.x and Registry.getBag(r.x, r.y, r.z) == "rdwc" then
-                siteCounts[r.link] = (siteCounts[r.link] or 0) + 1
-            end
+            if r and r.link == controlKey and r.x and Registry.getBag(r.x, r.y, r.z) == "rdwc" then n = n + 1 end
         end
+        siteCounts[controlKey] = n
     end
-    return siteCounts[controlKey] or 0
+    return n
 end
 
 --- Litres a reservoir holds: fixed for DWC and Ebb and Flow, the control bucket plus every linked site for RDWC.
@@ -128,7 +181,9 @@ function Hydro.hasDrip(x, y, z) return hasSprite(x, y, z, Config.Drip.SPRITE) en
 --- Every drip tank record: for key, r in Hydro.eachDrip() do ... end
 function Hydro.eachDrip()
     local list = {}
-    for key, r in pairs(res or {}) do if r.isDrip then list[#list + 1] = { key, r } end end
+    for key, r in pairs(drips) do
+        if res and res[key] == r then list[#list + 1] = { key, r } end
+    end
     local i = 0
     return function()
         i = i + 1
@@ -150,7 +205,7 @@ function Hydro.linkSite(x, y, z)
             r.isControl = true
             return r
         end
-        site.link = nil
+        setLink(site, Config.tileKey(x, y, z), nil)
         Hydro.forgetSiteCounts()
     end
     -- A site with no control in range doesn't search again until a control is placed or the cache runs out.
@@ -172,7 +227,7 @@ function Hydro.linkSite(x, y, z)
         missedSearch[Config.tileKey(x, y, z)] = now
         return nil
     end
-    site.link = Config.tileKey(best[1], best[2], z)
+    setLink(site, Config.tileKey(x, y, z), Config.tileKey(best[1], best[2], z))
     Hydro.forgetSiteCounts()
     local r = Hydro.get(best[1], best[2], z, "rdwc")
     r.isControl = true
@@ -309,7 +364,7 @@ function Hydro.reservoirAt(x, y, z, kind)
     if kind == "drip" then
         if not Hydro.hasDrip(x, y, z) then return nil end
         local r = Hydro.get(x, y, z, "drip")
-        r.isDrip = true
+        markDrip(r)
         return r
     end
     return nil
@@ -324,7 +379,7 @@ function Hydro.reservoirOfObject(x, y, z, kind)
     if r then
         if kind == "rdwc" then r.isControl = true end
         if kind == "ebb" then r.isFlood = true end
-        if kind == "drip" then r.isDrip = true end
+        if kind == "drip" then markDrip(r) end
     end
     return r
 end
@@ -845,12 +900,21 @@ function Hydro.servedPlants(r)
     -- Only plants close enough to share this reservoir are looked up (a DWC bucket is its own tile).
     local reach = (r.kind == "rdwc" and H.RDWC_RANGE) or (r.kind == "ebb" and H.EBB_SCAN_MAX) or 0
     local out = {}
-    for _, plant in Registry.each() do
-        if not plant.dead and plant.z == r.z and math.abs(plant.x - r.x) <= reach and math.abs(plant.y - r.y) <= reach
+    local function consider(plant)
+        if plant and not plant.dead and plant.z == r.z and math.abs(plant.x - r.x) <= reach and math.abs(plant.y - r.y) <= reach
                 and Config.isHydro(Registry.getBag(plant.x, plant.y, plant.z))
                 and Hydro.reservoirOf(plant.x, plant.y, plant.z) == r then
             out[#out + 1] = plant
         end
+    end
+    if r.kind == "ebb" then
+        -- A flood network can reach far, so every plant is checked against its distance.
+        for _, plant in Registry.each() do consider(plant) end
+        return out
+    end
+    -- DWC and RDWC reach only a few tiles: look those tiles up instead of walking every plant.
+    for dx = -reach, reach do
+        for dy = -reach, reach do consider(Registry.getPlant(r.x + dx, r.y + dy, r.z)) end
     end
     return out
 end
@@ -1062,7 +1126,7 @@ function Hydro.cleanup()
             end
         end
     end
-    for _, key in ipairs(gone) do res[key] = nil end
+    for _, key in ipairs(gone) do dropRecord(key) end
     if #gone > 0 then Hydro.forgetLinks() end
 end
 Events.EveryTenMinutes.Add(Hydro.cleanup)

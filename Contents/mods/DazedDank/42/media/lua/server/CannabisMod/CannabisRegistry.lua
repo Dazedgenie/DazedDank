@@ -19,6 +19,9 @@ local FLOWER_STAGES = { PreFlower = true, Flowering = true }
 local Registry = {}
 CannabisMod.Registry = Registry
 
+-- Goes up whenever a plant record is added or removed, so per-room plant lists know when to rebuild.
+Registry.version = 0
+
 -- The actual table of plants. Filled in by onInitGlobalModData below.
 local plants = nil
 local bags = nil  -- grow bag tiles: key -> "small" | "large"
@@ -78,6 +81,7 @@ end
 --- exists, or a fresh empty table for a new world.
 local function onInitGlobalModData(isNewGame)
     plants = ModData.getOrCreate(Config.MODDATA_KEY)
+    Registry.version = Registry.version + 1
     domes = ModData.getOrCreate(Config.MODDATA_KEY .. "_Domes")
     bags = ModData.getOrCreate(Config.MODDATA_KEY .. "_Bags")
     soiled = ModData.getOrCreate(Config.MODDATA_KEY .. "_BagSoil")
@@ -152,6 +156,7 @@ function Registry.addPlant(x, y, z, seed, opts)
     }
 
     plants[key] = plant
+    Registry.version = Registry.version + 1
     return plant
 end
 
@@ -211,6 +216,7 @@ end
 function Registry.removePlant(x, y, z)
     if not plants then return end
     plants[Config.tileKey(x, y, z)] = nil
+    Registry.version = Registry.version + 1
 end
 
 --- Loop over every plant: for key, plant in Registry.each() do ... end

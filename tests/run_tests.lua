@@ -2438,6 +2438,15 @@ end
     mount("500_500_0"); mount("505_504_0")
     local ok, freed = R.register(fakeSquares["500_500_0"], owner, wall)
     check("panel registers and hands the lamp's timer back", ok and freed == 1 and owner.inv:count(TM.ITEM) == 1)
+    do
+        local before = #R.plantsIn("500_500_0")
+        local p1 = CannabisMod.Registry.addPlant(502, 503, 0, G.newSeed(T.INDICA))
+        check("room plant lists see a new plant at once", #R.plantsIn("500_500_0") == before + 1)
+        p1.dead = true
+        check("room plant lists skip dead plants", #R.plantsIn("500_500_0") == before)
+        CannabisMod.Registry.removePlant(502, 503, 0)
+        check("room plant lists drop a removed plant", #R.plantsIn("500_500_0") == before)
+    end
     check("room lamp runs the room's 18/6", TS.scheduleAt(501, 501, 0) == "18/6" and lampA.objs[1].md.DDTimer == "18/6")
     check("lamp in the other room is untouched", TS.scheduleAt(504, 501, 0) == nil)
 
@@ -3738,6 +3747,32 @@ do
     CannabisMod.PotPlants.checkOrphans()
     check("orphan queue: later entries follow in order", #kept.objs == 0)
     getTimestampMs, SFarmingSystem.instance.getLuaObjectOnSquare = oldTs, oldGet
+end
+
+-- ---- Hydro indexes: RDWC site counts and drip tanks without walking every record --------
+do
+    local HY, HC = CannabisMod.Hydro, C.Hydro
+    local ctrl = fakeSquare(9200, 9200, 0, false, true)
+    ctrl.objs[1] = HC.CONTROL_SPRITE
+    for i = 1, 2 do fakeSquare(9200 + i, 9200, 0, false, true); R.setBag(9200 + i, 9200, 0, "rdwc") end
+    local r1, r2 = HY.linkSite(9201, 9200, 0), HY.linkSite(9202, 9200, 0)
+    check("site index: both sites link to the control", r1 and r1 == r2 and HY.sitesOf("9200_9200_0") == 2)
+    R.clearBag(9202, 9200, 0)
+    check("site index: a cleared site gives back its place", HY.sitesOf("9200_9200_0") == 1)
+    local tank = fakeSquare(9210, 9200, 0, false, true)
+    tank.objs[1] = C.Drip.SPRITE
+    local dr = HY.reservoirAt(9210, 9200, 0, "drip")
+    local function listed()
+        for key, r in HY.eachDrip() do if r == dr and key == "9210_9200_0" then return true end end
+        return false
+    end
+    check("drip index: a found tank is listed", dr and listed())
+    tank.objs[1] = nil
+    HY.cleanup()
+    check("drip index: a tank picked up leaves the list", not listed())
+    R.clearBag(9201, 9200, 0)
+    ctrl.objs[1] = nil
+    HY.cleanup()
 end
 
 end)()

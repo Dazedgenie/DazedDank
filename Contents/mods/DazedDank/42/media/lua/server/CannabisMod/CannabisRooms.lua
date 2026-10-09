@@ -33,6 +33,27 @@ local curtains = nil
 local openings = {}
 -- Rebuilt from the panels: tileRoom[tileKey] = panelKey, and tiles[panelKey] = { [tileKey] = true }.
 local tileRoom, tiles = {}, {}
+-- Goes up whenever tileRoom changes, so the per-room plant lists know when to rebuild.
+local roomsVersion = 0
+-- byRoom[panelKey] = every plant record (dead ones too) standing in that room, rebuilt when plants or rooms change.
+local byRoom, byRoomPlants, byRoomRooms = {}, nil, nil
+
+--- The plants of every room, from the shared lists (rebuilt only after a plant or room change).
+local function plantsByRoom()
+    local version = CannabisMod.Registry.version
+    if byRoomPlants == version and byRoomRooms == roomsVersion then return byRoom end
+    byRoom = {}
+    for key, plant in CannabisMod.Registry.each() do
+        local panelKey = tileRoom[key]
+        if panelKey then
+            local list = byRoom[panelKey]
+            if not list then list = {} byRoom[panelKey] = list end
+            list[#list + 1] = plant
+        end
+    end
+    byRoomPlants, byRoomRooms = version, roomsVersion
+    return byRoom
+end
 
 Events.OnInitGlobalModData.Add(function()
     panels = ModData.getOrCreate(Config.MODDATA_KEY .. "_Rooms")
@@ -44,6 +65,7 @@ function Rooms._reset(tbl, curtainTbl)
     panels = tbl or {}
     curtains = curtainTbl or {}
     tileRoom, tiles, openings = {}, {}, {}
+    roomsVersion = roomsVersion + 1
 end
 
 --- True when the way from square a to the next square b is shut by a wall, a door frame or a window frame.
@@ -307,6 +329,7 @@ end
 --- Work out every room's tiles again from the saved panels.
 function Rooms.rebuild(blocked)
     tileRoom, tiles, openings = {}, {}, {}
+    roomsVersion = roomsVersion + 1
     if not panels then return end
     local cell = getCell()
     local gone = {}
@@ -406,6 +429,7 @@ function Rooms.register(square, player, blocked)
     }
     tiles[key] = set
     for tileKey in pairs(set) do tileRoom[tileKey] = key end
+    roomsVersion = roomsVersion + 1
     openings[key] = Rooms.findOpenings(set)
     return true, Rooms.sync(key, player)
 end
@@ -414,6 +438,7 @@ end
 function Rooms.remove(panelKey)
     if not panels[panelKey] then return false end
     for tileKey in pairs(tiles[panelKey] or {}) do tileRoom[tileKey] = nil end
+    roomsVersion = roomsVersion + 1
     tiles[panelKey] = nil
     openings[panelKey] = nil
     panels[panelKey] = nil
@@ -778,8 +803,8 @@ function Rooms.plantRows(panelKey, level, reading)
     local rows = {}
     if not set then return rows end
     local now = Registry.nowHours()
-    for key, plant in Registry.each() do
-        if set[key] and not plant.dead then
+    for _, plant in ipairs(plantsByRoom()[panelKey] or {}) do
+        if not plant.dead then
             local d = Info.buildVisible(plant, level, now, reading)
             local water = d.water
             if type(water) == "number" then water = string.format("%d%%", water) end
@@ -976,11 +1001,10 @@ end
 
 --- The living plants standing in one room.
 function Rooms.plantsIn(panelKey)
-    local set = tiles[panelKey]
     local list = {}
-    if not set then return list end
-    for key, plant in CannabisMod.Registry.each() do
-        if set[key] and not plant.dead then list[#list + 1] = plant end
+    if not tiles[panelKey] then return list end
+    for _, plant in ipairs(plantsByRoom()[panelKey] or {}) do
+        if not plant.dead then list[#list + 1] = plant end
     end
     return list
 end
@@ -1066,12 +1090,12 @@ commands.roomOverride = function(player, args)
 end
 
 --- Add stress to every flowering plant in a room for the lit hours its power cut cost.
-local function outagePenalty(set, litHours)
+local function outagePenalty(panelKey, litHours)
     local stress = math.min(Config.Rooms.OUTAGE_STRESS_CAP, litHours * Config.Rooms.OUTAGE_STRESS_PER_LIT_HOUR)
     if stress <= 0 then return 0 end
     local hit = 0
-    for key, plant in CannabisMod.Registry.each() do
-        if set[key] and plant.stage == Config.STAGE.Flowering then
+    for _, plant in ipairs(plantsByRoom()[panelKey] or {}) do
+        if plant.stage == Config.STAGE.Flowering then
             plant.stress = Config.clamp((plant.stress or 0) + stress, 0, Config.Stress.MAX)
             hit = hit + 1
         end
@@ -1094,7 +1118,7 @@ function Rooms.checkPower(room, square, set, now, hour, tick)
     if powered and room.powered == false then
         local lit = room.outage and room.outage.litHours or 0
         local hit = 0
-        if Config.sandbox("RoomPowerPenalty") then hit = outagePenalty(set, lit) end
+        if Config.sandbox("RoomPowerPenalty") then hit = outagePenalty(Config.tileKey(room.x, room.y, room.z), lit) end
         Rooms.log(room, string.format("Power restored: %.1f lit hours lost%s", lit, hit > 0 and (", " .. hit .. " flowering plants stressed") or ""), now)
         room.powered, room.outage = nil, nil
     end
@@ -1109,21 +1133,12 @@ function Rooms.tick(now)
     local hour = getGameTime():getHour()
     local cell = getCell()
     local outdoor = Rooms.outdoor()
-    local byRoom = {}
-    for key, plant in CannabisMod.Registry.each() do
-        local panelKey = not plant.dead and tileRoom[key]
-        if panelKey then
-            local list = byRoom[panelKey]
-            if not list then list = {} byRoom[panelKey] = list end
-            list[#list + 1] = plant
-        end
-    end
     for key, room in pairs(panels or {}) do
         local square = cell:getGridSquare(room.x, room.y, room.z)
         local set = tiles[key]
         if square and set then
             Rooms.checkPower(room, square, set, now, hour, true)
-            Rooms.updateClimate(key, byRoom[key], outdoor, true, now)
+            Rooms.updateClimate(key, Rooms.plantsIn(key), outdoor, true, now)
         end
     end
 end
