@@ -190,7 +190,8 @@ commands.setTimer = function(player, args)
     end
     if not Timers.scheduleAt(square:getX(), square:getY(), square:getZ()) then return end
     local holder = itemTile(square, obj)
-    setLamp(holder, obj, args.schedule)
+    -- The holder tile's own lamp piece, since a bar lamp's tiles are found from where that piece sits in the grid.
+    setLamp(holder, lampObject(holder) or obj, args.schedule)
     Net.notify(player, "Light timer set to " .. args.schedule)
 end
 

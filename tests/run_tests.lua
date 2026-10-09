@@ -4277,6 +4277,9 @@ do
     check("A: installing a timer on a bar lamp sets every tile", TM.scheduleAt(9500, 9500, 0) == C.Timer.DEFAULT
         and TM.scheduleAt(9501, 9500, 0) == C.Timer.DEFAULT and TM.scheduleAt(9502, 9500, 0) == C.Timer.DEFAULT
         and mds[0].DDTimer == C.Timer.DEFAULT and mds[2].DDTimer == C.Timer.DEFAULT)
+    fire("OnClientCommand", "CannabisMod", "setTimer", p, { x = 9502, y = 9500, z = 0, schedule = "12/12" })
+    check("I: changing the schedule from another tile of a bar lamp sets all three tiles", TM.scheduleAt(9500, 9500, 0) == "12/12"
+        and TM.scheduleAt(9501, 9500, 0) == "12/12" and TM.scheduleAt(9502, 9500, 0) == "12/12" and TM.scheduleAt(9498, 9500, 0) == nil)
     fire("OnClientCommand", "CannabisMod", "removeTimer", p, { x = 9500, y = 9500, z = 0 })
     check("A: removing the timer clears every tile and gives one back", TM.scheduleAt(9500, 9500, 0) == nil
         and TM.scheduleAt(9502, 9500, 0) == nil and p.inv:count(C.Timer.ITEM) == 1)
