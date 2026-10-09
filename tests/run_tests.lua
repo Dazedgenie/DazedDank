@@ -4338,5 +4338,30 @@ do
     Rooms.rebuild, TM.cleanup, Rooms.forgetCurtains = oldRebuild, oldCleanup, oldForget
 end
 
+
+-- ---- Fix E: quick moves into two domes sync both ----
+do
+    pcall(require, "TimedActions/ISInventoryTransferAction")  -- marks the vanilla file as loaded; the stub stands in
+    ISInventoryTransferAction = { isValid = function() return true end, perform = function() return true end }
+    dofile(MOD .. "client/CannabisMod/CannabisDomeContainer.lua")
+    local clock, oldTs, oldSend = 0, getTimestampMs, sendClientCommand
+    getTimestampMs = function() return clock end
+    local synced = {}
+    sendClientCommand = function(_, _, cmd, args) if cmd == "domeSync" then synced[#synced + 1] = args.domeId end end
+    local dA, dB = newDome(), newDome()
+    local p = newPlayer(1, 1, 0)
+    for _, d in ipairs({ dA, dA, dB }) do
+        local act = setmetatable({ destContainer = d:getInventory(), character = p }, { __index = ISInventoryTransferAction })
+        act:perform()
+        clock = clock + 100
+    end
+    clock = clock + 5000
+    CannabisMod.Ticker.tick()
+    local a, b = 0, 0
+    for _, id in ipairs(synced) do if id == dA:getID() then a = a + 1 elseif id == dB:getID() then b = b + 1 end end
+    check("E: each dome moved into syncs once, even within the delay", a == 1 and b == 1 and #synced == 2)
+    getTimestampMs, sendClientCommand = oldTs, oldSend
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

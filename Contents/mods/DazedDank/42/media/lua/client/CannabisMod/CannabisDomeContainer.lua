@@ -132,10 +132,10 @@ function ISInventoryTransferAction:perform()
         local args = Dome.squareArgs(dome, self.character)
         args.domeId = dome:getID()
         local player = self.character
-        -- Give the item move a moment to reach the server, then ask it to start the rooting clock; a newer move restarts the wait.
+        -- Give the item move a moment to reach the server, then ask it to start the rooting clock. Each dome has its own wait, which a newer move into it restarts.
         CannabisMod.Ticker.after(Dome.SYNC_DELAY_MS, function()
             sendClientCommand(player, Config.COMMAND_MODULE, "domeSync", args)
-        end, "domeSync")
+        end, "domeSync" .. tostring(args.domeId))
     end
     return result
 end
