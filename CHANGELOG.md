@@ -9,6 +9,16 @@
 - Changed: a flood table on a timer shows as 100% wet and is only re-sent to clients when the timer starts or stops.
 - Removed: the old Lights, Hydro, Climate, Equipment and Plants panel tabs (the dashboard replaced them) and the unused root mod.info.
 
+### Fixes
+- Fixed: on a dedicated server a light timer only reached one tile of a bar lamp (large basic or large pro). It now sets every tile, and changing the schedule from any tile of the lamp updates them all.
+- Fixed: on a dedicated server grow rooms weren't worked out, retired curtain records weren't cleared and timers of picked-up lamps weren't dropped when the server started (they waited for the first ten-minute pass).
+- Fixed: one plant with a broken record stopped every plant after it from growing, drinking and flowering, every ten minutes. Each plant now ticks on its own and a broken one is logged once.
+- Fixed: dried plants hanging on a rack raised the grow room's humidity like wet ones. Only wet plants count now.
+- Fixed: moving cuttings into two cloning domes within about a second and a half only started the rooting clock in the second dome.
+- Fixed: split-screen players shared one high: whoever smoked, player 1 got the high, the message and the withdrawal. Each player now has their own, and the High Tracker shows the player who opened it.
+- Fixed: the retired Hang Blackout Curtain command could still take a curtain from a player's inventory if a client sent it. It is gone; taking down an old curtain still works.
+- Fixed: a cloning dome that was destroyed or lost with cuttings in it kept its record in the save forever. Domes unseen for 90 days (the same keep time as drying records) are dropped, and a destroyed dome is no longer checked every ten minutes.
+
 ## dd54 (Climate and UI redesign, in testing)
 - Fixed: a Botanist / Breeder now reads a seed's or cutting's strain and sex at any Agriculture level, as the occupation says (it used to show "Unknown cannabis seed" below Agriculture 3).
 - Added: **choose which seed to sow.** In Sow Seed, the cannabis row opens a list of the seeds you carry, grouped by what you can read of them ("Knox Kush (Indica), Female : 2"). Below Agriculture 3 they all show as one "Unknown cannabis seed" group. After the first plot, clicking more plots keeps sowing from the group you picked.
