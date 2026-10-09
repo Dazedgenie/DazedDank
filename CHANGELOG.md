@@ -1,5 +1,14 @@
 # Dazed Dank patch notes
 
+## dd55 (performance, in testing)
+- Changed: grow lamp glow no longer scans 61 squares every frame. Lamps are remembered as they load or are placed and re-checked about once a second (and at once when the hour changes), so a lamp's glow may switch up to a second later.
+- Changed: plant lighting, grow room scans, crash recovery and the plant-layer check read each square once and only look closely at tiles that hold Dazed Dank objects.
+- Changed: grow room shapes are worked out again when something is built or removed near the room, and every 6 hours as a safety pass, instead of every 10 minutes. Doors, windows and curtains are still checked every 10 minutes.
+- Changed: the ten-minute jobs (rooms, timers, hydro, plants, drip, drying, domes) run in one fixed order; drying racks are found at the ten-minute tick instead of every minute.
+- Changed: empty grow bags are kept from fading once an hour instead of every 10 minutes, and lost bag objects are redrawn as their square loads plus an hourly sweep.
+- Changed: a flood table on a timer shows as 100% wet and is only re-sent to clients when the timer starts or stops.
+- Removed: the old Lights, Hydro, Climate, Equipment and Plants panel tabs (the dashboard replaced them) and the unused root mod.info.
+
 ## dd54 (Climate and UI redesign, in testing)
 - Fixed: a Botanist / Breeder now reads a seed's or cutting's strain and sex at any Agriculture level, as the occupation says (it used to show "Unknown cannabis seed" below Agriculture 3).
 - Added: **choose which seed to sow.** In Sow Seed, the cannabis row opens a list of the seeds you carry, grouped by what you can read of them ("Knox Kush (Indica), Female : 2"). Below Agriculture 3 they all show as one "Unknown cannabis seed" group. After the first plot, clicking more plots keeps sowing from the group you picked.
