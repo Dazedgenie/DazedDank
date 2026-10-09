@@ -279,12 +279,19 @@ local function directItems(container, test)
     return out
 end
 
-local function wetPlantsIn(container)
+--- Every whole plant hanging directly in a container, wet or dried.
+local function hangingPlantsIn(container)
     return directItems(container, Config.isHangingPlant)
 end
 
---- How many wet hanging plants a container holds (the grow room's humidity counts them).
-function Drying.wetCountIn(container) return #wetPlantsIn(container) end
+--- How many wet plants hang directly in a container; dried ones give off no water, so the room's humidity skips them.
+function Drying.wetCountIn(container)
+    local n, items = 0, container:getItems()
+    for i = 0, items:size() - 1 do
+        if Config.isWetPlant(items:get(i):getFullType()) then n = n + 1 end
+    end
+    return n
+end
 
 --- The rack containers standing on a square.
 function Drying.racksAt(square) return racksAt(square) end
@@ -321,7 +328,7 @@ local function settleRack(container, key, square, now)
     local elapsed = Config.clamp(now - prev, 0, D.MAX_CATCHUP_HOURS)
     -- The environment (a fan search among other things) is only worked out if a plant actually moves on.
     local env = nil
-    for _, item in ipairs(wetPlantsIn(container)) do
+    for _, item in ipairs(hangingPlantsIn(container)) do
         local id = item:getID()
         local rec = db.plants[id]
         if not rec then
@@ -638,7 +645,7 @@ commands.checkRack = function(player, args)
     for _, square in ipairs(rackSquares(getCell():getGridSquare(x, y, z))) do
         settleNow(square)
         for _, container in ipairs(racksAt(square)) do
-            for _, item in ipairs(wetPlantsIn(container)) do items[#items + 1] = item end
+            for _, item in ipairs(hangingPlantsIn(container)) do items[#items + 1] = item end
         end
     end
     if #items == 0 then

@@ -4310,5 +4310,15 @@ do
     for i = 0, 6 do R.removePlant(9600 + i, 9600, 0) end
 end
 
+
+-- ---- Fix C: only wet plants on a rack raise room humidity ----
+do
+    local rack = newContainer()
+    rack:AddItems(C.WET_PLANT_ITEMS.Indica, 2)
+    rack:AddItems(C.DRIED_PLANT_ITEMS.Sativa, 3)
+    rack:AddItems("Base.Apple", 1)
+    check("C: wetCountIn counts wet plants, not dried ones", CannabisMod.Drying.wetCountIn(rack) == 2)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
