@@ -33,6 +33,16 @@ local curtains = nil
 local openings = {}
 -- Rebuilt from the panels: tileRoom[tileKey] = panelKey, and tiles[panelKey] = { [tileKey] = true }.
 local tileRoom, tiles = {}, {}
+-- Built with tiles: tileList[panelKey] = { { x, y, z, key }... } so passes over a room never re-parse keys,
+-- and bounds[panelKey] = { x1, y1, x2, y2, z } to tell whether a change is near the room.
+local tileList, bounds = {}, {}
+-- contents[panelKey] = what the room holds, read in one pass (see Rooms.contents); contentsVersion goes up when it may be stale.
+local contents, contentsVersion = {}, 0
+-- Rooms whose shape needs filling again after a construction change or a square loading near them.
+local shapeDirty = {}
+-- World hours of the last full rebuild; a slow safety pass refills every room this often.
+local lastShapeAt = nil
+Rooms.SHAPE_SAFETY_HOURS = 6
 -- Goes up whenever tileRoom changes, so the per-room plant lists know when to rebuild.
 local roomsVersion = 0
 -- byRoom[panelKey] = every plant record (dead ones too) standing in that room, rebuilt when plants or rooms change.
@@ -65,7 +75,9 @@ function Rooms._reset(tbl, curtainTbl)
     panels = tbl or {}
     curtains = curtainTbl or {}
     tileRoom, tiles, openings = {}, {}, {}
+    tileList, bounds, contents, shapeDirty, lastShapeAt = {}, {}, {}, {}, nil
     roomsVersion = roomsVersion + 1
+    contentsVersion = contentsVersion + 1
 end
 
 --- True when the way from square a to the next square b is shut by a wall, a door frame or a window frame.
@@ -150,12 +162,19 @@ function Rooms.leakOf(kind, sq, nb, edge)
     return Config.clamp((tonumber(Config.sandbox("DoorLeak")) or 25) / 100, 0, 1)
 end
 
---- Every door and window frame on a room's edge, with how much light it lets in.
-function Rooms.findOpenings(set)
+--- Every door and window frame on a room's edge, with how much light it lets in; `list` is the room's tile list when known.
+function Rooms.findOpenings(set, list)
     local cell = getCell()
     local out = {}
-    for tileKey in pairs(set) do
-        local x, y, z = Config.parseKey(tileKey)
+    if not list then
+        list = {}
+        for tileKey in pairs(set) do
+            local x, y, z = Config.parseKey(tileKey)
+            list[#list + 1] = { x = x, y = y, z = z, key = tileKey }
+        end
+    end
+    for _, t in ipairs(list) do
+        local x, y, z = t.x, t.y, t.z
         local sq = cell:getGridSquare(x, y, z)
         for _, d in ipairs(DIRS) do
             local nx, ny = x + d[1], y + d[2]
@@ -240,6 +259,7 @@ local NEIGHBOURS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
 
 --- The indoor tiles connected to `square` without crossing a wall, door frame or window frame, on one floor.
 --- Returns the set of tile keys, how many there are, and true when the cap cut it short (the set is then a radius around the panel).
+--- The fourth result is the same tiles as a list of { x, y, z, key }.
 function Rooms.fill(square, blocked)
     blocked = blocked or Rooms.edgeBlocked
     local cell = getCell()
@@ -247,7 +267,9 @@ function Rooms.fill(square, blocked)
     local sx, sy = square:getX(), square:getY()
     local set, count = {}, 0
     local queue, head = { square }, 1
-    set[Config.tileKey(sx, sy, z)] = true
+    local startKey = Config.tileKey(sx, sy, z)
+    set[startKey] = true
+    local list = { { x = sx, y = sy, z = z, key = startKey } }
     count = 1
     while head <= #queue do
         local sq = queue[head]
@@ -262,29 +284,68 @@ function Rooms.fill(square, blocked)
                     set[key] = true
                     count = count + 1
                     queue[#queue + 1] = nb
+                    list[count] = { x = nx, y = ny, z = z, key = key }
                     if count > Config.Rooms.MAX_TILES then
-                        return Rooms.radiusFill(square), count, true
+                        local rset, rlist = Rooms.radiusFill(square)
+                        return rset, count, true, rlist
                     end
                 end
             end
         end
     end
-    return set, count, false
+    return set, count, false, list
 end
 
---- The fallback for a very large space: every indoor tile within the fallback radius of the panel.
+--- The fallback for a very large space: every indoor tile within the fallback radius of the panel (set, then list).
 function Rooms.radiusFill(square)
     local cell = getCell()
     local z, R = square:getZ(), Config.Rooms.FALLBACK_RADIUS
-    local set = {}
+    local set, list = {}, {}
     for dx = -R, R do
         for dy = -R, R do
             local x, y = square:getX() + dx, square:getY() + dy
             local sq = cell:getGridSquare(x, y, z)
-            if sq and not sq:isOutside() then set[Config.tileKey(x, y, z)] = true end
+            if sq and not sq:isOutside() then
+                local key = Config.tileKey(x, y, z)
+                set[key] = true
+                list[#list + 1] = { x = x, y = y, z = z, key = key }
+            end
         end
     end
-    return set
+    return set, list
+end
+
+--- Store a room's tiles with their list and bounds (tileRoom is the caller's to update).
+local function setRoomTiles(key, set, list)
+    tiles[key], tileList[key] = set, list
+    local b = nil
+    for _, t in ipairs(list) do
+        if not b then
+            b = { x1 = t.x, y1 = t.y, x2 = t.x, y2 = t.y, z = t.z }
+        else
+            if t.x < b.x1 then b.x1 = t.x end
+            if t.x > b.x2 then b.x2 = t.x end
+            if t.y < b.y1 then b.y1 = t.y end
+            if t.y > b.y2 then b.y2 = t.y end
+        end
+    end
+    bounds[key] = b
+    contentsVersion = contentsVersion + 1
+end
+
+--- Forget a room's tiles (its panel is gone or out of loaded range).
+local function dropRoomTiles(key)
+    tiles[key], tileList[key], bounds[key], contents[key], openings[key] = nil, nil, nil, nil, nil
+    contentsVersion = contentsVersion + 1
+end
+
+--- Work tileRoom out again from every room's tiles.
+local function rebuildTileRoom()
+    tileRoom = {}
+    for key, set in pairs(tiles) do
+        for tileKey in pairs(set) do tileRoom[tileKey] = key end
+    end
+    roomsVersion = roomsVersion + 1
 end
 
 --- True when the object is one of the panel's wall sprites.
@@ -312,7 +373,7 @@ function Rooms.sync(panelKey, player)
     if not (Timers and Timers.adoptRoom and room and set) then return 0 end
     local schedule = nil
     if room.schedule ~= "24/0" then schedule = room.schedule end
-    local freed = Timers.adoptRoom(set, schedule)
+    local freed = Timers.adoptRoom(set, schedule, Rooms.contents(panelKey).lampTiles)
     if freed > 0 then
         if player then
             CannabisMod.Farming.giveItems(player, Config.Timer.ITEM, freed)
@@ -329,8 +390,11 @@ end
 --- Work out every room's tiles again from the saved panels.
 function Rooms.rebuild(blocked)
     tileRoom, tiles, openings = {}, {}, {}
+    tileList, bounds, contents, shapeDirty = {}, {}, {}, {}
     roomsVersion = roomsVersion + 1
+    contentsVersion = contentsVersion + 1
     if not panels then return end
+    lastShapeAt = getGameTime():getWorldAgeHours()
     local cell = getCell()
     local gone = {}
     for key, panel in pairs(panels) do
@@ -338,15 +402,82 @@ function Rooms.rebuild(blocked)
         if square and not panelOn(square) then
             gone[#gone + 1] = key
         elseif square then
-            local set = Rooms.fill(square, blocked)
-            tiles[key] = set
+            local set, _, _, list = Rooms.fill(square, blocked)
+            setRoomTiles(key, set, list)
             for tileKey in pairs(set) do tileRoom[tileKey] = key end
-            openings[key] = Rooms.findOpenings(set)
+            openings[key] = Rooms.findOpenings(set, list)
             Rooms.sync(key)
         end
     end
     for _, key in ipairs(gone) do panels[key] = nil end
 end
+
+--- The ten-minute room pass: refill only rooms marked by a nearby change (all of them every few hours), drop rooms whose
+--- panel went, and read every room's doors and windows again. Lamp schedules are handed out by Rooms.tick.
+function Rooms.refresh(blocked)
+    if not panels then return end
+    local now = getGameTime():getWorldAgeHours()
+    if not lastShapeAt or now - lastShapeAt >= Rooms.SHAPE_SAFETY_HOURS or now < lastShapeAt then
+        return Rooms.rebuild(blocked)
+    end
+    local cell = getCell()
+    local gone, changed = {}, false
+    for key, panel in pairs(panels) do
+        local square = cell:getGridSquare(panel.x, panel.y, panel.z)
+        if square and not panelOn(square) then
+            gone[#gone + 1] = key
+        elseif not square then
+            if tiles[key] then dropRoomTiles(key) changed = true end
+        elseif shapeDirty[key] or not tiles[key] then
+            local set, _, _, list = Rooms.fill(square, blocked)
+            setRoomTiles(key, set, list)
+            changed = true
+        end
+    end
+    for _, key in ipairs(gone) do
+        panels[key] = nil
+        dropRoomTiles(key)
+        changed = true
+    end
+    shapeDirty = {}
+    if changed then rebuildTileRoom() end
+    openings = {}
+    for key, set in pairs(tiles) do openings[key] = Rooms.findOpenings(set, tileList[key]) end
+end
+
+--- Mark the rooms near a tile for refilling: on or beside their tiles, on their floor or the one above (a roof).
+local function markNear(x, y, z)
+    for key, b in pairs(bounds) do
+        if (z == b.z or z == b.z + 1) and x >= b.x1 - 1 and x <= b.x2 + 1 and y >= b.y1 - 1 and y <= b.y2 + 1 then
+            shapeDirty[key] = true
+        end
+    end
+end
+
+--- A wall, door, floor or anything else changed at an object's square.
+local function objectChanged(obj)
+    -- Nothing to do while no room is built (the loop body runs at most once).
+    for _ in pairs(bounds) do
+        local square = obj.getSquare and obj:getSquare()
+        if square then markNear(square:getX(), square:getY(), square:getZ()) end
+        return
+    end
+end
+
+World.onAnyObjectAdded("room shape", objectChanged)
+World.onAnyObjectRemoved("room shape", objectChanged)
+if Events.OnTileRemoved then Events.OnTileRemoved.Add(function(obj) pcall(objectChanged, obj) end) end
+-- A square loading on or beside a room may widen a room that was cut short by unloaded ground.
+World.onSquareLoad("room shape", function(square)
+    for _ in pairs(bounds) do
+        if square.getX then markNear(square:getX(), square:getY(), square:getZ()) end
+        return
+    end
+end, true)
+-- Anything of ours placed or taken away means a room's contents must be read again.
+local function contentsChanged() contentsVersion = contentsVersion + 1 end
+World.onObjectAdded("room contents", contentsChanged)
+World.onObjectRemoved("room contents", contentsChanged)
 
 --- The room record covering a tile, or nil.
 function Rooms.roomAt(x, y, z)
@@ -404,6 +535,9 @@ end
 --- The tile set of a room by its panel key.
 function Rooms.tilesOf(panelKey) return tiles[panelKey] end
 
+--- The tiles of a room as a list of { x, y, z, key }, or nil.
+function Rooms.tileListOf(panelKey) return tileList[panelKey] end
+
 --- For a lamp tile: whether a grow room rules it, and the schedule it runs (nil for 24/0).
 function Rooms.scheduleAt(x, y, z)
     local room = Rooms.roomAt(x, y, z)
@@ -417,7 +551,7 @@ function Rooms.register(square, player, blocked)
     local key = Config.tileKey(square:getX(), square:getY(), square:getZ())
     if panels[key] then return false, "There is already a panel here" end
     if square:isOutside() then return false, "A grow room panel needs an indoor room" end
-    local set = Rooms.fill(square, blocked)
+    local set, _, _, list = Rooms.fill(square, blocked)
     for otherKey, other in pairs(panels) do
         if set[otherKey] then
             return false, "This room already has a panel at " .. other.x .. ", " .. other.y
@@ -427,10 +561,10 @@ function Rooms.register(square, player, blocked)
         x = square:getX(), y = square:getY(), z = square:getZ(),
         name = "Grow Room", schedule = Config.Rooms.DEFAULT_SCHEDULE, mode = Config.Rooms.DEFAULT_MODE,
     }
-    tiles[key] = set
+    setRoomTiles(key, set, list)
     for tileKey in pairs(set) do tileRoom[tileKey] = key end
     roomsVersion = roomsVersion + 1
-    openings[key] = Rooms.findOpenings(set)
+    openings[key] = Rooms.findOpenings(set, list)
     return true, Rooms.sync(key, player)
 end
 
@@ -439,8 +573,7 @@ function Rooms.remove(panelKey)
     if not panels[panelKey] then return false end
     for tileKey in pairs(tiles[panelKey] or {}) do tileRoom[tileKey] = nil end
     roomsVersion = roomsVersion + 1
-    tiles[panelKey] = nil
-    openings[panelKey] = nil
+    dropRoomTiles(panelKey)
     panels[panelKey] = nil
     return true
 end
@@ -512,7 +645,8 @@ commands.debugRoomPower = function(player, args)
         panel:getModData().DDPowerCut = room.debugCut
         pcall(panel.transmitModData, panel)
     end
-    Rooms.checkPower(room, square, tiles[key] or {}, getGameTime():getWorldAgeHours(), getGameTime():getHour(), false)
+    Rooms.checkPower(room, square, tiles[key] or {}, getGameTime():getWorldAgeHours(), getGameTime():getHour(), false,
+        tiles[key] and Rooms.contents(key).lampTiles or nil)
     Net.notify(player, room.name .. (room.debugCut and ": power cut (debug)" or ": power back (debug)"))
     commands.requestRoom(player, args)
 end
@@ -613,6 +747,58 @@ local function lampTiles(square, obj)
     return out
 end
 
+--- What a room holds, read in one pass over its tiles and shared by every reader at the same game moment:
+--- lamps (every lamp object), lampTiles (the first lamp on each tile), gear (with each fan's wall factor), racks
+--- (rack containers) and special[tileKey] = { control, flood, drip } for reservoir objects. `fresh` forces a new read.
+function Rooms.contents(panelKey, fresh)
+    local c = contents[panelKey]
+    local now = getGameTime():getWorldAgeHours()
+    if c and not fresh and c.at == now and c.version == contentsVersion then return c end
+    c = { at = now, version = contentsVersion, lamps = {}, lampTiles = {}, gear = {}, racks = {}, special = {} }
+    contents[panelKey] = c
+    local list = tileList[panelKey]
+    if not list then return c end
+    local cell, info = getCell(), World.info
+    local lamps, lampTilesOut, gear, racks, special = c.lamps, c.lampTiles, c.gear, c.racks, c.special
+    for _, t in ipairs(list) do
+        local square = cell:getGridSquare(t.x, t.y, t.z)
+        if square then
+            local objects = square:getObjects()
+            local firstLamp = false
+            for i = 0, objects:size() - 1 do
+                local obj = objects:get(i)
+                local sprite = obj:getSprite()
+                local what = sprite and info(sprite:getName())
+                if what then
+                    if what.lamp then
+                        lamps[#lamps + 1] = { square = square, obj = obj, def = what.lamp, t = t }
+                        if not firstLamp then
+                            firstLamp = true
+                            lampTilesOut[#lampTilesOut + 1] = { square = square, obj = obj, t = t }
+                        end
+                    end
+                    local g = what.gear
+                    if g then
+                        gear[#gear + 1] = { square = square, gear = g, t = t, factor = g.facing and Rooms.wallFactor(square, g.facing) or nil }
+                    end
+                    if what.rack then
+                        local container = obj:getContainer()
+                        if container then racks[#racks + 1] = container end
+                    end
+                    if what.control or what.flood or what.drip then
+                        local sp = special[t.key]
+                        if not sp then sp = {} special[t.key] = sp end
+                        sp.control = sp.control or what.control
+                        sp.flood = sp.flood or what.flood
+                        sp.drip = sp.drip or what.drip
+                    end
+                end
+            end
+        end
+    end
+    return c
+end
+
 --- What the panel window shows: the room's settings, its size and every lamp in it.
 function Rooms.info(panelKey, player)
     local room, set = panels[panelKey], tiles[panelKey]
@@ -621,32 +807,20 @@ function Rooms.info(panelKey, player)
     local hour = getGameTime():getHour()
     local schedule = nil
     if room.schedule ~= "24/0" then schedule = room.schedule end
-    local lamps, count, counted = {}, 0, {}
-    for key in pairs(set) do
-        count = count + 1
-        local x, y, z = Config.parseKey(key)
-        local square = cell:getGridSquare(x, y, z)
-        if square then
-            local objects = square:getObjects()
-            for i = 0, objects:size() - 1 do
-                local obj = objects:get(i)
-                local sprite = obj:getSprite()
-                local def = sprite and Config.Light.SPRITES[sprite:getName()]
-                -- A bar lamp spans several tiles; list it once, at the first tile we reach.
-                if def and counted[key] then def = nil end
-                if def then
-                    for _, member in ipairs(lampTiles(square, obj)) do
-                        counted[Config.tileKey(member:getX(), member:getY(), member:getZ())] = true
-                    end
-                end
-                if def then
-                    local powered = CannabisMod.Light.isPowered(square) and not room.debugCut
-                    lamps[#lamps + 1] = {
-                        name = def.name, x = tonumber(x), y = tonumber(y), z = tonumber(z),
-                        powered = powered, lit = powered and Config.Timer.isOn(schedule, hour),
-                    }
-                end
+    local lamps, counted = {}, {}
+    local count = #(tileList[panelKey] or {})
+    for _, l in ipairs(Rooms.contents(panelKey).lamps) do
+        local t, square = l.t, l.square
+        -- A bar lamp spans several tiles; list it once, at the first tile we reach.
+        if not counted[t.key] then
+            for _, member in ipairs(lampTiles(square, l.obj)) do
+                counted[Config.tileKey(member:getX(), member:getY(), member:getZ())] = true
             end
+            local powered = CannabisMod.Light.isPowered(square) and not room.debugCut
+            lamps[#lamps + 1] = {
+                name = l.def.name, x = t.x, y = t.y, z = t.z,
+                powered = powered, lit = powered and Config.Timer.isOn(schedule, hour),
+            }
         end
     end
     table.sort(lamps, function(a, b)
@@ -677,14 +851,17 @@ function Rooms.reservoirRecords(panelKey)
     local set, room = tiles[panelKey], panels[panelKey]
     local out = {}
     if not (Hydro and set and room) then return out end
-    for key in pairs(set) do
-        local x, y, z = Config.parseKey(key)
+    -- Control buckets, flood reservoirs and drip tanks come from the room's contents; DWC buckets from the bag records.
+    local special = Rooms.contents(panelKey).special
+    for _, t in ipairs(tileList[panelKey] or {}) do
+        local x, y, z, key = t.x, t.y, t.z, t.key
         local r, name
-        local bag = Registry.getBag(x, y, z)
+        local bag = Registry.hasBagAt(x, y, z) and Registry.getBag(x, y, z) or nil
+        local sp = special[key]
         if Config.hydroOf(bag) == "dwc" then r, name = Hydro.reservoirAt(x, y, z, "dwc"), (bag == "xldwc" and "XL DWC bucket" or "DWC bucket")
-        elseif Hydro.hasControl(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "rdwc"), "RDWC control"
-        elseif Hydro.hasFlood(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "ebb"), "Flood reservoir"
-        elseif Hydro.hasDrip and Hydro.hasDrip(x, y, z) then r, name = Hydro.reservoirAt(x, y, z, "drip"), "Drip tank" end
+        elseif sp and sp.control then r, name = Hydro.reservoirOfObject(x, y, z, "rdwc"), "RDWC control"
+        elseif sp and sp.flood then r, name = Hydro.reservoirOfObject(x, y, z, "ebb"), "Flood reservoir"
+        elseif sp and sp.drip and Hydro.hasDrip then r, name = Hydro.reservoirOfObject(x, y, z, "drip"), "Drip tank" end
         if r then out[#out + 1] = { key = key, record = r, name = name, dist = math.abs(x - room.x) + math.abs(y - room.y) } end
     end
     table.sort(out, function(a, b)
@@ -762,29 +939,19 @@ function Rooms.equipmentRows(panelKey)
     local room, set = panels[panelKey], tiles[panelKey]
     local rows = {}
     if not (room and set) then return rows end
-    local cell, Light = getCell(), CannabisMod.Light
+    local Light = CannabisMod.Light
     local running, override = room.running or {}, room.override or {}
     local panelPowered = room.powered ~= false
     local WALLS = { S = "north wall", E = "west wall", N = "south wall", W = "east wall" }
-    for key in pairs(set) do
-        local x, y, z = Config.parseKey(key)
-        local square = cell:getGridSquare(x, y, z)
-        if square then
-            local objects = square:getObjects()
-            for i = 0, objects:size() - 1 do
-                local sprite = objects:get(i):getSprite()
-                local gear = sprite and Config.Rooms.EQUIPMENT[sprite:getName()]
-                if gear then
-                    local side = gear.facing or gear.wall
-                    local powered = panelPowered and Light.isPowered(square)
-                    rows[#rows + 1] = {
-                        x = x, y = y, z = z, kind = gear.kind, name = gear.name,
-                        mount = side and WALLS[side] or "floor", powered = powered,
-                        running = powered and running[gear.kind] == true, mode = override[gear.kind] or "auto",
-                    }
-                end
-            end
-        end
+    for _, g in ipairs(Rooms.contents(panelKey).gear) do
+        local gear, t = g.gear, g.t
+        local side = gear.facing or gear.wall
+        local powered = panelPowered and Light.isPowered(g.square)
+        rows[#rows + 1] = {
+            x = t.x, y = t.y, z = t.z, kind = gear.kind, name = gear.name,
+            mount = side and WALLS[side] or "floor", powered = powered,
+            running = powered and running[gear.kind] == true, mode = override[gear.kind] or "auto",
+        }
     end
     table.sort(rows, function(a, b)
         local da = math.abs(a.x - room.x) + math.abs(a.y - room.y)
@@ -962,36 +1129,26 @@ function Rooms.scan(panelKey)
     local K = Config.Climate
     local out = { lampHeat = 0, count = {}, vent = { exhaust = 0, intake = 0 }, wet = 0, reservoirs = 0 }
     if not (room and set) then return out end
-    local cell, Light, Drying = getCell(), CannabisMod.Light, CannabisMod.Drying
+    local Light, Drying = CannabisMod.Light, CannabisMod.Drying
     local hour = getGameTime():getHour()
     local schedule = nil
     if room.schedule ~= "24/0" then schedule = room.schedule end
     local panelPowered = room.powered ~= false
-    for key in pairs(set) do
-        local x, y, z = Config.parseKey(key)
-        local square = cell:getGridSquare(x, y, z)
-        if square then
-            local objects = square:getObjects()
-            for i = 0, objects:size() - 1 do
-                local sprite = objects:get(i):getSprite()
-                local name = sprite and sprite:getName()
-                local lamp = name and Config.Light.SPRITES[name]
-                if lamp and panelPowered and Light.isPowered(square) and Config.Timer.isOn(schedule, hour) then
-                    -- A bar lamp is one lamp over several tiles, so each tile gives its share.
-                    out.lampHeat = out.lampHeat + lamp.radius * K.LAMP_HEAT_PER_RADIUS / (lamp.tiles or 1)
-                end
-                local gear = name and Config.Rooms.EQUIPMENT[name]
-                if gear then
-                    out.count[gear.kind] = (out.count[gear.kind] or 0) + 1
-                    if gear.facing then
-                        out.vent[gear.kind] = out.vent[gear.kind] + Rooms.wallFactor(square, gear.facing) * K.VENT[gear.kind]
-                    end
-                end
-            end
-            if Drying then
-                for _, rack in ipairs(Drying.racksAt(square)) do out.wet = out.wet + Drying.wetCountIn(rack) end
-            end
+    local c = Rooms.contents(panelKey)
+    for _, l in ipairs(c.lamps) do
+        local lamp = l.def
+        if panelPowered and Light.isPowered(l.square) and Config.Timer.isOn(schedule, hour) then
+            -- A bar lamp is one lamp over several tiles, so each tile gives its share.
+            out.lampHeat = out.lampHeat + lamp.radius * K.LAMP_HEAT_PER_RADIUS / (lamp.tiles or 1)
         end
+    end
+    for _, g in ipairs(c.gear) do
+        local gear = g.gear
+        out.count[gear.kind] = (out.count[gear.kind] or 0) + 1
+        if gear.facing then out.vent[gear.kind] = out.vent[gear.kind] + g.factor * K.VENT[gear.kind] end
+    end
+    if Drying then
+        for _, rack in ipairs(c.racks) do out.wet = out.wet + Drying.wetCountIn(rack) end
     end
     for _, e in ipairs(Rooms.reservoirRecords(panelKey)) do
         if e.record.level > 0 then out.reservoirs = out.reservoirs + 1 end
@@ -1104,7 +1261,7 @@ local function outagePenalty(panelKey, litHours)
 end
 
 --- Note a power loss or return at a room's panel, and switch its lamps' glow to match. `tick` counts a lit hour lost.
-function Rooms.checkPower(room, square, set, now, hour, tick)
+function Rooms.checkPower(room, square, set, now, hour, tick, lamps)
     local powered = Rooms.panelPowered(room, square)
     local schedule = nil
     if room.schedule ~= "24/0" then schedule = room.schedule end
@@ -1123,7 +1280,7 @@ function Rooms.checkPower(room, square, set, now, hour, tick)
         room.powered, room.outage = nil, nil
     end
     if CannabisMod.Timers and CannabisMod.Timers.markRoomPower then
-        CannabisMod.Timers.markRoomPower(set, room.powered == false)
+        CannabisMod.Timers.markRoomPower(set, room.powered == false, lamps)
     end
 end
 
@@ -1137,7 +1294,10 @@ function Rooms.tick(now)
         local square = cell:getGridSquare(room.x, room.y, room.z)
         local set = tiles[key]
         if square and set then
-            Rooms.checkPower(room, square, set, now, hour, true)
+            -- One fresh read of the room's contents serves the lamp schedules, the power marks and the climate scan.
+            local c = Rooms.contents(key, true)
+            Rooms.sync(key)
+            Rooms.checkPower(room, square, set, now, hour, true, c.lampTiles)
             Rooms.updateClimate(key, Rooms.plantsIn(key), outdoor, true, now)
         end
     end
@@ -1334,6 +1494,6 @@ commands.retireCurtains = function(player, args)
     if n > 0 then Net.notify(player, "Blackout curtains are retired (hang a sheet instead): removed " .. n .. " from your inventory") end
 end
 
--- Walls and doors change rarely, so the rooms are re-read every ten minutes and once at load.
-Events.EveryTenMinutes.Add(function() Rooms.rebuild() Rooms.tick() end)
+-- Room shapes are filled again after nearby construction and every few hours; doors and windows are read every ten minutes.
+Events.EveryTenMinutes.Add(function() Rooms.refresh() Rooms.tick() end)
 Events.OnGameStart.Add(function() Rooms.rebuild() end)

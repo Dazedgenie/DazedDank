@@ -30,9 +30,14 @@ function Drip.tilesOf(r)
         if bag or Registry.getPlant(x, y, z) then out[#out + 1] = { x, y, z } end
     end
     if set then
-        for key in pairs(set) do
-            local x, y, z = Config.parseKey(key)
-            consider(x, y, z)
+        local list = Rooms.tileListOf and Rooms.tileListOf(pk)
+        if list then
+            for _, t in ipairs(list) do consider(t.x, t.y, t.z) end
+        else
+            for key in pairs(set) do
+                local x, y, z = Config.parseKey(key)
+                consider(x, y, z)
+            end
         end
         return out
     end

@@ -3779,6 +3779,57 @@ do
     HY.cleanup()
 end
 
+-- ---- Room shapes refill on nearby changes; doors, windows and contents are read every ten minutes ----
+do
+    local RM = CannabisMod.Rooms
+    RM._reset({}, {})
+    for x = 9300, 9305 do for y = 9300, 9304 do fakeSquare(x, y, 0, false, true) end end
+    local split = true
+    local function wall(a, b) return split and ((a:getX() <= 9302) ~= (b:getX() <= 9302)) end
+    table.insert(fakeSquares["9300_9300_0"].objs, { sprite = "dazeddank_rooms_01_0", md = {} })
+    worldHours = 9000
+    RM.register(fakeSquares["9300_9300_0"], nil, wall)
+    RM.rebuild(wall)
+    local pk = "9300_9300_0"
+    check("room shape: the wall splits the block", #RM.tileListOf(pk) == 15 and RM.keyAt(9304, 9300, 0) == nil)
+    split = false
+    worldHours = 9001
+    RM.refresh(wall)
+    check("room shape: no refill without a nearby change", #RM.tileListOf(pk) == 15)
+    local brick = fakeSquares["9303_9302_0"]
+    brick.objs[#brick.objs + 1] = "walls_01_1"
+    fire("OnObjectAboutToBeRemoved", brick:getObjects():get(#brick.objs - 1))
+    RM.refresh(wall)
+    check("room shape: a change beside the room refills it", #RM.tileListOf(pk) == 30 and RM.keyAt(9304, 9300, 0) == pk)
+    split = true
+    worldHours = 9001 + RM.SHAPE_SAFETY_HOURS
+    RM.refresh(wall)
+    check("room shape: the slow safety pass refills without any event", #RM.tileListOf(pk) == 15)
+    -- One read of the room's objects serves every reader at the same moment.
+    local lampSq = fakeSquares["9301_9301_0"]
+    lampSq.objs[#lampSq.objs + 1] = { sprite = "dazeddank_plants_01_197", md = {} }
+    table.insert(fakeSquares["9302_9303_0"].objs, { sprite = "dazeddank_rooms_01_16", md = {} })
+    worldHours = 9010
+    local reads, oldCellFn = 0, getCell
+    getCell = function()
+        local c = oldCellFn()
+        local get = c.getGridSquare
+        c.getGridSquare = function(self, x, y, z) reads = reads + 1 return get(self, x, y, z) end
+        return c
+    end
+    RM.scan(pk); RM.equipmentRows(pk); RM.reservoirRecords(pk)
+    getCell = oldCellFn
+    check("room contents: one pass over the tiles for scan, equipment and reservoirs", reads <= #RM.tileListOf(pk) + 4)
+    local sc = RM.scan(pk)
+    check("room contents: the lamp and heater are seen", sc.count.heater == 1 and #RM.contents(pk).lamps == 1)
+    -- A lamp placed later is read at once when its event fires, even at the same game moment.
+    local lamp2 = fakeSquares["9300_9302_0"]
+    lamp2.objs[#lamp2.objs + 1] = { sprite = "dazeddank_plants_01_197", md = {} }
+    fire("OnObjectAdded", lamp2:getObjects():get(#lamp2.objs - 1))
+    check("room contents: a placed lamp shows without waiting", #RM.contents(pk).lamps == 2)
+    RM._reset({}, {})
+end
+
 end)()
 
 -- ---- Cannabis in pots: the pot stays, the plant is a raised layer ------------

@@ -64,14 +64,17 @@ local function objectSchedule(obj)
     return obj:getModData().DDTimer
 end
 
+--- Copy the schedule onto a lamp object and send it.
+local function setSchedule(obj, schedule)
+    obj:getModData().DDTimer = schedule
+    obj:transmitModData()
+end
+
 --- Copy the schedule onto the lamp object so the client's menu can read it.
 local function markObject(square, schedule)
     local obj = lampObject(square)
     if not obj then return end
-    pcall(function()
-        obj:getModData().DDTimer = schedule
-        obj:transmitModData()
-    end)
+    pcall(setSchedule, obj, schedule)
 end
 
 --- Set (or with nil, clear) the timer on every tile of the lamp at `square`; the clicked tile holds the item.
@@ -96,12 +99,29 @@ local function itemTile(square, obj)
     return square
 end
 
+local EMPTY = {}
+
 --- Put a grow room's schedule on every lamp in `tileSet` and clear any timer of their own.
+--- `lamps` is the room's list of { obj } (first lamp per tile) when the caller has read it; otherwise the tiles are read here.
 --- Returns how many timer items were freed, for the caller to hand back.
-function Timers.adoptRoom(tileSet, schedule)
+function Timers.adoptRoom(tileSet, schedule, lamps)
     if not timers then return 0 end
     local cell = getCell()
     local freed = 0
+    if lamps then
+        local hit = nil
+        for key in pairs(timers) do
+            if tileSet[key] then hit = hit or {} hit[#hit + 1] = key end
+        end
+        for _, key in ipairs(hit or EMPTY) do
+            if timers[key].item then freed = freed + 1 end
+            timers[key] = nil
+        end
+        for _, l in ipairs(lamps) do
+            if objectSchedule(l.obj) ~= schedule then pcall(setSchedule, l.obj, schedule) end
+        end
+        return freed
+    end
     for key in pairs(tileSet) do
         local entry = timers[key]
         if entry then
@@ -117,7 +137,18 @@ function Timers.adoptRoom(tileSet, schedule)
 end
 
 --- Mark every lamp in `tileSet` as dead (or alive again) so clients stop (or restart) its glow when the room's panel loses power.
-function Timers.markRoomPower(tileSet, off)
+--- `lamps` is the room's list of { obj } (first lamp per tile) when the caller has read it.
+function Timers.markRoomPower(tileSet, off, lamps)
+    if lamps then
+        for _, l in ipairs(lamps) do
+            local lamp = l.obj
+            if (lamp:getModData().DDRoomOff == true) ~= off then
+                lamp:getModData().DDRoomOff = off or nil
+                pcall(lamp.transmitModData, lamp)
+            end
+        end
+        return
+    end
     local cell = getCell()
     for key in pairs(tileSet) do
         local x, y, z = Config.parseKey(key)
