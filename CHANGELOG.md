@@ -11,6 +11,7 @@
 - Removed: the old Lights, Hydro, Climate, Equipment and Plants panel tabs (the dashboard replaced them) and the unused root mod.info.
 
 ### Fixes
+- Fixed: the grow panel's Room seal card no longer spills text past its edges. It lists every door and window (no more "+N more"), scrolls with the mouse wheel when there are more than fit, shows a thin scrollbar, and shortens long lines. "seeps (hang a sheet)" is now just "seeps".
 - Fixed: on a dedicated server a light timer only reached one tile of a bar lamp (large basic or large pro). It now sets every tile, and changing the schedule from any tile of the lamp updates them all.
 - Fixed: on a dedicated server grow rooms weren't worked out, retired curtain records weren't cleared and timers of picked-up lamps weren't dropped when the server started (they waited for the first ten-minute pass).
 - Fixed: one plant with a broken record stopped every plant after it from growing, drinking and flowering, every ten minutes. Each plant now ticks on its own and a broken one is logged once.

@@ -3098,6 +3098,59 @@ do
     info.lamps, info.powered = {}, false
     joined = texts(Dash.build(info, 0, fh, ms))
     check("an empty room counts no lamps, and a dead panel warns", joined:find("0 lamps", 1, true) and joined:find("Panel has no power", 1, true))
+
+    -- Room seal: every opening is listed, the rows scroll inside the card, and no text spills past the card.
+    local function sealOps(model)
+        local S, rows, clipped = model.seal, {}, false
+        local inside = false
+        for _, op in ipairs(model.ops) do
+            if op.kind == "clip" and op.y == S.y and op.x == S.x then inside, clipped = true, true
+            elseif op.kind == "unclip" then inside = false
+            elseif inside and op.kind == "text" then rows[#rows + 1] = op end
+        end
+        return rows, clipped
+    end
+    local function openings(n)
+        local list = {}
+        for i = 1, n do list[i] = { kind = i % 2 == 0 and "door" or "window", x = 100 + i, y = 2000 + i, covered = i % 3 == 0, seeps = i % 3 == 1 } end
+        return list
+    end
+    info.powered, info.openings = true, openings(6)
+    local model = Dash.build(info, 0, fh, ms, 0)
+    local rows = sealOps(model)
+    check("seal: all 6 openings plus the power row are listed", #rows == 7 and rows[1].text == "Panel powered")
+    check("seal: no '+N more' line", not texts(model):find("more", 1, true))
+    check("seal: seeps label is short", texts(model):find("seeps", 1, true) and not texts(model):find("hang a sheet", 1, true))
+    check("seal: many openings scroll, few do not", Dash.maxSealScroll(info, fh) > 0 and Dash.maxSealScroll({ openings = openings(2) }, fh) == 0
+        and Dash.maxSealScroll({ openings = {} }, fh) == 0)
+    local fits = true
+    for _, count in ipairs({ 0, 1, 3, 6, 12 }) do
+        info.openings = openings(count)
+        info.openings[1] = count > 0 and { kind = "window", x = 123456, y = 654321, covered = false, seeps = true } or nil
+        local m = Dash.build(info, 0, fh, ms, 0)
+        local right = m.seal.x + m.seal.w
+        for _, t in ipairs(sealOps(m)) do
+            if t.x + ms("Small", t.text) > right - 8 then fits = false end
+        end
+    end
+    check("seal: every row's text fits inside the card", fits)
+    info.openings = openings(6)
+    local base = Dash.build(info, 0, fh, ms, 0)
+    local moved = Dash.build(info, 0, fh, ms, 20)
+    local r0, r1 = sealOps(base), sealOps(moved)
+    check("seal: scrolling moves the rows up", r1[1].y == r0[1].y - 20)
+    local over = Dash.build(info, 0, fh, ms, 100000)
+    check("seal: scroll is clamped to the maximum", sealOps(over)[1].y == r0[1].y - Dash.maxSealScroll(info, fh))
+    local thumb
+    for _, op in ipairs(base.ops) do if op.kind == "pill" and op.w == 3 then thumb = op end end
+    check("seal: a scrollbar thumb shows only when rows overflow", thumb and thumb.y >= base.seal.y and thumb.y + thumb.h <= base.seal.y + base.seal.h)
+    info.openings = openings(1)
+    local few = Dash.build(info, 0, fh, ms, 0)
+    local bar
+    for _, op in ipairs(few.ops) do if op.kind == "pill" and op.w == 3 then bar = op end end
+    check("seal: no scrollbar when everything fits", bar == nil)
+    info.openings = {}
+    check("seal: an empty list says so", texts(Dash.build(info, 0, fh, ms, 0)):find("No doors or windows", 1, true))
 end
 
 

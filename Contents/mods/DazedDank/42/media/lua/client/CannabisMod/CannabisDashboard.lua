@@ -48,14 +48,23 @@ function DashPanel:setInfo(info)
     end
     self.info = info
     self.scroll = math.max(0, math.min(self.scroll or 0, Dash.maxScroll(info)))
-    self.model = Dash.build(info, self.scroll, fontHeight, measure)
+    self.sealScroll = math.max(0, math.min(self.sealScroll or 0, Dash.maxSealScroll(info, fontHeight)))
+    self.model = Dash.build(info, self.scroll, fontHeight, measure, self.sealScroll)
 end
 
 function DashPanel:setScroll(value)
     value = math.max(0, math.min(value, Dash.maxScroll(self.info)))
     if value == self.scroll then return end
     self.scroll = value
-    self.model = Dash.build(self.info, self.scroll, fontHeight, measure)
+    self.model = Dash.build(self.info, self.scroll, fontHeight, measure, self.sealScroll)
+end
+
+--- Scroll the Room seal rows to `value` pixels, clamped to what the card holds.
+function DashPanel:setSealScroll(value)
+    value = math.max(0, math.min(value, Dash.maxSealScroll(self.info, fontHeight)))
+    if value == self.sealScroll then return end
+    self.sealScroll = value
+    self.model = Dash.build(self.info, self.scroll, fontHeight, measure, self.sealScroll)
 end
 
 -- The layout draws in prerender, under the child buttons; render runs after children, so drawing there hid the close button.
@@ -100,7 +109,7 @@ end
 --- Show `label` on the Refresh button until `untilMs` (nil keeps it until changed).
 function DashPanel:setLabel(label, untilMs)
     self.info.refreshLabel, self.labelUntil = label, untilMs
-    self.model = Dash.build(self.info, self.scroll, fontHeight, measure)
+    self.model = Dash.build(self.info, self.scroll, fontHeight, measure, self.sealScroll)
 end
 
 --- Put the Refresh label back after a moment, or say "No reply" when the server never answered.
@@ -158,8 +167,14 @@ function DashPanel:onRightMouseUp(x, y)
 end
 
 function DashPanel:onMouseWheel(del)
-    local A = Dash.PLANT_AREA
     local mx, my = self:getMouseX(), self:getMouseY()
+    -- Over the Room seal card the wheel moves its rows one row per notch.
+    local S = self.model.seal
+    if S and mx >= S.x and mx <= S.x + S.w and my >= S.y and my <= S.y + S.h then
+        self:setSealScroll(self.sealScroll + del * S.rowH)
+        return true
+    end
+    local A = Dash.PLANT_AREA
     if mx < A.x or mx > A.x + A.w or my < A.y or my > A.y + A.h then return false end
     self:setScroll(self.scroll + del * STEP)
     return true
@@ -299,6 +314,7 @@ function DashPanel.create(info, x, y, onClose)
     local panel = DashPanel:new(x, y, Dash.WIDTH, Dash.HEIGHT)
     panel:initialise()
     panel.scroll = 0
+    panel.sealScroll = 0
     panel:setInfo(info)
     panel.background = false
     panel.moveWithMouse = true
