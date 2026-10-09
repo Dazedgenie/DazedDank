@@ -24,6 +24,22 @@ local plants = nil
 local bags = nil  -- grow bag tiles: key -> "small" | "large"
 local soiled = nil  -- grow bag tiles that have been filled with soil: key -> true
 local domes = nil  -- cloning dome contents, see "Cloning domes" below
+-- Bag tiles as bagAt[z][x][y] = true, so a loading square can be checked without building its key.
+local bagAt = {}
+
+local function markBag(x, y, z, on)
+    local floor = bagAt[z]
+    if not floor then
+        if not on then return end
+        floor = {} bagAt[z] = floor
+    end
+    local column = floor[x]
+    if not column then
+        if not on then return end
+        column = {} floor[x] = column
+    end
+    column[y] = on or nil
+end
 
 -- --------------------------------------------------------------------------
 -- Time helpers
@@ -65,6 +81,11 @@ local function onInitGlobalModData(isNewGame)
     domes = ModData.getOrCreate(Config.MODDATA_KEY .. "_Domes")
     bags = ModData.getOrCreate(Config.MODDATA_KEY .. "_Bags")
     soiled = ModData.getOrCreate(Config.MODDATA_KEY .. "_BagSoil")
+    bagAt = {}
+    for key in pairs(bags) do
+        local x, y, z = Config.parseKey(key)
+        if x then markBag(x, y, z, true) end
+    end
     -- Every strain name given out, so two different crosses never share one.
     Strains.useRegistry(ModData.getOrCreate(Config.MODDATA_KEY .. "_StrainNames"))
 end
@@ -150,11 +171,22 @@ function Registry.getBag(x, y, z)
 end
 
 function Registry.setBag(x, y, z, size)
-    if bags then bags[Config.tileKey(x, y, z)] = size end
+    if bags then
+        bags[Config.tileKey(x, y, z)] = size
+        markBag(x, y, z, size ~= nil)
+    end
+end
+
+--- True if a bag is registered on this tile (no key is built, so square loads can ask cheaply).
+function Registry.hasBagAt(x, y, z)
+    local floor = bagAt[z]
+    local column = floor and floor[x]
+    return column ~= nil and column[y] == true
 end
 
 function Registry.clearBag(x, y, z)
     if bags then bags[Config.tileKey(x, y, z)] = nil end
+    markBag(x, y, z, false)
     if soiled then soiled[Config.tileKey(x, y, z)] = nil end
     -- Its hydro record (medium, link, reservoir) goes too, so a new bucket here starts clean.
     if CannabisMod.Hydro then CannabisMod.Hydro.clear(x, y, z) end

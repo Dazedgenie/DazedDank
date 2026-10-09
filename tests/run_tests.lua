@@ -3705,6 +3705,16 @@ do
     Plot.addObject = function(self) self.noIso = nil; self.drawnSprite = self.spriteName end
     check("a bag whose plot lost its object is drawn back", Ad.redrawAll() >= 1 and not lost.noIso and lost.drawnSprite == C.bagEmptySprite("small", false))
     check("a bag that has its object isn't drawn twice", Ad.redrawAll() == 0)
+    -- The same happens as the bag's square loads, without waiting for the hourly sweep.
+    local lsq2 = fakeSquare(7746, 7700, 0, false, true)
+    R.setBag(7746, 7700, 0, "small")
+    local lost2 = SFarmingSystem.instance:plow(lsq2)
+    lost2.noIso = true
+    fire("LoadGridsquare", lsq2)
+    for _ = 1, Ad.WAIT_TICKS + 2 do fire("OnTick") end
+    check("a loading square with a bag but no object gets it drawn back", not lost2.noIso and R.hasBagAt(7746, 7700, 0))
+    R.clearBag(7746, 7700, 0)
+    check("a cleared bag leaves the bag index", not R.hasBagAt(7746, 7700, 0))
     Plot.getIsoObject, Plot.addObject = oldGetIso, nil
 end
 

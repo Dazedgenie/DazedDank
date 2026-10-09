@@ -18,7 +18,6 @@ CannabisMod.Adopt = Adopt
 
 Adopt.WAIT_TICKS = 30          -- ticks after a square loads before it is checked, so the farming system has caught up
 Adopt.START_TICKS = 120        -- ticks after the game starts before any check runs
-Adopt.REDRAW_TICKS = 300       -- how often registered bags with no object on their square are drawn again
 Adopt.queue = {}
 Adopt.restored = 0
 local ticks = 0
@@ -89,31 +88,53 @@ function Adopt.check(x, y, z)
     return n
 end
 
+--- A loaded square with a registered bag but no bag object on it is queued to have its object drawn back.
+function Adopt.onLoadBag(square, hits)
+    if not square.getX then return end
+    for i = 1, hits.n do
+        if hits.info[i].bag then return end
+    end
+    local x, y, z = square:getX(), square:getY(), square:getZ()
+    if Registry.hasBagAt(x, y, z) then
+        Adopt.queue[#Adopt.queue + 1] = { x = x, y = y, z = z, wait = Adopt.WAIT_TICKS, redraw = true }
+    end
+end
+
 --- Work through the queue once the game has settled.
 function Adopt.tick()
     ticks = ticks + 1
     if ticks < Adopt.START_TICKS then return end
-    if (ticks - Adopt.START_TICKS) % Adopt.REDRAW_TICKS == 0 then
-        local drawn = Adopt.redrawAll()
-        if drawn > 0 then print(string.format("[DazedDank] drew back %d grow container(s) that had lost their object", drawn)) end
-    end
     if #Adopt.queue == 0 then return end
-    local before = Adopt.restored
+    local before, drawn = Adopt.restored, 0
     for i = #Adopt.queue, 1, -1 do
         local job = Adopt.queue[i]
         job.wait = job.wait - 1
         if job.wait <= 0 then
             table.remove(Adopt.queue, i)
-            local ok, n = pcall(Adopt.check, job.x, job.y, job.z)
-            if ok then Adopt.restored = Adopt.restored + n end
+            if job.redraw then
+                local ok, done = pcall(CannabisMod.GrowBags.redraw, job.x, job.y, job.z)
+                if ok and done then drawn = drawn + 1 end
+            else
+                local ok, n = pcall(Adopt.check, job.x, job.y, job.z)
+                if ok then Adopt.restored = Adopt.restored + n end
+            end
         end
     end
+    if drawn > 0 then print(string.format("[DazedDank] drew back %d grow container(s) that had lost their object", drawn)) end
     if Adopt.restored > before then
         print(string.format("[DazedDank] restored %d grow container(s) or panel(s) that had lost their records", Adopt.restored - before))
     end
 end
 
+--- Hourly safety sweep: any loaded bag that lost its object since its square loaded is drawn back.
+function Adopt.hourly()
+    local drawn = Adopt.redrawAll()
+    if drawn > 0 then print(string.format("[DazedDank] drew back %d grow container(s) that had lost their object", drawn)) end
+end
+
 CannabisMod.World.onSquareLoad("crash recovery", Adopt.onLoad)
+CannabisMod.World.onSquareLoad("bag redraw", Adopt.onLoadBag, true)
+Events.EveryHours.Add(Adopt.hourly)
 Events.OnTick.Add(Adopt.tick)
 
 return Adopt
