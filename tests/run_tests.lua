@@ -4666,5 +4666,73 @@ do
     worldHours, hourOfDay = oldHours, oldHour
 end
 
+-- ---- dd56: Cold nights on the dashboard and the plant window ---------------------
+do
+    require "CannabisMod/CannabisStatusLayout"
+    require "CannabisMod/CannabisDashboardLayout"
+    local Dash, Lay = CannabisMod.DashboardLayout, CannabisMod.StatusLayout
+    local fh, ms = function() return 12 end, function(_, t) return #tostring(t) * 6 end
+    local function textOp(m, str) for _, op in ipairs(m.ops) do if op.kind == "text" and op.text == str then return op end end end
+    local function hitIds(m) local out = {} for _, h in ipairs(m.hits) do out[h.id] = h end return out end
+    local function pillUnder(m, op)
+        for _, o in ipairs(m.ops) do
+            if o.kind == "pill" and op.x >= o.x and op.x <= o.x + o.w and op.y >= o.y and op.y <= o.y + o.h then return o end
+        end
+    end
+    local plants = {
+        { x = 1, y = 1, z = 0, strain = "Kush", sex = "Female", stage = "Flowering", stageKey = "Flowering", water = "50%", cold = { hours = 7.4, need = 12, rolled = false, purple = false } },
+        { x = 2, y = 1, z = 0, strain = "Haze", sex = "Female", stage = "Ripe", stageKey = "Ripe", water = "50%", cold = { hours = 12, need = 12, rolled = true, purple = true } },
+        { x = 3, y = 1, z = 0, strain = "Skunk", sex = "Female", stage = "Ripe", stageKey = "Ripe", water = "50%", cold = { hours = 12, need = 12, rolled = true, purple = false } },
+        { x = 4, y = 1, z = 0, strain = "Fresh", sex = "Female", stage = "Flowering", stageKey = "Flowering", water = "50%", cold = { hours = 0, need = 12, rolled = false, purple = false } },
+    }
+    local function room(mode, cn, temp)
+        return { name = "Flower Room", mode = mode, schedule = "12/12", hour = 21, tiles = 9, lamps = {}, plants = plants, reservoirs = {}, equipment = {},
+            openings = {}, log = {}, climate = { enabled = true, temp = temp or 11, hum = 45, targets = { tLo = 6, tHi = 13, hLo = 40, hHi = 50 }, coldNights = cn } }
+    end
+    local veg = Dash.build(room("Veg", nil), 0, fh, ms)
+    check("dd56: no cold nights control without the server's coldNights (Veg rooms)", not hitIds(veg)["cold:off"] and veg.height == Dash.HEIGHT
+        and veg.plantArea.y == Dash.PLANT_AREA.y)
+    local cn = { state = "on", armed = true, active = true, nightLo = 6, nightHi = 13 }
+    local m = Dash.build(room("Flower", cn), 0, fh, ms)
+    local ids = hitIds(m)
+    check("dd56: a Flower room shows Off / Late flower / On pills", ids["cold:off"] and ids["cold:auto"] and ids["cold:on"]
+        and textOp(m, "Off") and textOp(m, "Late flower") and textOp(m, "On") and textOp(m, "COLD NIGHTS"))
+    local onPill, offPill = pillUnder(m, textOp(m, "On")), pillUnder(m, textOp(m, "Off"))
+    check("dd56: the current setting's pill is filled purple, the others plain", onPill and onPill.color == Lay.COLORS.purple
+        and offPill and offPill.color == Lay.COLORS.photo)
+    check("dd56: pills sit in a strip under the temperature and humidity meters", ids["cold:on"].x > 198 and ids["cold:on"].x + ids["cold:on"].w < 568
+        and ids["cold:on"].y > 52 + 132)
+    check("dd56: the strip pushes the plants and the window down", m.height > Dash.HEIGHT and m.plantArea.y == Dash.PLANT_AREA.y + (m.height - Dash.HEIGHT)
+        and ids["plant:1"].y == m.plantArea.y)
+    check("dd56: active: the strip says on with the room's temperature", textOp(m, "On  |  room 11 C") ~= nil)
+    check("dd56: active: the meter's target shows the night band", textOp(m, "target 6 to 13 C") ~= nil)
+    cn.active = false
+    check("dd56: armed by day: tonight's band", textOp(Dash.build(room("Flower", cn), 0, fh, ms), "Armed  |  tonight 6 to 13 C") ~= nil)
+    cn.state, cn.armed = "auto", false
+    check("dd56: Late flower waiting says so", textOp(Dash.build(room("Flower", cn), 0, fh, ms), "Waiting for late flower") ~= nil)
+    cn.state = "off"
+    local offM = Dash.build(room("Flower", cn), 0, fh, ms)
+    check("dd56: off says so and fills the Off pill", textOp(offM, "Off  |  nights keep the Flower range") ~= nil
+        and pillUnder(offM, textOp(offM, "Off")).color == Lay.COLORS.purple)
+    local disabled = room("Flower", cn); disabled.climate.enabled = false
+    check("dd56: no strip while room climate is off", not hitIds(Dash.build(disabled, 0, fh, ms))["cold:off"])
+
+    -- Plant cards: hours so far, then Purple as a pill or "stayed green" muted.
+    local tag = textOp(m, "7/12 h cold")
+    check("dd56: a plant counting cold nights shows 7/12 h cold", tag ~= nil and tag.color == Lay.COLORS.purple)
+    local purple = textOp(m, "Purple")
+    check("dd56: a purple plant shows a purple pill", purple ~= nil and pillUnder(m, purple) and pillUnder(m, purple).color == Lay.COLORS.purple)
+    local green = textOp(m, "stayed green")
+    check("dd56: a plant that rolled green says stayed green, muted", green ~= nil and green.color == Lay.COLORS.muted)
+    check("dd56: no tag before any cold night", textOp(m, "0/12 h cold") == nil)
+    check("dd56: the tag sits under the Health row, inside the card", tag.y > textOp(m, "Water").y and tag.y + 12 <= m.plantArea.y + m.plantArea.h - 4)
+    check("dd56: Dash.coldTag is nil without a count", Dash.coldTag(nil) == nil and Dash.coldTag({ hours = 0, need = 12 }) == nil)
+
+    -- The plant window's warning chip.
+    local lay = Lay.build({ level = 10, name = "Cannabis Plant", stage = "Flowering", warnings = { "coldNight" } }, fh, ms)
+    local chip = textOp(lay, "Ripening slowed by cold nights")
+    check("dd56: the plant window shows ripening slowed by cold nights", chip ~= nil and pillUnder(lay, chip).color == Lay.COLORS.purple)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

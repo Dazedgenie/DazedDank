@@ -52,6 +52,7 @@ local WARNINGS = {
     reservoirDry = { "Reservoir dry", "bad" }, staleReservoir = { "Stale reservoir", "warn" },
     pumpOff = { "Pumps off", "bad" }, rootRot = { "Root rot", "bad" }, noControl = { "No control bucket", "bad" },
     noFlood = { "No flood reservoir", "bad" }, mediumDry = { "Rockwool dry", "bad" },
+    coldNight = { "Ripening slowed by cold nights", "purple" },
 }
 
 local STAGE_SHORT = { Seedling = "Seed", Vegetative = "Veg", PreFlower = "Pre", Flowering = "Flower", Ripe = "Ripe" }

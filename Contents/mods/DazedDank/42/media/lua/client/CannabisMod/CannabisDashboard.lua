@@ -49,6 +49,8 @@ function DashPanel:setInfo(info)
     self.info = info
     self.scroll = math.max(0, math.min(self.scroll or 0, Dash.maxScroll(info)))
     self.model = Dash.build(info, self.scroll, fontHeight, measure)
+    -- A Flower room's Cold nights strip makes the dashboard taller, so the window follows the layout's height.
+    if self.model.height and self.model.height ~= self.height then self:setHeight(self.model.height) end
 end
 
 function DashPanel:setScroll(value)
@@ -158,7 +160,7 @@ function DashPanel:onRightMouseUp(x, y)
 end
 
 function DashPanel:onMouseWheel(del)
-    local A = Dash.PLANT_AREA
+    local A = self.model.plantArea or Dash.PLANT_AREA
     local mx, my = self:getMouseX(), self:getMouseY()
     if mx < A.x or mx > A.x + A.w or my < A.y or my > A.y + A.h then return false end
     self:setScroll(self.scroll + del * STEP)
@@ -280,6 +282,8 @@ function DashPanel:onHit(id, right)
         end
         items[#items + 1] = { "Show in room", function() show(list) end }
         menu(items)
+    elseif id:sub(1, 5) == "cold:" then
+        send("roomColdNights", self:args({ state = id:sub(6) }))
     elseif id == "log" then
         self:openLog()
     elseif id == "refresh" then
