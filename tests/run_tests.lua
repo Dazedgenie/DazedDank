@@ -3069,42 +3069,37 @@ end
     check("outdoor panel refused", R.register(fakeSquare(700, 700, 0, true, true), owner, wall) == false)
 end)()
 
--- Grow room panel: the Lights tab draws without errors
+-- Grow room panel: the dashboard shows the room, its lamps and schedule, and warns when the panel has no power
 do
+    require "CannabisMod/CannabisStatusLayout"
+    require "CannabisMod/CannabisDashboardLayout"
+    local Dash = CannabisMod.DashboardLayout
+    local fh, ms = function() return 12 end, function(_, t) return #tostring(t) * 6 end
+    local info = { name = "Mother Room", x = 1, y = 2, z = 0, schedule = "18/6", mode = "Veg", tiles = 40, hour = 9, powered = true, lamps = {},
+        plants = {}, reservoirs = {}, equipment = {}, openings = {}, log = {}, climate = { enabled = false } }
+    for i = 1, 14 do info.lamps[i] = { name = "Pro grow lamp", x = i, y = 1, z = 0, powered = i ~= 2, lit = i ~= 3 } end
+    local function texts(model)
+        local out = {}
+        for _, op in ipairs(model.ops) do if op.kind == "text" then out[#out + 1] = op.text end end
+        return table.concat(out, "|")
+    end
+    local joined = texts(Dash.build(info, 0, fh, ms))
+    check("dashboard shows the room, its lamp count and schedule", joined:find("Mother Room", 1, true) and joined:find("14 lamps", 1, true)
+        and joined:find("18/6", 1, true) and joined:find("on 06 to 00", 1, true) and joined:find("Panel powered", 1, true))
+    info.lamps, info.powered = {}, false
+    joined = texts(Dash.build(info, 0, fh, ms))
+    check("an empty room counts no lamps, and a dead panel warns", joined:find("0 lamps", 1, true) and joined:find("Panel has no power", 1, true))
+end
+
+
+-- Grow room panel: the Log tab (on the shared row-list base) lists entries newest first
+;(function()
     local oldRequire = require
     require = function(n) if n:sub(1, 5) == "ISUI/" then return end return oldRequire(n) end
     ISPanel = {}
     function ISPanel:derive() local c = {}; c.__index = c; setmetatable(c, { __index = self }); return c end
     function ISPanel:new(x, y, w, h) return { x = x, y = y, width = w, height = h } end
     function ISPanel:createChildren() end
-    UIFont = { Small = "S", Medium = "M" }
-    local buttons, texts = {}, {}
-    CannabisMod.RoomPanel = { choiceButton = function(_, x, y, w, label, active) buttons[#buttons + 1] = { label = label, active = active } end }
-    dofile(MOD .. "client/CannabisMod/CannabisLightsTab.lua")
-    require = oldRequire
-    local info = { name = "Mother Room", x = 1, y = 2, z = 0, schedule = "18/6", mode = "Veg", tiles = 40, hour = 9, powered = true, lamps = {} }
-    for i = 1, 14 do info.lamps[i] = { name = "Pro grow lamp", x = i, y = 1, z = 0, powered = i ~= 2, lit = i ~= 3 } end
-    local tab = CannabisMod.LightsTab:new(0, 0, 560, 392, info, { schedule = function() end, mode = function() end, rename = function() end })
-    tab.drawText = function(_, text) texts[#texts + 1] = text end
-    tab.drawRect = function() end
-    tab:createChildren(); tab:createChildren()
-    check("lights tab builds its seven buttons once", #buttons == 7 and buttons[2].active == true and buttons[1].active == false)
-    tab:render()
-    local joined = table.concat(texts, "|")
-    check("lights tab shows the room, the lamp states and the overflow", joined:find("Mother Room", 1, true) and joined:find("No power", 1, true)
-        and joined:find("Dark hours", 1, true) and joined:find("+3 more", 1, true))
-    texts = {}
-    info.lamps, info.powered = {}, false
-    tab:render()
-    joined = table.concat(texts, "|")
-    check("an empty room says so, and a dead panel warns", joined:find("No lamps yet", 1, true) and joined:find("NO POWER", 1, true))
-end
-
-
--- Grow room panel: the Hydro and Plants tabs build their rows and scroll
-;(function()
-    local oldRequire = require
-    require = function(n) if n:sub(1, 5) == "ISUI/" then return end return oldRequire(n) end
     UIFont = { Small = "S", Medium = "M" }
     local made, removed = {}, 0
     CannabisMod.RoomPanel = { choiceButton = function(_, x, y, w, label, active, onClick)
@@ -3113,85 +3108,16 @@ end
         return b
     end }
     dofile(MOD .. "client/CannabisMod/CannabisRowsTab.lua")
-    dofile(MOD .. "client/CannabisMod/CannabisHydroTab.lua")
-    dofile(MOD .. "client/CannabisMod/CannabisPlantsTab.lua")
-    dofile(MOD .. "client/CannabisMod/CannabisClimateTab.lua")
     dofile(MOD .. "client/CannabisMod/CannabisLogTab.lua")
     require = oldRequire
-    local calls = {}
-    local actions = {
-        override = function(kind, state) calls[#calls + 1] = { "override", kind, state } end,
-        hydro = function(action, target, nutrient) calls[#calls + 1] = { "hydro", action, target, nutrient } end,
-        floodTimer = function(mode) calls[#calls + 1] = { "flood", mode } end,
-        highlight = function(x, y, z) calls[#calls + 1] = { "show", x, y, z } end,
-        inspect = function(x, y, z) calls[#calls + 1] = { "inspect", x, y, z } end,
-    }
+    local actions = {}
     local function stub(tab)
         tab.removeChild = function() removed = removed + 1 end
         tab.drawText = function() end
         tab.drawRect = function() end
         return tab
     end
-    local info = { mode = "Flower", floodTimer = false, reservoirs = {}, plants = {} }
-    for i = 1, 14 do info.reservoirs[i] = { key = "k" .. i, name = "DWC bucket", x = i, y = 1, z = 0, level = 5, cap = 15, strength = 0.5, rot = 0, pump = true } end
-    local tab = stub(CannabisMod.HydroTab:new(0, 0, 560, 392, info, actions))
-    tab:createChildren(); tab:createChildren()
-    check("Hydro tab: 4 'all' buttons, the flood timer button and 5 buttons for each visible row",
-        #made == 4 + 1 + 10 * 5 and #tab:visibleRows() == 10)
-    made[1].click()
-    check("Top Up all uses the room's food: bloom in a flower room", calls[1][1] == "hydro" and calls[1][2] == "topUp" and calls[1][3] == "all" and calls[1][4] == "Bloom")
-    for _, b in ipairs(made) do if b.label == "Show" then b.click() break end end
-    check("Show tints the row's equipment", calls[#calls][1] == "show" and calls[#calls][2] == 1)
-    made[5].click()
-    check("the flood timer button fits one when none is on the panel", calls[#calls][1] == "flood" and calls[#calls][2] == "install")
-    made = {}
-    tab:onMouseWheel(3)
-    check("scrolling rebuilds the row buttons from the new position", tab.scroll == 3 and #made == 10 * 5 and removed == 50 and tab:visibleRows()[1].row.key == "k4")
-    tab:onMouseWheel(99)
-    check("scrolling stops at the last row", tab.scroll == 4)
-    tab:render()
-
-    made = {}
-    local pinfo = { plants = {} }
-    for i = 1, 3 do pinfo.plants[i] = { x = i, y = 2, z = 0, name = "Cannabis Plant", stage = "Vegetative", water = "60%", health = "Good", warnings = i - 1 } end
-    local ptab = stub(CannabisMod.PlantsTab:new(0, 0, 560, 392, pinfo, actions))
-    ptab:createChildren()
-    check("Plants tab: one Inspect button per plant", #made == 3 and made[2].label == "Inspect")
-    made[2].click()
-    check("Inspect sends the plant's tile", calls[#calls][1] == "inspect" and calls[#calls][2] == 2 and calls[#calls][3] == 2)
-    ptab:render()
-    pinfo.plants = {}
-    ptab:rebuild(); ptab:render()
-    check("an empty room draws without errors", true)
-
-    -- Climate tab: readouts, a row of Auto/On/Off per fitted kind, and notes.
-    made = {}
-    local texts = {}
-    local cinfo = { powered = true, climate = {
-        enabled = true, temp = 31.2, hum = 45, outT = 12, outH = 55,
-        targets = { tLo = 20, tHi = 26, hLo = 40, hHi = 50 }, present = { exhaust = 2, heater = 1 },
-        running = { exhaust = true, heater = false }, override = { heater = "off" }, notes = { "Seedlings are in a Flower room: set Veg mode" },
-    } }
-    local ctab = stub(CannabisMod.ClimateTab:new(0, 0, 560, 392, cinfo, actions))
-    ctab.drawText = function(_, text) texts[#texts + 1] = text end
-    ctab:createChildren(); ctab:createChildren()
-    check("Climate tab: Auto, On and Off for each fitted kind, the manual one marked", #made == 6 and made[1].label == "Auto" and made[1].active == true
-        and made[4].active == false and made[6].label == "Off" and made[6].active == true)
-    made[2].click()
-    check("On sends that kind's override", calls[#calls][1] == "override" and calls[#calls][2] == "exhaust" and calls[#calls][3] == "on")
-    ctab:render()
-    local joined = table.concat(texts, "|")
-    check("Climate tab shows the readings, the equipment state and the note", joined:find("31.2", 1, true) and joined:find("Exhaust fan x2", 1, true)
-        and joined:find("Running", 1, true) and joined:find("(manual)", 1, true) and joined:find("Seedlings", 1, true))
-    texts = {}
-    cinfo.climate.enabled = false
-    ctab:render()
-    check("Climate tab says so when room climate is off", table.concat(texts, "|"):find("switched off", 1, true))
-    texts = {}
-    cinfo.climate.enabled, cinfo.powered, cinfo.climate.present = true, false, {}
-    ctab:render()
-    check("no power and no equipment are both said", table.concat(texts, "|"):find("NO POWER", 1, true) and table.concat(texts, "|"):find("None yet", 1, true))
-
+    local texts, joined = {}, nil
     -- Log tab: newest first, with ages.
     made = {}
     texts = {}

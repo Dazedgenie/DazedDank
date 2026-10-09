@@ -10,7 +10,6 @@ pests and health. Each plant type has its own sprites.
 This zip uses the Steam Workshop layout. Extract it into
 `C:\Users\<you>\Zomboid\Workshop\` so you end up with:
 
-    Zomboid\Workshop\DazedDank\Contents\mods\DazedDank\mod.info
     Zomboid\Workshop\DazedDank\Contents\mods\DazedDank\42\mod.info
 
 Delete any older DazedDank folder first. Then enable "Dazed Dank" in the
