@@ -148,7 +148,7 @@ local function frameNorth(obj)
     return nil
 end
 
---- Offer to hang or take down a blackout curtain on a door or window frame.
+--- Offer to take down a blackout curtain hung on a door or window frame before curtains were retired.
 local function addCurtainOption(player, context, obj)
     local square = obj:getSquare()
     local north = frameNorth(obj)

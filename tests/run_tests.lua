@@ -2639,18 +2639,21 @@ end
         local reach = CannabisMod.Light.lampsAt(804, 802, 0)
         check("an outside lamp leaks in through an uncovered door", reach.cap ~= nil and reach.anyLong)
 
+        -- Curtains can no longer be hung; this stands in for one hung in a save from before they were retired.
+        local function oldCurtain(x, y, dir, kind)
+            R._curtainTable()[R.edgeKey(x, y, 0, dir)] = true
+            table.insert(fakeSquares[x .. "_" .. y .. "_0"].objs, { sprite = C.Rooms.CURTAIN_SPRITES[kind][dir], md = {} })
+            R.rebuild(gate)
+        end
         local near = newPlayer(805, 801, 5)
         near.inv:AddItems(C.Rooms.CURTAIN_ITEM, 1)
         fire("OnClientCommand", "CannabisMod", "hangCurtain", near, { x = 805, y = 801, z = 0, dir = "W" })
-        check("hanging a curtain uses the item and covers the door", near.inv:count(C.Rooms.CURTAIN_ITEM) == 0 and R.openingsOf("800_800_0")[1].covered ~= R.openingsOf("800_800_0")[2].covered)
-        local overlay = false
-        for _, e in ipairs(fakeSquares["805_801_0"].objs) do if e.sprite == C.Rooms.CURTAIN_SPRITES.door.W then overlay = true end end
-        check("the curtain overlay is drawn on the frame", overlay)
+        check("G: hanging a curtain is gone: the item stays and the door stays open", near.inv:count(C.Rooms.CURTAIN_ITEM) == 1
+            and not R.openingsOf("800_800_0")[1].covered and not R.openingsOf("800_800_0")[2].covered and #fakeSquares["805_801_0"].objs == 1)
+        near.inv:Remove(near.inv:getFirstTypeRecurse(C.Rooms.CURTAIN_ITEM))
+        oldCurtain(805, 801, "W", "door")
+        check("an old curtain still covers the door", R.openingsOf("800_800_0")[1].covered ~= R.openingsOf("800_800_0")[2].covered)
         check("a covered door blocks the outside lamp", CannabisMod.Light.lampsAt(804, 802, 0).cap == nil)
-        fire("OnClientCommand", "CannabisMod", "hangCurtain", near, { x = 805, y = 801, z = 0, dir = "W" })
-        check("a frame takes only one curtain", near.inv:count(C.Rooms.CURTAIN_ITEM) == 0)
-        fire("OnClientCommand", "CannabisMod", "hangCurtain", near, { x = 803, y = 801, z = 0, dir = "N" })
-        check("a plain wall takes no curtain", near.inv:count(C.Rooms.CURTAIN_ITEM) == 0)
 
         SandboxVars = { CannabisMod = { LightLeaks = false } }
         fire("OnClientCommand", "CannabisMod", "removeCurtain", near, { x = 805, y = 801, z = 0, dir = "W" })
@@ -2659,8 +2662,7 @@ end
         SandboxVars = nil
 
         -- Retired curtains: a loaded square loses its overlay, the records go at game start, and inventories are emptied.
-        near.inv:AddItems(C.Rooms.CURTAIN_ITEM, 1)
-        fire("OnClientCommand", "CannabisMod", "hangCurtain", near, { x = 805, y = 801, z = 0, dir = "W" })
+        oldCurtain(805, 801, "W", "door")
         local function overlayCount() local n = 0 for _, e in ipairs(fakeSquares["805_801_0"].objs) do if (type(e) == "table" and e.sprite or e) == C.Rooms.CURTAIN_SPRITES.door.W then n = n + 1 end end return n end
         check("retire: a hung curtain to clear", overlayCount() == 1 and R.openingsOf("800_800_0")[1].covered ~= R.openingsOf("800_800_0")[2].covered)
         fire("LoadGridsquare", fakeSquares["805_801_0"])
@@ -2682,8 +2684,7 @@ end
         check("the leak is logged", R.roomAt(800, 800, 0).log[#R.roomAt(800, 800, 0).log].text:find("sunlight"))
         check("no sun leak at night or in the lit hours", not R.sunLeakAt("800_800_0", 803, 801, 3) and not R.sunLeakAt("800_800_0", 803, 801, 12))
         -- An empty door frame to the outside lets the sun in too, so the window alone no longer seals the room.
-        near.inv:AddItems(C.Rooms.CURTAIN_ITEM, 1)
-        fire("OnClientCommand", "CannabisMod", "hangCurtain", near, { x = 802, y = 800, z = 0, dir = "N" })
+        oldCurtain(802, 800, "N", "window")
         check("an empty door frame to the outside lets the sun in", R.sunLeakAt("800_800_0", 803, 801, 19) == 1)
 
         -- A real door: closed it seeps the DoorLeak share, and a sheet hung and drawn seals it.

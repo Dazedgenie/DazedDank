@@ -71,6 +71,9 @@ Events.OnInitGlobalModData.Add(function()
     curtains = ModData.getOrCreate(Config.MODDATA_KEY .. "_Curtains")
 end)
 
+--- The saved curtain records (tests use this to stand in for a save from before curtains were retired).
+function Rooms._curtainTable() return curtains end
+
 --- Replace the saved panels (tests use this to start clean).
 function Rooms._reset(tbl, curtainTbl)
     panels = tbl or {}
@@ -1275,17 +1278,6 @@ function Rooms.tick(now)
     end
 end
 
---- Draw the curtain on the wall edge owned by `square` (its N or W side), and tell clients about it.
-function Rooms.addCurtainObject(square, kind, dir)
-    local sprite = Config.Rooms.CURTAIN_SPRITES[kind][dir]
-    pcall(function()
-        local obj = IsoObject.new(getCell(), square, sprite)
-        -- Its tile is flagged as attached to the wall, so it draws with the wall: behind people and fittings on the square.
-        square:AddTileObject(obj)
-        obj:transmitCompleteItemToClients()
-    end)
-end
-
 --- The curtain overlay object on a square for one wall edge, or nil.
 local function curtainObject(square, dir)
     local objects = square:getObjects()
@@ -1298,89 +1290,7 @@ local function curtainObject(square, dir)
     return nil
 end
 
---- The two squares either side of the N or W edge of the square at x, y, z.
-local function edgeSquares(x, y, z, dir)
-    local cell = getCell()
-    local near = cell:getGridSquare(x, y, z)
-    local far
-    if dir == "N" then far = cell:getGridSquare(x, y - 1, z) else far = cell:getGridSquare(x - 1, y, z) end
-    return near, far
-end
-
---- Take down vanilla sheets and curtains on the frame between two squares, handing them back the way vanilla does.
-local function stripVanillaCurtains(player, square, other, dir)
-    local north = dir == "N"
-    local removed = 0
-    local function takeDown(obj)
-        if obj and obj.removeSheet and pcall(obj.removeSheet, obj, player) then removed = removed + 1 end
-    end
-    local function facesEdge(obj)
-        for _, m in ipairs({ "getNorth", "isNorth" }) do
-            if obj[m] then
-                local ok, v = pcall(obj[m], obj)
-                if ok and type(v) == "boolean" then return v == north end
-            end
-        end
-        return true
-    end
-    for _, sq in ipairs({ square, other }) do
-        local list = {}
-        local objects = sq:getObjects()
-        for i = 0, objects:size() - 1 do list[#list + 1] = objects:get(i) end
-        for _, obj in ipairs(list) do
-            pcall(function()
-                if instanceof(obj, "IsoCurtain") then
-                    if facesEdge(obj) then takeDown(obj) end
-                elseif (instanceof(obj, "IsoWindow") or instanceof(obj, "IsoDoor") or instanceof(obj, "IsoThumpable")) and facesEdge(obj) then
-                    -- A window points at its curtain object; a door wears a hung sheet itself.
-                    local c = obj.HasCurtains and obj:HasCurtains()
-                    if c and c ~= true and instanceof(c, "IsoCurtain") then takeDown(c)
-                    elseif c and instanceof(obj, "IsoDoor") then takeDown(obj) end
-                end
-            end)
-        end
-    end
-    if removed > 0 then print("[DazedDank] hangCurtain: took down " .. removed .. " vanilla curtain(s)") end
-end
-
-commands.hangCurtain = function(player, args)
-    local x, y, z, dir = tonumber(args.x), tonumber(args.y), tonumber(args.z), args.dir
-    -- Each refusal is logged to console.txt so a curtain that "does nothing" can be traced.
-    print(string.format("[DazedDank] hangCurtain at %s,%s,%s dir %s", tostring(x), tostring(y), tostring(z), tostring(dir)))
-    if not (x and y and z) or (dir ~= "N" and dir ~= "W") then print("[DazedDank] hangCurtain: bad args") return end
-    if not curtains then print("[DazedDank] hangCurtain: curtain table not loaded") return end
-    if not isNear(player, x, y, z) then
-        print("[DazedDank] hangCurtain: player too far")
-        Net.notify(player, "Stand closer to the frame")
-        return
-    end
-    local square, other = edgeSquares(x, y, z, dir)
-    local kind = square and other and Rooms.edgeKind(square, other)
-    if not kind then
-        print("[DazedDank] hangCurtain: no door or window on that edge (square " .. tostring(square) .. ", other " .. tostring(other) .. ")")
-        Net.notify(player, "A curtain only hangs on a door or window frame")
-        return
-    end
-    local edge = Rooms.edgeKey(x, y, z, dir)
-    if curtains[edge] then Net.notify(player, "That frame already has a curtain") return end
-    local inv = player:getInventory()
-    local item = inv:getFirstTypeRecurse(Config.Rooms.CURTAIN_ITEM)
-    if not item then
-        local short = Config.Rooms.CURTAIN_ITEM:match("%.(.+)$")
-        item = short and inv:getFirstTypeRecurse(short)
-    end
-    if not item then print("[DazedDank] hangCurtain: no curtain item found") Net.notify(player, "You need a blackout curtain") return end
-    local container = item:getContainer()
-    container:Remove(item)
-    sendRemoveItemFromContainer(container, item)
-    stripVanillaCurtains(player, square, other, dir)
-    curtains[edge] = true
-    print("[DazedDank] hangCurtain: hung a " .. kind .. " curtain on " .. edge)
-    Rooms.addCurtainObject(square, kind, dir)
-    Rooms.rebuild()
-    Net.notify(player, "Blackout curtain hung")
-end
-
+-- Blackout curtains are retired, so there is no hangCurtain command; frames hung before keep the take-down path below.
 commands.removeCurtain = function(player, args)
     local x, y, z, dir = tonumber(args.x), tonumber(args.y), tonumber(args.z), args.dir
     if not (x and y and z) or (dir ~= "N" and dir ~= "W") or not curtains or not isNear(player, x, y, z) then return end
