@@ -269,13 +269,19 @@ local function domeSync(dome, player)
     return keep, present
 end
 
+--- True while a dome item is still somewhere: in a container or lying in the world.
+local function domeExists(dome)
+    local ok, there = pcall(function() return dome:getContainer() ~= nil or dome:getWorldItem() ~= nil end)
+    return ok and there == true
+end
+
 --- Every ten minutes, keep the rooting cuttings in every dome seen this session from ageing.
 function Cloning.holdDomes()
     local gone = {}
     for id, dome in pairs(liveDomes) do
         local list = Registry.getDome(id)
-        -- An empty dome has nothing to hold; it is watched again once cuttings go in and it syncs.
-        local ok = #list > 0 and pcall(function()
+        -- An empty dome has nothing to hold, and a destroyed one is let go; a dome is watched again once it syncs.
+        local ok = #list > 0 and domeExists(dome) and pcall(function()
             local byId = {}
             for _, entry in ipairs(list) do byId[entry.id] = entry end
             for _, item in ipairs(cuttingsIn(dome)) do
@@ -283,11 +289,20 @@ function Cloning.holdDomes()
                 if entry then holdAge(item, entry) end
             end
         end)
-        if not ok then gone[#gone + 1] = id end
+        if ok then Registry.touchDome(id) else gone[#gone + 1] = id end
     end
     for _, id in ipairs(gone) do liveDomes[id] = nil end
 end
 CannabisMod.TenMinutes.set("domes", Cloning.holdDomes)
+
+--- Once a day, drop the records of domes unseen for as long as drying records are kept (the dome was destroyed or lost).
+function Cloning.pruneDomes(now)
+    local gone = Registry.pruneDomes(Config.Drying.RECORD_KEEP_DAYS * 24, now)
+    -- Records are keyed by the ID as a string, liveDomes by the number.
+    for _, id in ipairs(gone) do liveDomes[tonumber(id) or id] = nil end
+    return #gone
+end
+Events.EveryDays.Add(function() Cloning.pruneDomes() end)
 
 --- Count cuttings by state. Returns pending, rooted, failed, hours until the
 --- next one finishes.

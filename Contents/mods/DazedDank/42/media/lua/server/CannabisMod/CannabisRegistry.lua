@@ -265,11 +265,37 @@ function Registry.getDome(domeId)
     return domes and domes[tostring(domeId)] or {}
 end
 
---- Replace a dome's cuttings; an empty dome drops its record from the save.
+--- Replace a dome's cuttings; an empty dome drops its record from the save. Writing a record marks the dome as seen now.
 function Registry.setDome(domeId, list)
     if not domes then return end
     if list and #list == 0 then list = nil end
+    if list then list.lastSeen = nowHours() end
     domes[tostring(domeId)] = list
+end
+
+--- Note that a dome's item was found in the world just now, so its record isn't pruned.
+function Registry.touchDome(domeId)
+    local list = domes and domes[tostring(domeId)]
+    if list then list.lastSeen = nowHours() end
+end
+
+--- Drop dome records not seen for `keepHours` (the dome was destroyed or lost); returns the dropped IDs.
+--- Records from before lastSeen existed start their clock now.
+function Registry.pruneDomes(keepHours, now)
+    if not domes then return {} end
+    now = now or nowHours()
+    local gone = {}
+    for id, list in pairs(domes) do
+        if type(list) ~= "table" then
+            gone[#gone + 1] = id
+        elseif not list.lastSeen then
+            list.lastSeen = now
+        elseif now - list.lastSeen > keepHours then
+            gone[#gone + 1] = id
+        end
+    end
+    for _, id in ipairs(gone) do domes[id] = nil end
+    return gone
 end
 
 -- --------------------------------------------------------------------------

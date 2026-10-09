@@ -4392,5 +4392,41 @@ do
     getSpecificPlayer = oldGSP
 end
 
+
+-- ---- Fix H: records of lost domes are pruned, and destroyed domes stop being held ----
+do
+    local CL = CannabisMod.Cloning
+    local domeStore = store[C.MODDATA_KEY .. "_Domes"]
+    local keep = C.Drying.RECORD_KEEP_DAYS * 24
+    local owner = newPlayer(1, 1, 5)
+    local live = owner.inv:addExisting(newDome())
+    local cut = newItem(C.CUTTING_ITEM); cut.age = 0.2
+    live:getInventory():addExisting(cut)
+    fire("OnClientCommand", "CannabisMod", "domeSync", owner, { domeId = live:getID() })
+    for _, e in ipairs(R.getDome(live:getID())) do e.success = true end
+    check("H: a synced dome records when it was seen", R.getDome(live:getID()).lastSeen == worldHours)
+    R.setDome(424242, { { id = 9, readyAt = 0 } })
+    domeStore["424242"].lastSeen = nil
+    local start = worldHours
+    CL.pruneDomes(start)
+    check("H: an old record without lastSeen starts its clock instead of going", domeStore["424242"] and domeStore["424242"].lastSeen == start)
+    -- The live dome is held (and seen) every ten minutes; the lost one is never seen again.
+    worldHours = start + keep + 1
+    CL.holdDomes()
+    CL.pruneDomes(worldHours)
+    check("H: a dome unseen past the keep time is pruned", domeStore["424242"] == nil)
+    check("H: a dome still held in the world is kept", #R.getDome(live:getID()) == 1)
+    -- Destroyed: the item is in no container and not in the world, so the dome is let go and its cutting left alone.
+    owner.inv:Remove(live)
+    cut.age = 2.5
+    CL.holdDomes()
+    check("H: a destroyed dome's cuttings aren't worked on", cut.age == 2.5)
+    owner.inv:addExisting(live)
+    CL.holdDomes()
+    check("H: a dropped dome is only watched again once it syncs", cut.age == 2.5)
+    R.setDome(live:getID(), {})
+    worldHours = start
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
