@@ -520,39 +520,51 @@ local function flowerChecks(plant)
     end
 end
 
---- One 10-minute step for every plant: rooting, light, stage, flowering, hydro and water.
+--- One 10-minute step for one plant: rooting, light, stage, flowering, hydro and water.
+local function tickPlant(plant, now)
+    -- Dead and harvested plants keep their record (for their sprite) but
+    -- no longer grow, drink, flower or pollinate.
+    if not plant.dead and plant.rooting then
+        settleRooting(plant, now)
+    end
+    local stalled = false
+    if not plant.dead and not plant.rooting and CannabisMod.Light then
+        stalled = CannabisMod.Light.update(plant)
+    end
+    -- Outdoor heat and cold, and cold nights in late flower.
+    if not plant.dead and not plant.rooting and CannabisMod.PlantTemp then
+        CannabisMod.PlantTemp.update(plant, now, stalled)
+    end
+    if not plant.dead and not plant.rooting then
+        -- Stage timer ran out: move on (Ripe stays Ripe; overripe is
+        -- handled by the harvest multiplier).
+        if not stalled and plant.stage < Config.STAGE.Ripe and now >= plant.nextStageAt then
+            if Registry.heldInVeg(plant) then
+                Registry.extendVeg(plant, now)
+            else
+                Registry.advanceStage(plant)
+            end
+        end
+        if plant.stage == Config.STAGE.Flowering then
+            flowerChecks(plant)
+        end
+        if Config.isHydro(plant.bag) and CannabisMod.Hydro and not plant.dead then
+            CannabisMod.Hydro.update(plant, now)
+        end
+        Registry.waterCheck(plant)
+    end
+end
+
+-- Plant keys whose tick has already failed and been logged, so a broken record logs once instead of every tick.
+local failedPlants = {}
+
+--- One 10-minute step for every plant; a plant that errors is logged once and the rest still tick.
 local function tickPlants(now)
-    for _, plant in Registry.each() do
-        -- Dead and harvested plants keep their record (for their sprite) but
-        -- no longer grow, drink, flower or pollinate.
-        if not plant.dead and plant.rooting then
-            settleRooting(plant, now)
-        end
-        local stalled = false
-        if not plant.dead and not plant.rooting and CannabisMod.Light then
-            stalled = CannabisMod.Light.update(plant)
-        end
-        -- Outdoor heat and cold, and cold nights in late flower.
-        if not plant.dead and not plant.rooting and CannabisMod.PlantTemp then
-            CannabisMod.PlantTemp.update(plant, now, stalled)
-        end
-        if not plant.dead and not plant.rooting then
-            -- Stage timer ran out: move on (Ripe stays Ripe; overripe is
-            -- handled by the harvest multiplier).
-            if not stalled and plant.stage < Config.STAGE.Ripe and now >= plant.nextStageAt then
-                if Registry.heldInVeg(plant) then
-                    Registry.extendVeg(plant, now)
-                else
-                    Registry.advanceStage(plant)
-                end
-            end
-            if plant.stage == Config.STAGE.Flowering then
-                flowerChecks(plant)
-            end
-            if Config.isHydro(plant.bag) and CannabisMod.Hydro and not plant.dead then
-                CannabisMod.Hydro.update(plant, now)
-            end
-            Registry.waterCheck(plant)
+    for key, plant in Registry.each() do
+        local ok, err = pcall(tickPlant, plant, now)
+        if not ok and not failedPlants[key] then
+            failedPlants[key] = true
+            print("[DazedDank] plant " .. tostring(key) .. " tick failed: " .. tostring(err))
         end
     end
 end

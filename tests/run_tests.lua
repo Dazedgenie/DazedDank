@@ -4283,5 +4283,32 @@ do
     ISMoveableSpriteProps = oldProps
 end
 
+
+-- ---- Fix B: one broken plant no longer stops the rest of the plant tick ----
+do
+    local good = {}
+    for i = 1, 6 do
+        local gp = R.addPlant(9600 + i, 9600, 0, { type = T.INDICA, sex = C.SEX.FEMALE, genetics = 100 })
+        gp.rooting = { readyAt = 0, success = true }
+        good[i] = gp
+    end
+    local bad = R.addPlant(9600, 9600, 0, { type = T.INDICA, sex = C.SEX.FEMALE, genetics = 100 })
+    bad.rooting = { readyAt = "broken", success = true }
+    local logs, oldPrint = 0, print
+    -- No vanilla plots reported, so the farming sync keeps these plot-less records.
+    local sys, oldCount = SFarmingSystem.instance, SFarmingSystem.instance.getLuaObjectCount
+    sys.getLuaObjectCount = function() return 0 end
+    print = function(msg) if tostring(msg):find("9600_9600_0", 1, true) then logs = logs + 1 end end
+    fire("EveryTenMinutes")
+    fire("EveryTenMinutes")
+    print = oldPrint
+    sys.getLuaObjectCount = oldCount
+    local allSettled = true
+    for i = 1, 6 do if good[i].rooting then allSettled = false end end
+    check("B: every other plant still ticks past a broken one", allSettled)
+    check("B: a broken plant is logged once, not every tick", logs == 1)
+    for i = 0, 6 do R.removePlant(9600 + i, 9600, 0) end
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
