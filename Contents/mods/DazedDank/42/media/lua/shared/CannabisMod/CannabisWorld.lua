@@ -157,6 +157,22 @@ local function failed(label, err)
 end
 
 local function newHits() return { n = 0, obj = {}, name = {}, info = {} } end
+
+--- Note every object of ours in a square's object list into `hits`; returns how many (run under one pcall per square).
+local function collect(objects, hits)
+    local n, info = 0, World.info
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        local name = sprite and sprite:getName()
+        local what = name and info(name)
+        if what then
+            n = n + 1
+            hits.obj[n], hits.name[n], hits.info[n] = obj, name, what
+        end
+    end
+    return n
+end
 local sharedHits = newHits()
 local loading = false
 
@@ -168,15 +184,10 @@ function World.dispatchLoad(square)
     local hits = loading and newHits() or sharedHits
     local outer = loading
     loading = true
-    local n = 0
-    for i = 0, objects:size() - 1 do
-        local obj = objects:get(i)
-        local ok, name = pcall(spriteName, obj)
-        local info = ok and World.info(name)
-        if info then
-            n = n + 1
-            hits.obj[n], hits.name[n], hits.info[n] = obj, name, info
-        end
+    local ok, n = pcall(collect, objects, hits)
+    if not ok then
+        failed("square read", n)
+        n = 0
     end
     hits.n = n
     for _, h in ipairs(loadHandlers) do
