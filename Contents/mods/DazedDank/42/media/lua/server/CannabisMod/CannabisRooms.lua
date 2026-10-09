@@ -716,37 +716,8 @@ World.onObjectAdded("panel placing", function(obj, name, info)
     if info.panel then Rooms.onPlaced(obj) end
 end)
 
---- Every square of the lamp on `square`: all tiles of a bar lamp, or just this one.
-local function lampTiles(square, obj)
-    local out = { square }
-    pcall(function()
-        local props = ISMoveableSpriteProps.fromObject(obj)
-        if props and props.isMultiSprite then
-            local grid = props:getSpriteGridInfo(square, true)
-            if grid and #grid > 0 then
-                out = {}
-                for _, member in ipairs(grid) do out[#out + 1] = member.square end
-            end
-        end
-    end)
-    if #out > 1 then return out end
-    -- A dedicated server has no moveable props (client code), so read the sprite's own grid instead.
-    pcall(function()
-        local sprite = obj:getSprite()
-        local grid = sprite and sprite:getSpriteGrid()
-        if not grid then return end
-        local gx, gy = grid:getSpriteGridPosX(sprite), grid:getSpriteGridPosY(sprite)
-        local cell, found = getCell(), {}
-        for dx = 0, grid:getWidth() - 1 do
-            for dy = 0, grid:getHeight() - 1 do
-                local sq = cell:getGridSquare(square:getX() - gx + dx, square:getY() - gy + dy, square:getZ())
-                if sq then found[#found + 1] = sq end
-            end
-        end
-        if #found > 0 then out = found end
-    end)
-    return out
-end
+-- Every tile of a bar lamp, shared with the light timers.
+local lampTiles = World.lampSquares
 
 --- What a room holds, read in one pass over its tiles and shared by every reader at the same game moment:
 --- lamps (every lamp object), lampTiles (the first lamp on each tile), gear (with each fan's wall factor), racks

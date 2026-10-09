@@ -123,6 +123,44 @@ function World.hasSprite(x, y, z, name)
     return World.findSprite(square, name) ~= nil
 end
 
+--- The squares of a multi-tile object's sprite grid, read from the sprite itself (works on a dedicated server); nil when single-tile.
+local function spriteGridSquares(square, obj)
+    local sprite = obj:getSprite()
+    local grid = sprite and sprite:getSpriteGrid()
+    if not grid then return nil end
+    local gx, gy = grid:getSpriteGridPosX(sprite), grid:getSpriteGridPosY(sprite)
+    local cell, found = getCell(), {}
+    for dx = 0, grid:getWidth() - 1 do
+        for dy = 0, grid:getHeight() - 1 do
+            local sq = cell:getGridSquare(square:getX() - gx + dx, square:getY() - gy + dy, square:getZ())
+            if sq then found[#found + 1] = sq end
+        end
+    end
+    if #found > 0 then return found end
+    return nil
+end
+
+--- The squares of a multi-tile object via the vanilla moveable props (client code, absent on a dedicated server); nil when unavailable.
+local function moveableSquares(square, obj)
+    if not ISMoveableSpriteProps then return nil end
+    local props = ISMoveableSpriteProps.fromObject(obj)
+    if not (props and props.isMultiSprite) then return nil end
+    local grid = props:getSpriteGridInfo(square, true)
+    if not (grid and #grid > 0) then return nil end
+    local out = {}
+    for _, member in ipairs(grid) do out[#out + 1] = member.square end
+    return out
+end
+
+--- Every square of the lamp on `square`: all tiles of a bar lamp, or just this one.
+function World.lampSquares(square, obj)
+    local ok, out = pcall(moveableSquares, square, obj)
+    if ok and out and #out > 1 then return out end
+    ok, out = pcall(spriteGridSquares, square, obj)
+    if ok and out then return out end
+    return { square }
+end
+
 -- --------------------------------------------------------------------------
 -- Event dispatcher
 -- --------------------------------------------------------------------------

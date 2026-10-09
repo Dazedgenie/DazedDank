@@ -828,6 +828,8 @@ local function fakeSquare(x, y, z, outside, power)
     return sq
 end
 function getCell() return { getGridSquare = function(_, x, y, z) return fakeSquares[x .. "_" .. y .. "_" .. z] end } end
+-- Exposed for the fix tests at the end of the file, outside this scope.
+FakeWorld = { square = fakeSquare, squares = fakeSquares }
 function getWorld() return { isHydroPowerOn = function() return false end } end
 
 local L = CannabisMod.Light
@@ -4241,6 +4243,44 @@ do
     check("hourly: an empty bag plot is marked plowed today", md.plowDay == 50)
     R.clearBag(9400, 9400, 0)
     for i, pl in ipairs(plots) do if pl == p then table.remove(plots, i) break end end
+end
+
+
+-- ---- Fix A: bar lamp timers reach every tile without the client's moveable props ----
+local fakeSquare, fakeSquares = FakeWorld.square, FakeWorld.squares
+do
+    local W, TM = CannabisMod.World, CannabisMod.Timers
+    local oldProps = ISMoveableSpriteProps
+    ISMoveableSpriteProps = nil
+    local sqs = {}
+    for i = 0, 2 do sqs[i] = fakeSquare(9500 + i, 9500, 0, false, true) end
+    local grid = { getWidth = function() return 3 end, getHeight = function() return 1 end,
+        getSpriteGridPosX = function(_, sp) return sp.pos end, getSpriteGridPosY = function() return 0 end }
+    local mds = {}
+    local function barObj(i)
+        local sp = { pos = i, getName = function() return "dazeddank_plants_01_22" .. (2 + i) end, getSpriteGrid = function() return grid end }
+        mds[i] = {}
+        return { getSprite = function() return sp end, getModData = function() return mds[i] end, transmitModData = function() end }
+    end
+    for i = 0, 2 do
+        local o = barObj(i)
+        sqs[i].getObjects = function() return { size = function() return 1 end, get = function() return o end } end
+    end
+    local tiles = W.lampSquares(sqs[1], barObj(1))
+    check("A: lampSquares reads the sprite grid with no moveable props", #tiles == 3 and tiles[1] == sqs[0] and tiles[3] == sqs[2])
+    check("A: a plain object is one tile", #W.lampSquares(sqs[0], { getSprite = function() return { getName = function() return "x" end } end }) == 1)
+    TM._reset({})
+    local p = newPlayer(9501, 9500, 5)
+    p.inv:AddItems(C.Timer.ITEM, 1)
+    fire("OnClientCommand", "CannabisMod", "installTimer", p, { x = 9501, y = 9500, z = 0 })
+    check("A: installing a timer on a bar lamp sets every tile", TM.scheduleAt(9500, 9500, 0) == C.Timer.DEFAULT
+        and TM.scheduleAt(9501, 9500, 0) == C.Timer.DEFAULT and TM.scheduleAt(9502, 9500, 0) == C.Timer.DEFAULT
+        and mds[0].DDTimer == C.Timer.DEFAULT and mds[2].DDTimer == C.Timer.DEFAULT)
+    fire("OnClientCommand", "CannabisMod", "removeTimer", p, { x = 9500, y = 9500, z = 0 })
+    check("A: removing the timer clears every tile and gives one back", TM.scheduleAt(9500, 9500, 0) == nil
+        and TM.scheduleAt(9502, 9500, 0) == nil and p.inv:count(C.Timer.ITEM) == 1)
+    TM._reset({})
+    ISMoveableSpriteProps = oldProps
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

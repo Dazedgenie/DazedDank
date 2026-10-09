@@ -8,7 +8,6 @@ require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
 require "CannabisMod/CannabisWorld"
-require "Moveables/ISMoveableSpriteProps"
 
 local Config = CannabisMod.Config
 local Net = CannabisMod.Net
@@ -44,21 +43,8 @@ local function lampObject(square)
     return (CannabisMod.World.findIn(square, Config.Light.SPRITES))
 end
 
---- Every square of the lamp on `square`: all tiles of a bar lamp, or just this one.
-local function lampSquares(square, obj)
-    local out = { square }
-    pcall(function()
-        local props = ISMoveableSpriteProps.fromObject(obj)
-        if props and props.isMultiSprite then
-            local info = props:getSpriteGridInfo(square, true)
-            if info and #info > 0 then
-                out = {}
-                for _, member in ipairs(info) do out[#out + 1] = member.square end
-            end
-        end
-    end)
-    return out
-end
+-- Every tile of a bar lamp, with the sprite-grid fallback a dedicated server needs.
+local lampSquares = CannabisMod.World.lampSquares
 
 --- The schedule the lamp object carries for clients, or nil.
 local function objectSchedule(obj)
