@@ -34,7 +34,7 @@ function Dash.coldNightsText(cn, temp)
     return "Waiting for late flower", C.muted
 end
 
---- A plant card's cold night tag: { text, pill } where `pill` draws it as a purple pill, or nil when there is nothing to show.
+--- A plant card's cold night tag as { text, pill or color } (`pill` draws a purple pill), or nil when there is nothing to show.
 function Dash.coldTag(cold)
     if not cold then return nil end
     if cold.rolled then
