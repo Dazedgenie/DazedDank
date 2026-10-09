@@ -541,9 +541,10 @@ function Drying.discover()
     end
 end
 
---- Process every registered station whose square is loaded.
+--- Find new stations near players, then process every registered station whose square is loaded.
 function Drying.tick()
     if not db then return end
+    pcall(Drying.discover)
     local now = Registry.nowHours()
     for key, station in pairs(db.stations) do
         local x, y, z = Config.parseKey(key)
@@ -563,7 +564,6 @@ function Drying.tick()
     end
 end
 
-Events.EveryOneMinute.Add(Drying.discover)
 Events.EveryTenMinutes.Add(Drying.tick)
 
 --- Records that hold nothing the item doesn't, untouched for RECORD_KEEP_DAYS, can go.
