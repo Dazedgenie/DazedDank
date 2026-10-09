@@ -1,7 +1,7 @@
 version=1
 workshopid=0
 title=Dazed Dank
-description=[i]This mod was created using AI assistance. If you're against the use of AI, stay away.[/i]
+description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're not comfortable with that, please stop reading here.
 description=
 description=[img]https://raw.githubusercontent.com/Dazedgenie/DazedDank-Workshop/main/images/banner.jpg[/img]
 description=
