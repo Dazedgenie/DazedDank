@@ -4304,5 +4304,18 @@ end)()
     getTexture = oldGetTexture
 end)()
 
+-- ---- Empty bag plots are kept fresh hourly ----------------------------------------
+do
+    local md = {}
+    local p = newPlot(9400, 9400, 0)
+    p.getSquare = function() return { getModData = function() return md end } end
+    R.setBag(9400, 9400, 0, "small")
+    worldHours = 24 * 50
+    fire("EveryHours")
+    check("hourly: an empty bag plot is marked plowed today", md.plowDay == 50)
+    R.clearBag(9400, 9400, 0)
+    for i, pl in ipairs(plots) do if pl == p then table.remove(plots, i) break end end
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

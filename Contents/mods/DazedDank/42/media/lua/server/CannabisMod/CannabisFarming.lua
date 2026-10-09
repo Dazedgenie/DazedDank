@@ -167,19 +167,13 @@ function Farming.syncWithVanilla()
         end
     end
 
-    -- Grow bag upkeep: forget bags whose plot is gone, and keep empty bag
-    -- plots from fading away (vanilla slowly removes old unplanted plots).
+    -- Grow bag upkeep: forget bags whose plot is gone (empty plots are kept fresh hourly, see Farming.freshenBags).
     if count > 0 then
         local lostBags = {}
-        local today = getGameTime():getWorldAgeHours() / 24
         for key, size in Registry.eachBag() do
             local x, y, z = Config.parseKey(key)
             local luaObject = x and Farming.getVanilla(x, y, z)
-            if not luaObject then
-                lostBags[#lostBags + 1] = { x, y, z }
-            else
-                pcall(freshenPlot, luaObject, today)
-            end
+            if not luaObject then lostBags[#lostBags + 1] = { x, y, z } end
         end
         for _, c in ipairs(lostBags) do Registry.clearBag(c[1], c[2], c[3]) end
     end
@@ -198,6 +192,19 @@ function Farming.syncWithVanilla()
         Registry.removePlant(plant.x, plant.y, plant.z)
     end
 end
+
+--- Every hour: keep empty bag plots from fading away (vanilla measures plowed-land decay in days, so hourly is plenty).
+function Farming.freshenBags()
+    local sys = farmingSystem()
+    if not sys or sys:getLuaObjectCount() == 0 then return end
+    local today = getGameTime():getWorldAgeHours() / 24
+    for key in Registry.eachBag() do
+        local x, y, z = Config.parseKey(key)
+        local luaObject = x and Farming.getVanilla(x, y, z)
+        if luaObject then pcall(freshenPlot, luaObject, today) end
+    end
+end
+Events.EveryHours.Add(Farming.freshenBags)
 
 -- --------------------------------------------------------------------------
 -- Hook 1: sowing
