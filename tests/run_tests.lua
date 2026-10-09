@@ -2358,9 +2358,15 @@ end
 do
     local U, Cf = CannabisMod.Use, C
     local function withVars(vars, fn) local old = SandboxVars; SandboxVars = { CannabisMod = vars }; local ok, err = pcall(fn); SandboxVars = old; assert(ok, err) end
-    withVars({ DependencyEnabled = false }, function()
+    withVars({ LampsNeedPower = false }, function()
+        check("grow gear needs power off covers pumps too", C.sandbox("PumpsNeedPower") == false and C.sandbox("LampsNeedPower") == false)
+    end)
+    withVars({ DoorLeak = 90, LampHeat = false, DripRadius = 9 }, function()
+        check("cut options ignore stale saved values", C.sandbox("DoorLeak") == 25 and C.sandbox("LampHeat") == true and C.sandbox("DripRadius") == 5)
+    end)
+    withVars({ DependencyRate = 0 }, function()
         local u = U.new(); U.dose(u, 100, 1, "joint")
-        check("dependency off: none builds and no withdrawal", u.dep == 0 and U.withdrawal({ dep = 90, lastUse = 0 }, 500) == 0)
+        check("dependency rate 0: none builds and no withdrawal", u.dep == 0 and U.withdrawal({ dep = 90, lastUse = 0 }, 500) == 0)
     end)
     withVars({ DependencyRate = 2 }, function()
         local u = U.new(); U.dose(u, 100, 1, "joint")
@@ -2705,10 +2711,10 @@ end
         local before = (function() local q = { x = 803, y = 801, z = 0, warnings = {}, stage = 2, care = 100, stress = 0, lightCap = 85, nextStageAt = 100 }
             CannabisMod.Light.update(q) return q end)()
         -- Sun and the lamp outside both seep in, each at a quarter: half a full leak, not a whole one.
-        SandboxVars = { CannabisMod = { DoorLeak = 0 } }; leakNow()
+        C.SandboxDefaults.DoorLeak = 0; leakNow()
         local base = (function() local q = { x = 803, y = 801, z = 0, warnings = {}, stage = 2, care = 100, stress = 0, lightCap = 85, nextStageAt = 100 }
             CannabisMod.Light.update(q) return q end)()
-        SandboxVars = nil; leakNow()
+        C.SandboxDefaults.DoorLeak = 25; leakNow()
         check("a seeping door stresses a plant a quarter as much per source", math.abs(before.stress - base.stress - C.Timer.LEAK_STRESS_PER_HOUR / 6 * 0.5) < 1e-6
             and before.warnings.lightLeak == true)
         check("a lamp seeping in round a closed door isn't the plant's light", CannabisMod.Light.lampsAt(803, 801, 0).cap == nil)
@@ -2718,11 +2724,11 @@ end
         d = doorOf(leakNow())
         check("a drawn sheet on a closed door seals it", d.leak == 0 and d.covered and not R.sunLeakAt("800_800_0", 803, 801, 19))
         door.sheet = nil
-        SandboxVars = { CannabisMod = { DoorLeak = 0 } }
-        check("Closed Door Light Leak 0: a closed door seals", doorOf(leakNow()).covered)
-        SandboxVars = { CannabisMod = { DoorLeak = 100 } }
-        check("Closed Door Light Leak 100: a closed door leaks like an open one", doorOf(leakNow()).leak == 1)
-        SandboxVars = nil
+        C.SandboxDefaults.DoorLeak = 0
+        check("Door light leak 0: a closed door seals", doorOf(leakNow()).covered)
+        C.SandboxDefaults.DoorLeak = 100
+        check("Door light leak 100: a closed door leaks like an open one", doorOf(leakNow()).leak == 1)
+        C.SandboxDefaults.DoorLeak = 25
         fakeSquares["804_801_0"].getDoorTo = nil
         R.edgeKind, R.edgeBlocked = oldKind, oldBlocked
         R.remove("800_800_0")
@@ -3277,9 +3283,10 @@ do
     check("lamp heat: unpowered lamp gives none", LH.heat(dark) == 0)
     SandboxVars = { CannabisMod = { LampsNeedPower = false } }
     check("lamp heat: lamps that need no power stay lit", near(LH.heat(dark), 12))
-    SandboxVars = { CannabisMod = { LampHeat = false } }
-    check("lamp heat: option off gives none", LH.heat(big) == 0)
     SandboxVars = nil
+    C.SandboxDefaults.LampHeat = false
+    check("lamp heat: switched off gives none", LH.heat(big) == 0)
+    C.SandboxDefaults.LampHeat = true
     local sources = {}
     DazedClimate = { Rooms = { addObjectSource = function(src) sources[#sources + 1] = src end } }
     LH.register(); LH.register()
@@ -3378,10 +3385,10 @@ do
     check("old flowering plants get an estimated flower start", p.flowerStartAt ~= nil and p.flowerStartAt < 99)
     p = flowering({ stage = C.STAGE.Flowering, flowerStartAt = 0, nextStageAt = 100, sex = C.SEX.MALE }); PT.update(p, 60, false)
     check("males don't count cold nights", p.coldNightHours == nil)
-    SandboxVars = { CannabisMod = { PurpleBuds = false } }
+    C.SandboxDefaults.PurpleBuds = false
     p = flowering(); PT.update(p, 60, false)
-    check("purple buds option off: no cold night count", p.coldNightHours == nil)
-    SandboxVars = nil
+    check("purple buds switched off: no cold night count", p.coldNightHours == nil)
+    C.SandboxDefaults.PurpleBuds = true
     coreT = 3; p = flowering()
     PT.update(p, 60, false)
     check("near freezing costs 2% yield an hour", near(p.coldYieldLoss, W.FREEZE_YIELD_PER_HOUR / 6) and p.coldNightHours == nil)
@@ -3423,10 +3430,10 @@ do
     CannabisMod.Farming.applyTint(purplePlant, lo)
     local sr, sg = CannabisMod.Strains.tint(purplePlant.strain)
     check("purple plants are painted purple", painted and painted[2] < sg - 0.1 and painted[1] < sr)
-    SandboxVars = { CannabisMod = { StrainTint = false } }
+    C.SandboxDefaults.StrainTint = false
     CannabisMod.Farming.applyTint(purplePlant, lo)
-    check("strain tint off: no purple either", painted[1] == 1 and painted[2] == 1 and painted[3] == 1)
-    SandboxVars = nil
+    check("strain tint switched off: no purple either", painted[1] == 1 and painted[2] == 1 and painted[3] == 1)
+    C.SandboxDefaults.StrainTint = true
     local qp = { lightCap = 80, genetics = 80, care = 100 }
     local plain = G.calcQuality(qp, 0, nil); qp.purple = true
     check("purple adds 5% quality", G.calcQuality(qp, 0, nil) == math.floor(plain * 1.05 + 0.5))

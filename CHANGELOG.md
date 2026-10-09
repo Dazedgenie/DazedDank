@@ -1,6 +1,7 @@
 # Dazed Dank patch notes
 
 ## dd55 (performance, in testing)
+- Changed: sandbox options cut from 30 to 22. Lamp Heat, Strain Name Words, Strain Tint, Purple Buds, Closed Door Light Leak and Drip Irrigation Radius are gone and keep their old defaults (everything on; doors leak 25%; drip tanks reach 5 tiles). **Grow Gear Needs Power** now covers lamps and pumps together, and **Dependency Build Rate** at 0 replaces the Dependency tick box. Saved values for the cut options are ignored.
 - Changed: grow lamp glow no longer scans 61 squares every frame. Lamps are remembered as they load or are placed and re-checked about once a second (and at once when the hour changes), so a lamp's glow may switch up to a second later.
 - Changed: plant lighting, grow room scans, crash recovery and the plant-layer check read each square once and only look closely at tiles that hold Dazed Dank objects.
 - Changed: grow room shapes are worked out again when something is built or removed near the room, and every 6 hours as a safety pass, instead of every 10 minutes. Doors, windows and curtains are still checked every 10 minutes.

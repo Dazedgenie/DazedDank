@@ -845,7 +845,7 @@ Config.SandboxDefaults = {
     MaleSeedChance    = 10,  -- % of seeds that are male
     MoldChance        = 1.0,  -- multiplier on mold risk
     DependencyEnabled = true,
-    DependencyRate    = 1.0,  -- multiplier on how fast dependency builds
+    DependencyRate    = 1.0,  -- multiplier on how fast dependency builds, 0 = no dependency or withdrawal
     HarvestQuantity   = 1.0,  -- multiplier on buds and seeds from harvest
     LootRarity        = 1.0,  -- multiplier on world loot weights, 0 = no loot
     EffectStrength    = 1.0,  -- multiplier on the mood and need changes of a high and of withdrawal
@@ -879,10 +879,25 @@ function Config.dryHours() return Config.sandbox("DryingHours") end
 --- Days in a jar for the full curing bonus (sandbox CuringDays).
 function Config.cureDays() return Config.sandbox("CuringDays") end
 
+Config.FixedOptions = {
+    DripRadius = true, StrainWords = true, DoorLeak = true,
+    StrainTint = true, LampHeat = true, PurpleBuds = true,
+}
+
 --- Read a sandbox option, falling back to the default above.
 --- @param name string option name, e.g. "GrowthSpeed"
 --- @return the option value
 function Config.sandbox(name)
+    -- Options that were cut from the sandbox page (1.x): they keep their
+    -- defaults whatever an older save still holds. DependencyEnabled follows
+    -- DependencyRate (0 = no dependency) and PumpsNeedPower follows
+    -- LampsNeedPower ("Grow gear needs power").
+    if Config.FixedOptions[name] then return Config.SandboxDefaults[name] end
+    if name == "DependencyEnabled" then
+        return (tonumber(Config.sandbox("DependencyRate")) or 1.0) > 0
+    elseif name == "PumpsNeedPower" then
+        return Config.sandbox("LampsNeedPower")
+    end
     -- SandboxVars is a Zomboid global. Our options sit under
     -- SandboxVars.CannabisMod because sandbox-options.txt names them
     -- "CannabisMod.GrowthSpeed" and so on.
