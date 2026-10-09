@@ -402,10 +402,15 @@ function Hydro.floodBlocker(r)
     return nil
 end
 
---- Copy when an object's rockwool dries onto it, so a right-click on the client can show it. Sent only when it moves half an hour or more.
+--- Copy when an object's rockwool dries onto it, so a right-click on the client can show it. Sent only when it moves half an hour or more,
+--- and while a flood timer keeps it wet only when the timer flag changes (the client then shows it full).
 local function markWet(obj, wetUntil, timer)
     if not obj then return end
     local md = obj:getModData()
+    if timer and md.DDWetTimer == true then
+        md.DDWetUntil = wetUntil
+        return
+    end
     local was = tonumber(md.DDWetUntil)
     if was and math.abs(was - wetUntil) < 0.5 and (md.DDWetTimer == true) == (timer == true) then return end
     md.DDWetUntil = wetUntil
@@ -552,7 +557,14 @@ function Hydro.update(plant, now)
         local timed = Hydro.hasFloodTimer(r) and not Hydro.floodBlocker(r)
         if timed then site.wetUntil = now + H.EBB_WET_HOURS end
         Hydro.markTableWet(plant.x, plant.y, plant.z, site.wetUntil or 0, timed)
-        if timed then Hydro.markReservoirWet(r, site.wetUntil, true) end
+        -- Every table of a reservoir asks; the reservoir object is marked once per tick.
+        if timed then
+            local memoKey = tickMemo and ("wet@" .. r.x .. "_" .. r.y .. "_" .. r.z)
+            if not (memoKey and tickMemo[memoKey]) then
+                Hydro.markReservoirWet(r, site.wetUntil, true)
+                if memoKey then tickMemo[memoKey] = true end
+            end
+        end
         wetHours = math.max(0, (site.wetUntil or 0) - now)
         wet = wetHours > 0
         plant.warnings.mediumDry = (not wet) or nil

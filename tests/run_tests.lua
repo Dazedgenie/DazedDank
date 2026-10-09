@@ -2106,6 +2106,10 @@ do
     local sentBefore = SFarmingSystem.instance:getLuaObjectAt(ep.x, ep.y, ep.z):getIsoObject().sent
     HY.update(ep, 214 + 1 / 6)
     check("the table's wetness isn't re-sent every ten minutes", SFarmingSystem.instance:getLuaObjectAt(ep.x, ep.y, ep.z):getIsoObject().sent == sentBefore)
+    for k = 2, 6 do HY.update(ep, 214 + k / 6) end
+    local tableObj = SFarmingSystem.instance:getLuaObjectAt(ep.x, ep.y, ep.z):getIsoObject()
+    check("nor every half hour while the timer keeps it wet", tableObj.sent == sentBefore and tableMd.DDWetUntil == 215 + HC.EBB_WET_HOURS)
+    check("the client shows a timed table full", C.Hydro.wetnessLabel(100, true, 500) == "Rockwool: 100% wet (flood timer keeps it wet)")
     res.power = false
     HY.update(ep, 220)
     check("after a power cut the rockwool is still wet for a while", not ep.warnings.mediumDry)
