@@ -31,6 +31,45 @@ local function scheduleAt(x, y, z)
     return Timers and Timers.scheduleAt(x, y, z) or nil
 end
 
+-- Placed lamps by tile: lampIndex[z][x][y] = true, fed by square loads and placements and checked against the square
+-- when read, so a lamp that was taken away drops out. Ground lamp items raise no event, so squares are still read for them.
+local lampIndex = {}
+
+--- Note a placed lamp on a tile so the light scan reads that square.
+function Light.noteLamp(x, y, z)
+    local floor = lampIndex[z]
+    if not floor then floor = {} lampIndex[z] = floor end
+    local column = floor[x]
+    if not column then column = {} floor[x] = column end
+    column[y] = true
+end
+
+--- True if a placed lamp was last seen on this tile.
+local function indexed(x, y, z)
+    local floor = lampIndex[z]
+    local column = floor and floor[x]
+    return column ~= nil and column[y] == true
+end
+
+local function forget(x, y, z)
+    local column = lampIndex[z] and lampIndex[z][x]
+    if column then column[y] = nil end
+end
+
+CannabisMod.World.onSquareLoad("lamp index", function(square, hits)
+    for i = 1, hits.n do
+        if hits.info[i].lamp then
+            Light.noteLamp(square:getX(), square:getY(), square:getZ())
+            return
+        end
+    end
+end)
+CannabisMod.World.onObjectAdded("lamp index", function(obj, name, info)
+    if not info.lamp then return end
+    local square = obj:getSquare()
+    if square then Light.noteLamp(square:getX(), square:getY(), square:getZ()) end
+end)
+
 -- During the plant tick every plant asks about the same squares, so each square's lamps are read once per tick.
 -- tickCache[z][x][y] = list of { def, schedule, powered }, or false for a square with none (nil = not read yet).
 local tickCache = nil
@@ -45,14 +84,20 @@ function Light.endTick() tickCache = nil end
 local function readSquare(square, x, y, z)
     local found = false
     local sprites, items = Config.Light.SPRITES, Config.Light.ITEMS
-    local objects = square:getObjects()
-    for i = 0, objects:size() - 1 do
-        local sprite = objects:get(i):getSprite()
-        local def = sprite and sprites[sprite:getName()]
-        if def then
-            found = found or {}
-            found[#found + 1] = { def = def, schedule = scheduleAt(x, y, z), powered = isPowered(square) and roomPowered(x, y, z) }
+    -- Only a tile the index knows can hold a placed lamp; one whose lamp has gone leaves the index.
+    if indexed(x, y, z) then
+        local any = false
+        local objects = square:getObjects()
+        for i = 0, objects:size() - 1 do
+            local sprite = objects:get(i):getSprite()
+            local def = sprite and sprites[sprite:getName()]
+            if def then
+                any = true
+                found = found or {}
+                found[#found + 1] = { def = def, schedule = scheduleAt(x, y, z), powered = isPowered(square) and roomPowered(x, y, z) }
+            end
         end
+        if not any then forget(x, y, z) end
     end
     -- Loose lamp items lying on the ground have no timer.
     local worldItems = square:getWorldObjects()
@@ -86,6 +131,41 @@ local function lampsOn(cell, x, y, z)
     return lamps
 end
 
+--- Add every lamp within R of a plant at x, y, z to `out` (run under pcall by lampsAt).
+local function scanLamps(out, x, y, z, R, hour, range, needPower, roomKey)
+    local reaches, isOn, isLongDay = Config.Light.reaches, Config.Timer.isOn, Config.Timer.isLongDay
+    local Rooms = CannabisMod.Rooms
+    local cell = getCell()
+    for dx = -R, R do
+        for dy = -R, R do
+            local lamps = lampsOn(cell, x + dx, y + dy, z)
+            if lamps then
+                for _, lamp in ipairs(lamps) do
+                    local def = lamp.def
+                    local outsideLeak = roomKey and Rooms.keyAt(x + dx, y + dy, z) ~= roomKey
+                        and Rooms.lampLeak(roomKey, x, y, x + dx, y + dy, def, range) or nil
+                    local blocked = outsideLeak ~= nil and outsideLeak < 1
+                    -- A lit veg lamp seeping in round a closed door is a small leak, not the plant's light.
+                    if blocked and outsideLeak > 0 and isLongDay(lamp.schedule) and isOn(lamp.schedule, hour)
+                        and reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
+                        out.seepLong = math.max(out.seepLong, outsideLeak)
+                    end
+                    if not blocked and reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
+                        local on = isOn(lamp.schedule, hour)
+                        if isLongDay(lamp.schedule) then
+                            out.anyLong = true
+                            if on then out.longOn = true end
+                        else
+                            out.anyShort = true
+                        end
+                        if on and (not out.cap or def.cap > out.cap) then out.cap, out.name = def.cap, def.name end
+                    end
+                end
+            end
+        end
+    end
+end
+
 --- The powered lamps reaching a plant, summed up for this moment.
 --- Returns { cap, name } for the brightest lamp lit right now (nil when none is lit), plus
 --- anyLong / anyShort for whether any reaching lamp runs a veg (24/0, 18/6) or a 12/12 schedule.
@@ -95,41 +175,10 @@ function Light.lampsAt(x, y, z)
     local range = Config.sandbox("LampRange")
     local needPower = Config.sandbox("LampsNeedPower")
     local R = math.ceil(Config.Light.MAX_RADIUS * range)
-    local reaches, isOn, isLongDay = Config.Light.reaches, Config.Timer.isOn, Config.Timer.isLongDay
     -- A plant in a grow room is only reached by outside lamps through an uncovered door or window.
     local Rooms = CannabisMod.Rooms
     local roomKey = Rooms and Rooms.keyAt(x, y, z)
-    pcall(function()
-        local cell = getCell()
-        for dx = -R, R do
-            for dy = -R, R do
-                local lamps = lampsOn(cell, x + dx, y + dy, z)
-                if lamps then
-                    for _, lamp in ipairs(lamps) do
-                        local def = lamp.def
-                        local outsideLeak = roomKey and Rooms.keyAt(x + dx, y + dy, z) ~= roomKey
-                            and Rooms.lampLeak(roomKey, x, y, x + dx, y + dy, def, range) or nil
-                        local blocked = outsideLeak ~= nil and outsideLeak < 1
-                        -- A lit veg lamp seeping in round a closed door is a small leak, not the plant's light.
-                        if blocked and outsideLeak > 0 and isLongDay(lamp.schedule) and isOn(lamp.schedule, hour)
-                            and reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
-                            out.seepLong = math.max(out.seepLong, outsideLeak)
-                        end
-                        if not blocked and reaches(dx, dy, def.radius, range) and (lamp.powered or not needPower) then
-                            local on = isOn(lamp.schedule, hour)
-                            if isLongDay(lamp.schedule) then
-                                out.anyLong = true
-                                if on then out.longOn = true end
-                            else
-                                out.anyShort = true
-                            end
-                            if on and (not out.cap or def.cap > out.cap) then out.cap, out.name = def.cap, def.name end
-                        end
-                    end
-                end
-            end
-        end
-    end)
+    pcall(scanLamps, out, x, y, z, R, hour, range, needPower, roomKey)
     return out
 end
 

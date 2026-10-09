@@ -862,6 +862,7 @@ check("lamp 4 tiles away doesn't", select(1, L.measure(farPlant)) == 0)
 local lampSq = fakeSquare(200, 200, 0, false, true)
 local function plantAt(dx) fakeSquare(200 + dx, 200, 0, false, true); return { x = 200 + dx, y = 200, z = 0, warnings = {}, stage = 2 } end
 lampSq.objs[1] = "dazeddank_plants_01_197"  -- Basic, radius 2
+fire("LoadGridsquare", lampSq)  -- announce the placed lamp to the light index
 check("placed basic lamp: 2 tiles", select(1, L.measure(plantAt(2))) == 85)
 check("placed basic lamp: not 3 tiles", select(1, L.measure(plantAt(3))) == 0)
 lampSq.objs[1] = "dazeddank_plants_01_198"  -- Pro, radius 2.5
@@ -884,6 +885,7 @@ do
     fakeSquare(210, 200, 0, false, true)
     local lamp = fakeSquare(209, 200, 0, false, true)
     lamp.objs[1] = "dazeddank_plants_01_197"
+    fire("LoadGridsquare", lamp)  -- announce the placed lamp to the light index
     L.update(inRoom)
     local cycle, cap = inRoom.lightCycle, inRoom.lightCap
     fakeSquares["210_200_0"] = nil
@@ -901,6 +903,7 @@ do
     L.beginTick()
     local before = select(1, L.measure({ x = 221, y = 200, z = 0, warnings = {} }))
     sq.objs[1] = "dazeddank_plants_01_198"
+    fire("LoadGridsquare", sq)  -- announce the placed lamp to the light index
     local during = select(1, L.measure({ x = 221, y = 200, z = 0, warnings = {} }))
     L.endTick()
     local after = select(1, L.measure({ x = 221, y = 200, z = 0, warnings = {} }))
@@ -908,10 +911,27 @@ do
     sq.objs[1] = nil
 end
 
+-- Placed lamps reach the light scan through the lamp index: placing adds a tile, and a lamp taken away drops out.
+do
+    local sq = fakeSquare(230, 200, 0, false, true)
+    fakeSquare(231, 200, 0, false, true)
+    local plant = { x = 231, y = 200, z = 0, warnings = {} }
+    sq.objs[1] = "dazeddank_plants_01_198"
+    check("lamp index: a lamp no event announced is not read", select(1, L.measure(plant)) == 0)
+    fire("OnObjectAdded", sq:getObjects():get(0))
+    check("lamp index: a placed lamp lights the plant", select(1, L.measure(plant)) == 100)
+    sq.objs[1] = nil
+    check("lamp index: a lamp taken away stops lighting", select(1, L.measure(plant)) == 0)
+    sq.objs[1] = "dazeddank_plants_01_198"
+    check("lamp index: the emptied tile left the index", select(1, L.measure(plant)) == 0)
+    sq.objs[1] = nil
+end
+
 -- Outdoors a lit flood light supplements the sun.
 local yard = fakeSquare(400, 400, 0, true, true)
 local function yardPlant(dx) fakeSquare(400 + dx, 400, 0, true, false); return { x = 400 + dx, y = 400, z = 0, warnings = {}, stage = 2 } end
 yard.objs[1] = "dazeddank_plants_01_234"
+fire("LoadGridsquare", yard)  -- announce the placed lamp to the light index
 local yc, ysrc = L.measure(yardPlant(2))
 check("outdoors, sun + basic flood: stronger light plus a boost", yc == 85 + C.LightCap.SUN_BOOST and ysrc:find("^Sun %+"))
 yard.objs[1] = "dazeddank_plants_01_235"
@@ -1504,6 +1524,7 @@ do
     TS._reset({})
     local lamp = fakeSquare(300, 300, 0, false, true)
     lamp.objs[1] = "dazeddank_plants_01_197"
+    fire("LoadGridsquare", lamp)  -- announce the placed lamp to the light index
     fakeSquare(301, 300, 0, false, true)
     local function plant() return { x = 301, y = 300, z = 0, warnings = {}, stage = 2, care = 100, stress = 0, lightCap = 85 } end
     local old = hourOfDay
@@ -1533,6 +1554,7 @@ do
     -- A second lamp with no timer leaks light into the 12/12 plant's night.
     local leakSq = fakeSquare(302, 300, 0, false, true)
     leakSq.objs[1] = "dazeddank_plants_01_198"
+    fire("LoadGridsquare", leakSq)  -- announce the placed lamp to the light index
     hourOfDay = 20
     p = plant(); Lt.update(p)
     check("light leak at night: stress and a warning", p.lightCycle == "leak" and p.stress > 0 and p.warnings.lightLeak)
@@ -2394,8 +2416,10 @@ end
 
     local lampA = fakeSquares["501_501_0"]
     lampA.objs[1] = { sprite = "dazeddank_plants_01_197", md = {} }
+    fire("LoadGridsquare", lampA)  -- announce the placed lamp to the light index
     local lampB = fakeSquares["504_501_0"]
     lampB.objs[1] = { sprite = "dazeddank_plants_01_197", md = {} }
+    fire("LoadGridsquare", lampB)  -- announce the placed lamp to the light index
     local owner = newPlayer(501, 501, 5)
     owner.inv:AddItems(TM.ITEM, 1)
     fire("OnClientCommand", "CannabisMod", "installTimer", owner, { x = 501, y = 501, z = 0 })
@@ -2439,6 +2463,7 @@ end
     -- A new lamp placed in the room picks up the room schedule at the next resync.
     local lampC = fakeSquares["500_503_0"]
     lampC.objs[1] = { sprite = "dazeddank_plants_01_197", md = {} }
+    fire("LoadGridsquare", lampC)  -- announce the placed lamp to the light index
     check("new lamp runs the room schedule at once", TS.scheduleAt(500, 503, 0) == "18/6")
     R.rebuild(wall)
     check("rebuild marks the new lamp for clients", lampC.objs[1].md.DDTimer == "18/6")
@@ -2586,6 +2611,7 @@ end
 
         local outLamp = fakeSquares["805_801_0"]
         outLamp.objs[1] = { sprite = "dazeddank_plants_01_198", md = {} }
+        fire("LoadGridsquare", outLamp)  -- announce the placed lamp to the light index
         hourOfDay = 22
         local reach = CannabisMod.Light.lampsAt(804, 802, 0)
         check("an outside lamp leaks in through an uncovered door", reach.cap ~= nil and reach.anyLong)
@@ -2869,7 +2895,7 @@ end
         for x = 1300, 1304 do for y = 1300, 1302 do fakeSquare(x, y, 0, false, true) end end
         table.insert(fakeSquares["1300_1300_0"].objs, { sprite = "dazeddank_rooms_01_0", md = {} })
         for x = 1301, 1304 do
-            for y = 1301, 1302 do fakeSquares[x .. "_" .. y .. "_0"].objs[1] = { sprite = "dazeddank_plants_01_197", md = {} } end
+            for y = 1301, 1302 do fakeSquares[x .. "_" .. y .. "_0"].objs[1] = { sprite = "dazeddank_plants_01_197", md = {} }; fire("LoadGridsquare", fakeSquares[x .. "_" .. y .. "_0"]) end
         end
         local oldBlocked, oldOutdoor = R.edgeBlocked, R.outdoor
         R.edgeBlocked = function() return false end
