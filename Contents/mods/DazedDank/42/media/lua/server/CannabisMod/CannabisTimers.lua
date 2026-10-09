@@ -6,6 +6,7 @@ require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
+require "CannabisMod/CannabisWorld"
 require "Moveables/ISMoveableSpriteProps"
 
 local Config = CannabisMod.Config
@@ -39,15 +40,7 @@ end
 
 --- The lamp object on a square, or nil.
 local function lampObject(square)
-    local objects = square:getObjects()
-    local sprites = Config.Light.SPRITES
-    for i = 0, objects:size() - 1 do
-        local obj = objects:get(i)
-        local sprite = obj:getSprite()
-        local name = sprite and sprite:getName()
-        if name and sprites[name] then return obj end
-    end
-    return nil
+    return (CannabisMod.World.findIn(square, Config.Light.SPRITES))
 end
 
 --- Every square of the lamp on `square`: all tiles of a bar lamp, or just this one.
@@ -115,8 +108,8 @@ function Timers.adoptRoom(tileSet, schedule)
             timers[key] = nil
             if entry.item then freed = freed + 1 end
         end
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        local square = x and cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        local x, y, z = Config.parseKey(key)
+        local square = x and cell:getGridSquare(x, y, z)
         local lamp = square and lampObject(square)
         if lamp and objectSchedule(lamp) ~= schedule then markObject(square, schedule) end
     end
@@ -127,8 +120,8 @@ end
 function Timers.markRoomPower(tileSet, off)
     local cell = getCell()
     for key in pairs(tileSet) do
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        local square = x and cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        local x, y, z = Config.parseKey(key)
+        local square = x and cell:getGridSquare(x, y, z)
         local lamp = square and lampObject(square)
         if lamp and (lamp:getModData().DDRoomOff == true) ~= off then
             lamp:getModData().DDRoomOff = off or nil
@@ -206,8 +199,8 @@ function Timers.cleanup()
     local cell = getCell()
     local gone = {}
     for key, entry in pairs(timers) do
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        local square = x and cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        local x, y, z = Config.parseKey(key)
+        local square = x and cell:getGridSquare(x, y, z)
         local lamp = square and lampObject(square)
         if square and not lamp then
             gone[#gone + 1] = key

@@ -6,6 +6,7 @@ if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisRegistry"
+require "CannabisMod/CannabisWorld"
 
 local Config   = CannabisMod.Config
 local Registry = CannabisMod.Registry
@@ -13,11 +14,7 @@ local Registry = CannabisMod.Registry
 local Light = {}
 CannabisMod.Light = Light
 
---- True if this square has power for a lamp.
-local function isPowered(square)
-    if square:haveElectricity() then return true end
-    return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
-end
+local isPowered = CannabisMod.World.isPowered
 
 --- True if this square has power for a lamp (the grow room panel reads this too).
 Light.isPowered = isPowered

@@ -5,6 +5,7 @@
 if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisWorld"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisStrains"
 require "CannabisMod/CannabisSeeds"
@@ -170,13 +171,7 @@ local function rackSquares(square)
     return out
 end
 
-local function isPowered(square)
-    local ok, powered = pcall(function()
-        if square:haveElectricity() then return true end
-        return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
-    end)
-    return ok and powered == true
-end
+local isPowered = CannabisMod.World.isPoweredSafe
 
 --- True if a fan stands on this square (one pass over its objects, no lists built).
 local function fanOn(square)
@@ -354,9 +349,8 @@ end
 
 --- The air temperature (C) at a station tile key: its grow room's air when it has one, else the square's. Nil when unknown.
 function Drying.cureTemp(key)
-    local x, y, z = tostring(key):match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+    local x, y, z = Config.parseKey(tostring(key))
     if not x then return nil end
-    x, y, z = tonumber(x), tonumber(y), tonumber(z)
     local Rooms = CannabisMod.Rooms
     local t = Rooms and Rooms.climateAt(x, y, z)
     if t then return t end
@@ -552,8 +546,8 @@ function Drying.tick()
     if not db then return end
     local now = Registry.nowHours()
     for key, station in pairs(db.stations) do
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        local square = x and getCell():getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        local x, y, z = Config.parseKey(key)
+        local square = x and getCell():getGridSquare(x, y, z)
         if square then
             local racks, jars, barrels = racksAt(square), worldItemsAt(square, D.JAR_ITEM), barrelsAt(square)
             if #racks == 0 and #jars == 0 and #barrels == 0 then

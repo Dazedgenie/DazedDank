@@ -77,6 +77,53 @@ function World.safeSpriteName(obj)
 end
 
 -- --------------------------------------------------------------------------
+-- Power and finding objects on squares
+-- --------------------------------------------------------------------------
+
+--- True if this square has power for a lamp or pump: the grid, or the building's power indoors.
+function World.isPowered(square)
+    if square:haveElectricity() then return true end
+    return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
+end
+
+--- World.isPowered, but false instead of an error when the game API differs.
+function World.isPoweredSafe(square)
+    local ok, on = pcall(World.isPowered, square)
+    return ok and on == true
+end
+
+--- The first object on a square whose sprite is `name`, or nil.
+function World.findSprite(square, name)
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        if sprite and sprite:getName() == name then return obj end
+    end
+    return nil
+end
+
+--- The first object on a square whose sprite name is a key of `set`, with that name and its value; nil when none is.
+function World.findIn(square, set)
+    local objects = square:getObjects()
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        local name = sprite and sprite:getName()
+        local value = name and set[name]
+        if value then return obj, name, value end
+    end
+    return nil
+end
+
+--- True if an object with this sprite stands on the tile, false if not, nil when the square isn't loaded.
+function World.hasSprite(x, y, z, name)
+    local square = getCell():getGridSquare(x, y, z)
+    if not square then return nil end
+    return World.findSprite(square, name) ~= nil
+end
+
+-- --------------------------------------------------------------------------
 -- Event dispatcher
 -- --------------------------------------------------------------------------
 

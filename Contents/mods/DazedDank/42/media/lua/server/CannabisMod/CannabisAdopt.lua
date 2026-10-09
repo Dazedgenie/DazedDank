@@ -28,8 +28,7 @@ local Registry = CannabisMod.Registry
 function Adopt.redrawAll()
     local n = 0
     for key in Registry.eachBag() do
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local x, y, z = Config.parseKey(key)
         if x and getCell():getGridSquare(x, y, z) then
             local ok, drawn = pcall(CannabisMod.GrowBags.redraw, x, y, z)
             if ok and drawn then n = n + 1 end

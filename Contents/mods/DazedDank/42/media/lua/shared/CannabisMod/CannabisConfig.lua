@@ -96,10 +96,7 @@ Config.WET_PLANT_ITEMS = {
     Hybrid = "CannabisMod.WetHybridPlant",
 }
 function Config.isWetPlant(fullType)
-    for _, t in pairs(Config.WET_PLANT_ITEMS) do
-        if t == fullType then return true end
-    end
-    return false
+    return Config.WET_SET[fullType] == true
 end
 -- What a wet plant turns into once it has dried on a rack.
 Config.DRIED_PLANT_ITEMS = {
@@ -108,15 +105,16 @@ Config.DRIED_PLANT_ITEMS = {
     Hybrid = "CannabisMod.DriedHybridPlant",
 }
 function Config.isDriedPlant(fullType)
-    for _, t in pairs(Config.DRIED_PLANT_ITEMS) do
-        if t == fullType then return true end
-    end
-    return false
+    return Config.DRIED_SET[fullType] == true
 end
 --- Wet or dried whole plant: what racks hold and what can be trimmed.
 function Config.isHangingPlant(fullType)
-    return Config.isWetPlant(fullType) or Config.isDriedPlant(fullType)
+    return Config.WET_SET[fullType] == true or Config.DRIED_SET[fullType] == true
 end
+-- Item type sets for the checks above, built once (the item tables never change while playing).
+Config.WET_SET, Config.DRIED_SET = {}, {}
+for _, t in pairs(Config.WET_PLANT_ITEMS) do Config.WET_SET[t] = true end
+for _, t in pairs(Config.DRIED_PLANT_ITEMS) do Config.DRIED_SET[t] = true end
 Config.GEL_ITEM     = "CannabisMod.RootingGel"
 
 -- Nutrient bottles, by the name Registry.feed expects.
@@ -926,7 +924,25 @@ end
 --- Build the registry key for a tile. One plant per tile, so x/y/z is a
 --- unique id that both client and server can work out from a square.
 function Config.tileKey(x, y, z)
+    -- Numbers join without tostring calls; anything else keeps the old tostring form.
+    if type(x) == "number" and type(y) == "number" and type(z) == "number" then return x .. "_" .. y .. "_" .. z end
     return tostring(x) .. "_" .. tostring(y) .. "_" .. tostring(z)
+end
+
+-- Tile key -> { x, y, z }, or false for a string that isn't one; kept for good, as keys are bounded by tiles touched.
+local keyCache = {}
+
+--- The x, y, z numbers of a tile key, or nil when it isn't one.
+function Config.parseKey(key)
+    if type(key) ~= "string" then return nil end
+    local hit = keyCache[key]
+    if hit == nil then
+        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+        hit = x and { tonumber(x), tonumber(y), tonumber(z) } or false
+        keyCache[key] = hit
+    end
+    if not hit then return nil end
+    return hit[1], hit[2], hit[3]
 end
 
 --- True when the game runs in debug mode, where the mod writes its tracing lines.

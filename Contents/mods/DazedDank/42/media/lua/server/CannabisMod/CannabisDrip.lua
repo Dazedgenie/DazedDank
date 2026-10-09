@@ -31,8 +31,8 @@ function Drip.tilesOf(r)
     end
     if set then
         for key in pairs(set) do
-            local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-            consider(tonumber(x), tonumber(y), tonumber(z))
+            local x, y, z = Config.parseKey(key)
+            consider(x, y, z)
         end
         return out
     end

@@ -124,9 +124,8 @@ local function partnerPlot(x, y, z)
     local Hydro = CannabisMod.Hydro
     local site = Hydro and Hydro.get(x, y, z, "ebb")
     if not (site and site.partner) then return nil end
-    local px, py, pz = site.partner:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
+    local px, py, pz = Config.parseKey(site.partner)
     if not px then return nil end
-    px, py, pz = tonumber(px), tonumber(py), tonumber(pz)
     if Registry.getBag(px, py, pz) ~= "ebb" then return nil end
     -- Only a partner that points back is the same table.
     if Hydro.get(px, py, pz, "ebb").partner ~= Config.tileKey(x, y, z) then return nil end

@@ -7,6 +7,7 @@ require "Farming/SFarmingSystem"
 require "Farming/SPlantGlobalObject"
 require "Farming/TimedActions/ISSeedActionNew"
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisWorld"
 require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisSeeds"
@@ -172,10 +173,10 @@ function Farming.syncWithVanilla()
         local lostBags = {}
         local today = getGameTime():getWorldAgeHours() / 24
         for key, size in Registry.eachBag() do
-            local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-            local luaObject = x and Farming.getVanilla(tonumber(x), tonumber(y), tonumber(z))
+            local x, y, z = Config.parseKey(key)
+            local luaObject = x and Farming.getVanilla(x, y, z)
             if not luaObject then
-                lostBags[#lostBags + 1] = { tonumber(x), tonumber(y), tonumber(z) }
+                lostBags[#lostBags + 1] = { x, y, z }
             else
                 pcall(freshenPlot, luaObject, today)
             end
@@ -220,7 +221,7 @@ function Farming.conditionsAt(square)
                 hasLight = hour >= 6 and hour < 20
             else
                 -- indoors: needs the building's power on (lights can run)
-                hasLight = square:haveElectricity() or getWorld():isHydroPowerOn()
+                hasLight = CannabisMod.World.isPowered(square)
             end
         end)
     end

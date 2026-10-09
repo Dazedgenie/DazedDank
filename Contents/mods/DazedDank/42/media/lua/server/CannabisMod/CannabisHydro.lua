@@ -11,8 +11,10 @@ require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
 require "CannabisMod/CannabisPlumbing"
+require "CannabisMod/CannabisWorld"
 
 local Config   = CannabisMod.Config
+local World    = CannabisMod.World
 local Net      = CannabisMod.Net
 local Seeds    = CannabisMod.Seeds
 local Registry = CannabisMod.Registry
@@ -98,17 +100,8 @@ function Hydro.beginTick() tickMemo = {} end
 --- Stop keeping them, so later questions see the world as it is.
 function Hydro.endTick() tickMemo = nil end
 
---- True if an object with this sprite stands on the square (nil when the square isn't loaded).
-local function scanSprite(x, y, z, sprite)
-    local square = getCell():getGridSquare(x, y, z)
-    if not square then return nil end
-    local objects = square:getObjects()
-    for i = 0, objects:size() - 1 do
-        local spr = objects:get(i):getSprite()
-        if spr and spr:getName() == sprite then return true end
-    end
-    return false
-end
+-- True if an object with this sprite stands on the square (nil when the square isn't loaded).
+local scanSprite = World.hasSprite
 
 local function hasSprite(x, y, z, sprite)
     if not tickMemo then return scanSprite(x, y, z, sprite) end
@@ -151,9 +144,9 @@ local missedSearch = {}
 function Hydro.linkSite(x, y, z)
     local site = Hydro.get(x, y, z, "rdwc")
     if site.link then
-        local cx, cy, cz = site.link:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        if cx and Hydro.hasControl(tonumber(cx), tonumber(cy), tonumber(cz)) ~= false then
-            local r = Hydro.get(tonumber(cx), tonumber(cy), tonumber(cz), "rdwc")
+        local cx, cy, cz = Config.parseKey(site.link)
+        if cx and Hydro.hasControl(cx, cy, cz) ~= false then
+            local r = Hydro.get(cx, cy, cz, "rdwc")
             r.isControl = true
             return r
         end
@@ -275,8 +268,8 @@ function Hydro.linkEbb(x, y, z)
         c = ebbCache[key]
     end
     if not (c and c.rkey) then return nil, (c and c.unknown) or false end
-    local rx, ry, rz = c.rkey:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-    local r = Hydro.get(tonumber(rx), tonumber(ry), tonumber(rz), "ebb")
+    local rx, ry, rz = Config.parseKey(c.rkey)
+    local r = Hydro.get(rx, ry, rz, "ebb")
     r.isFlood = true
     return r
 end
@@ -390,8 +383,7 @@ function Hydro.flood(r, now)
     if blocked then return blocked end
     local timer = Hydro.hasFloodTimer(r)
     for _, k in ipairs(keys) do
-        local x, y, z = k:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local x, y, z = Config.parseKey(k)
         Hydro.get(x, y, z, "ebb").wetUntil = now + H.EBB_WET_HOURS
         Hydro.markTableWet(x, y, z, now + H.EBB_WET_HOURS, timer)
     end
@@ -406,11 +398,7 @@ function Hydro.pumpsOn(x, y, z)
     if not square then return nil end
     -- A grow room panel without power takes every pump in its room down with it.
     if CannabisMod.Rooms and CannabisMod.Rooms.poweredAt(x, y, z) == false then return false end
-    local ok, on = pcall(function()
-        if square:haveElectricity() then return true end
-        return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
-    end)
-    return ok and on == true
+    return World.isPoweredSafe(square)
 end
 
 --- A reservoir's pump power, falling back to the last known state while its square isn't loaded.
@@ -1133,8 +1121,7 @@ function Hydro.debugFillNear(x, y, range)
         pots = pots + 1
     end
     for key, kind in Registry.eachBag() do
-        local tx, ty, tz = key:match("^(%-?%d+)_(%-?%d+)_(%-?%d+)$")
-        tx, ty, tz = tonumber(tx), tonumber(ty), tonumber(tz)
+        local tx, ty, tz = Config.parseKey(key)
         if tx and near(tx, ty) then
             if Config.isHydro(kind) then fill(Hydro.reservoirOf(tx, ty, tz)) else water(tx, ty, tz) end
         end

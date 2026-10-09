@@ -5,19 +5,19 @@ if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisLight"
+require "CannabisMod/CannabisWorld"
 
 local Config = CannabisMod.Config
 
 local LampHeat = {}
 CannabisMod.LampHeat = LampHeat
 
+local safeSpriteName = CannabisMod.World.safeSpriteName
+
 --- The lamp definition for an object's sprite, or nil when it isn't a grow lamp.
 local function lampDef(obj)
-    local ok, name = pcall(function()
-        local sprite = obj:getSprite()
-        return sprite and sprite:getName()
-    end)
-    return ok and name and Config.Light.SPRITES[name] or nil
+    local name = safeSpriteName(obj)
+    return name and Config.Light.SPRITES[name] or nil
 end
 
 --- True for a placed grow lamp (Dazed Climate asks this once per room read).
@@ -53,11 +53,8 @@ end
 
 --- The equipment entry for an object's sprite, or nil.
 local function gearOf(obj)
-    local ok, name = pcall(function()
-        local sprite = obj:getSprite()
-        return sprite and sprite:getName()
-    end)
-    return ok and name and Config.Rooms.EQUIPMENT[name] or nil
+    local name = safeSpriteName(obj)
+    return name and Config.Rooms.EQUIPMENT[name] or nil
 end
 
 --- True for a placed wall AC (Dazed Climate asks this once per room read).

@@ -133,8 +133,7 @@ function Rooms.findOpenings(set)
     local cell = getCell()
     local out = {}
     for tileKey in pairs(set) do
-        local x, y, z = tileKey:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local x, y, z = Config.parseKey(tileKey)
         local sq = cell:getGridSquare(x, y, z)
         for _, d in ipairs(DIRS) do
             local nx, ny = x + d[1], y + d[2]
@@ -275,20 +274,12 @@ end
 
 --- The panel object on a square, or nil.
 function Rooms.panelObject(square)
-    local objects = square:getObjects()
-    for i = 0, objects:size() - 1 do
-        if isPanelObject(objects:get(i)) then return objects:get(i) end
-    end
-    return nil
+    return (World.findIn(square, Config.Rooms.PANEL_SPRITES))
 end
 
 --- True when a panel object stands on the square.
 local function panelOn(square)
-    local objects = square:getObjects()
-    for i = 0, objects:size() - 1 do
-        if isPanelObject(objects:get(i)) then return true end
-    end
-    return false
+    return World.findIn(square, Config.Rooms.PANEL_SPRITES) ~= nil
 end
 
 --- Hand every lamp in a room the room's schedule and give back any timer it carried.
@@ -608,8 +599,8 @@ function Rooms.info(panelKey, player)
     local lamps, count, counted = {}, 0, {}
     for key in pairs(set) do
         count = count + 1
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        local square = cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        local x, y, z = Config.parseKey(key)
+        local square = cell:getGridSquare(x, y, z)
         if square then
             local objects = square:getObjects()
             for i = 0, objects:size() - 1 do
@@ -662,8 +653,7 @@ function Rooms.reservoirRecords(panelKey)
     local out = {}
     if not (Hydro and set and room) then return out end
     for key in pairs(set) do
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local x, y, z = Config.parseKey(key)
         local r, name
         local bag = Registry.getBag(x, y, z)
         if Config.hydroOf(bag) == "dwc" then r, name = Hydro.reservoirAt(x, y, z, "dwc"), (bag == "xldwc" and "XL DWC bucket" or "DWC bucket")
@@ -714,8 +704,8 @@ function Rooms.lineDependents(r)
     if not (room and room.lineWaiting) then return out end
     local Hydro = CannabisMod.Hydro
     for key, kind in pairs(room.lineWaiting) do
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        local o = Hydro.reservoirAt(tonumber(x), tonumber(y), tonumber(z), kind)
+        local x, y, z = Config.parseKey(key)
+        local o = Hydro.reservoirAt(x, y, z, kind)
         if o and o ~= r and o.fillPending then
             out[#out + 1] = o
         else
@@ -752,8 +742,7 @@ function Rooms.equipmentRows(panelKey)
     local panelPowered = room.powered ~= false
     local WALLS = { S = "north wall", E = "west wall", N = "south wall", W = "east wall" }
     for key in pairs(set) do
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        x, y, z = tonumber(x), tonumber(y), tonumber(z)
+        local x, y, z = Config.parseKey(key)
         local square = cell:getGridSquare(x, y, z)
         if square then
             local objects = square:getObjects()
@@ -954,8 +943,8 @@ function Rooms.scan(panelKey)
     if room.schedule ~= "24/0" then schedule = room.schedule end
     local panelPowered = room.powered ~= false
     for key in pairs(set) do
-        local x, y, z = key:match("^(-?%d+)_(-?%d+)_(-?%d+)$")
-        local square = cell:getGridSquare(tonumber(x), tonumber(y), tonumber(z))
+        local x, y, z = Config.parseKey(key)
+        local square = cell:getGridSquare(x, y, z)
         if square then
             local objects = square:getObjects()
             for i = 0, objects:size() - 1 do

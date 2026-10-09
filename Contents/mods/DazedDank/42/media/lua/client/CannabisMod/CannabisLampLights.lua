@@ -2,6 +2,7 @@
 -- Lights are client-side visuals, rebuilt from the lamps near the player and switched by power and the lamp's timer.
 
 require "CannabisMod/CannabisConfig"
+require "CannabisMod/CannabisWorld"
 
 local Config = CannabisMod.Config
 
@@ -41,11 +42,7 @@ function LampLights.radius(def)
     return math.ceil(def.radius) + 2
 end
 
---- True if this square has power for a lamp.
-local function powered(square)
-    if square:haveElectricity() then return true end
-    return (not square:isOutside()) and getWorld():isHydroPowerOn() or false
-end
+local powered = CannabisMod.World.isPowered
 
 --- Switch one light source off and take it out of the cell.
 local function dropSource(cell, light)
