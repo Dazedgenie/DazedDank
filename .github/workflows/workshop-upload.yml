@@ -84,11 +84,12 @@ jobs:
           STEAM_SHARED_SECRET: ${{ secrets.STEAM_SHARED_SECRET }}
           STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
         run: |
-          # Secrets pasted with a stray newline or space break the login, so trim them.
-          STEAM_USERNAME=$(printf '%s' "$STEAM_USERNAME" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          # Secrets pasted or piped in from Windows can carry newlines, a BOM or UTF-16 zero bytes,
+          # so keep only the characters each one can contain.
+          STEAM_USERNAME=$(printf '%s' "$STEAM_USERNAME" | tr -cd '[:alnum:]_')
           STEAM_PASSWORD=$(printf '%s' "$STEAM_PASSWORD" | tr -d '\r\n')
           STEAM_SHARED_SECRET=$(printf '%s' "$STEAM_SHARED_SECRET" | tr -d '\r\n ')
-          STEAM_CONFIG_VDF=$(printf '%s' "$STEAM_CONFIG_VDF" | tr -d '\r\n ')
+          STEAM_CONFIG_VDF=$(printf '%s' "$STEAM_CONFIG_VDF" | tr -cd 'A-Za-z0-9+/=')
           export STEAM_SHARED_SECRET
           if [ -z "$STEAM_USERNAME" ]; then echo "::error::STEAM_USERNAME secret is not set"; exit 1; fi
           login=(+login "$STEAM_USERNAME")
