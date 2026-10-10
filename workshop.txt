@@ -119,7 +119,7 @@ description=
 description=[hr][/hr]
 description=
 description=[h2]The Dazed suite[/h2]
-description=[b]Dazed Core[/b] · [b]Dazed Power[/b] · [b]Dazed Plumbing[/b] · Coming soon: Dazed Butchery, Dazed Cooking, Dazed Climate, Dazed Essentials
+description=[b]Dazed Core[/b] · [b]Dazed Power[/b] · [b]Dazed Power: Electric Vehicles[/b] · [b]Dazed Plumbing[/b] · [b]Dazed Climate[/b] · [b]Dazed Butchery[/b] · [b]Dazed Cooking[/b] · [b]Dazed Essentials[/b]
 description=
 description=[h2]Licence[/h2]
 description=MIT. Source on [url=https://github.com/Dazedgenie/DazedDank]GitHub[/url].
