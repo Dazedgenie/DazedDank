@@ -48,16 +48,27 @@ function DashPanel:setInfo(info)
     end
     self.info = info
     self.scroll = math.max(0, math.min(self.scroll or 0, Dash.maxScroll(info)))
-    self.model = Dash.build(info, self.scroll, fontHeight, measure)
+    self.sealScroll = math.max(0, math.min(self.sealScroll or 0, Dash.maxSealScroll(info, fontHeight)))
+    self.model = Dash.build(info, self.scroll, fontHeight, measure, self.sealScroll)
     -- A Flower room's Cold nights strip makes the dashboard taller, so the window follows the layout's height.
     if self.model.height and self.model.height ~= self.height then self:setHeight(self.model.height) end
+    -- An open All plants window shows the same fresh reply.
+    if self.listWindow then self.listWindow:setInfo(info) end
 end
 
 function DashPanel:setScroll(value)
     value = math.max(0, math.min(value, Dash.maxScroll(self.info)))
     if value == self.scroll then return end
     self.scroll = value
-    self.model = Dash.build(self.info, self.scroll, fontHeight, measure)
+    self.model = Dash.build(self.info, self.scroll, fontHeight, measure, self.sealScroll)
+end
+
+--- Scroll the Room seal rows to `value` pixels, clamped to what the card holds.
+function DashPanel:setSealScroll(value)
+    value = math.max(0, math.min(value, Dash.maxSealScroll(self.info, fontHeight)))
+    if value == self.sealScroll then return end
+    self.sealScroll = value
+    self.model = Dash.build(self.info, self.scroll, fontHeight, measure, self.sealScroll)
 end
 
 -- The layout draws in prerender, under the child buttons; render runs after children, so drawing there hid the close button.
@@ -102,7 +113,7 @@ end
 --- Show `label` on the Refresh button until `untilMs` (nil keeps it until changed).
 function DashPanel:setLabel(label, untilMs)
     self.info.refreshLabel, self.labelUntil = label, untilMs
-    self.model = Dash.build(self.info, self.scroll, fontHeight, measure)
+    self.model = Dash.build(self.info, self.scroll, fontHeight, measure, self.sealScroll)
 end
 
 --- Put the Refresh label back after a moment, or say "No reply" when the server never answered.
@@ -160,8 +171,15 @@ function DashPanel:onRightMouseUp(x, y)
 end
 
 function DashPanel:onMouseWheel(del)
-    local A = self.model.plantArea or Dash.PLANT_AREA
     local mx, my = self:getMouseX(), self:getMouseY()
+    -- Over the Room seal card the wheel moves its rows one row per notch.
+    local S = self.model.seal
+    if S and mx >= S.x and mx <= S.x + S.w and my >= S.y and my <= S.y + S.h then
+        self:setSealScroll(self.sealScroll + del * S.rowH)
+        return true
+    end
+    -- The Cold nights strip moves the plant row down, so use the row the layout actually drew.
+    local A = self.model.plantArea or Dash.PLANT_AREA
     if mx < A.x or mx > A.x + A.w or my < A.y or my > A.y + A.h then return false end
     self:setScroll(self.scroll + del * STEP)
     return true
@@ -210,6 +228,16 @@ function DashPanel:openLog()
     win:addChild(view)
     win:addToUIManager()
     self.logWindow = win
+end
+
+--- The All plants window, one per dashboard: a second click brings the open one to the front.
+function DashPanel:openAllPlants()
+    if not CannabisMod.PlantList then return end
+    if self.listWindow then
+        pcall(self.listWindow.bringToTop, self.listWindow)
+        return
+    end
+    self.listWindow = CannabisMod.PlantList.create(self, function(w) if self.listWindow == w then self.listWindow = nil end end)
 end
 
 local function hydro(self, action, target, nutrient)
@@ -286,6 +314,8 @@ function DashPanel:onHit(id, right)
         send("roomColdNights", self:args({ state = id:sub(6) }))
     elseif id == "log" then
         self:openLog()
+    elseif id == "allPlants" then
+        self:openAllPlants()
     elseif id == "refresh" then
         self.refreshSent = getTimestampMs()
         self:setLabel("...", nil)
@@ -294,6 +324,8 @@ function DashPanel:onHit(id, right)
 end
 
 function DashPanel:close()
+    if self.listWindow then pcall(self.listWindow.close, self.listWindow) end
+    self.listWindow = nil
     if self.logWindow then pcall(self.logWindow.removeFromUIManager, self.logWindow) end
     self:removeFromUIManager()
 end
@@ -303,6 +335,7 @@ function DashPanel.create(info, x, y, onClose)
     local panel = DashPanel:new(x, y, Dash.WIDTH, Dash.HEIGHT)
     panel:initialise()
     panel.scroll = 0
+    panel.sealScroll = 0
     panel:setInfo(info)
     panel.background = false
     panel.moveWithMouse = true

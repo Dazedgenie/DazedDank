@@ -3,22 +3,25 @@
 ## dd56 (Cold nights, in testing)
 - Added: **Cold nights** on the grow room panel. Flower rooms get a strip under the temperature and humidity meters with three pills: Off, Late flower and On (Off by default, and for rooms from older saves).
 - Added: while Cold nights is armed, the room's lights-off hours work to a 6-13 C night band instead of the Flower range: ACs run above 13 C and rest at 11 C, inside the 5-15 C purple window, and a heater still guards 6 C so the under-5 C yield loss only bites rooms without one. Lit hours keep the normal 20-26 C. Humidity targets don't change and no new equipment is needed, so a warm night outdoors may need more than one AC (an AC still can't pull a room below 12 C).
-- Added: Late flower arms itself once a living, rooted female in the room reaches the second half of flower (or is ripe), and disarms after harvest. On is always armed. In Veg and Drying rooms, or with Purple Buds or Room Climate switched off, the control is hidden and does nothing (the setting is kept).
+- Added: Late flower arms itself once a living, rooted female in the room reaches the second half of flower (or is ripe), and disarms after harvest. On is always armed. In Veg and Drying rooms, or with Room Climate switched off, the control is hidden and does nothing (the setting is kept).
 - Added: the cost: while the night band runs, flowering females in the room ripen 15% slower (ripe plants are unaffected). The plant window shows "Ripening slowed by cold nights"; it isn't counted as a warning on the dashboard's plant cards.
 - Added: the strip says what Cold nights is doing ("Armed | tonight 6 to 13 C", "Waiting for late flower", "On | room 11 C"), and the temperature meter shows the night band while it runs.
 - Added: plant cards in flowering rooms show cold night progress ("7/12 h cold"), then a purple "Purple" pill or "stayed green" once the plant has rolled. Shown at Agriculture 3, like the strain.
 - Added: the room log notes "Cold nights set to ...", "Cold nights armed: plants in late flower" and "<strain> turned purple".
 
 ## dd55 (performance, in testing)
+- Changed: sandbox options cut from 30 to 22. Lamp Heat, Strain Name Words, Strain Tint, Purple Buds, Closed Door Light Leak and Drip Irrigation Radius are gone and keep their old defaults (everything on; doors leak 25%; drip tanks reach 5 tiles). **Grow Gear Needs Power** now covers lamps and pumps together, and **Dependency Build Rate** at 0 replaces the Dependency tick box. Saved values for the cut options are ignored.
 - Changed: grow lamp glow no longer scans 61 squares every frame. Lamps are remembered as they load or are placed and re-checked about once a second (and at once when the hour changes), so a lamp's glow may switch up to a second later.
 - Changed: plant lighting, grow room scans, crash recovery and the plant-layer check read each square once and only look closely at tiles that hold Dazed Dank objects.
 - Changed: grow room shapes are worked out again when something is built or removed near the room, and every 6 hours as a safety pass, instead of every 10 minutes. Doors, windows and curtains are still checked every 10 minutes.
 - Changed: the ten-minute jobs (rooms, timers, hydro, plants, drip, drying, domes) run in one fixed order; drying racks are found at the ten-minute tick instead of every minute.
 - Changed: empty grow bags are kept from fading once an hour instead of every 10 minutes, and lost bag objects are redrawn as their square loads plus an hourly sweep.
 - Changed: a flood table on a timer shows as 100% wet and is only re-sent to clients when the timer starts or stops.
+- Added: a **View all** button on the grow panel's Plants line opens an All plants window: one row per plant (strain, sex, stage, water, health, warnings). Click a column title to sort, click it again to flip the order, click a row to inspect that plant. It updates when the panel refreshes and closes with the panel.
 - Removed: the old Lights, Hydro, Climate, Equipment and Plants panel tabs (the dashboard replaced them) and the unused root mod.info.
 
 ### Fixes
+- Fixed: the grow panel's Room seal card no longer spills text past its edges. It lists every door and window (no more "+N more"), scrolls with the mouse wheel when there are more than fit, shows a thin scrollbar, and shortens long lines. "seeps (hang a sheet)" is now just "seeps".
 - Fixed: on a dedicated server a light timer only reached one tile of a bar lamp (large basic or large pro). It now sets every tile, and changing the schedule from any tile of the lamp updates them all.
 - Fixed: on a dedicated server grow rooms weren't worked out, retired curtain records weren't cleared and timers of picked-up lamps weren't dropped when the server started (they waited for the first ten-minute pass).
 - Fixed: one plant with a broken record stopped every plant after it from growing, drinking and flowering, every ten minutes. Each plant now ticks on its own and a broken one is logged once.
@@ -27,6 +30,9 @@
 - Fixed: split-screen players shared one high: whoever smoked, player 1 got the high, the message and the withdrawal. Each player now has their own, and the High Tracker shows the player who opened it.
 - Fixed: the retired Hang Blackout Curtain command could still take a curtain from a player's inventory if a client sent it. It is gone; taking down an old curtain still works.
 - Fixed: a cloning dome that was destroyed or lost with cuttings in it kept its record in the save forever. Domes unseen for 90 days (the same keep time as drying records) are dropped, and a destroyed dome is no longer checked every ten minutes.
+- Fixed: choosing a seed from the Sow Seed list crashed with "Object tried to call nil". It no longer depends on a game function the mod couldn't reach.
+- Fixed: a ceiling grow lamp was refused over flood table tiles and the RDWC reservoir or control bucket. Ceiling lamps now use their own placement check (floor, indoors, off tables, nothing solid in the way, no second lamp on the same tile, not at the top of stairs, and the usual skill and tool). The console says why when a lamp is refused.
+- Fixed: a seed or cutting could be sown into a pot, bag, bucket or flood table that already had a plant, replacing it. The sow is now refused, the seed is kept, and the menu and cursor skip planted plots.
 
 ## dd54 (Climate and UI redesign, in testing)
 - Fixed: a Botanist / Breeder now reads a seed's or cutting's strain and sex at any Agriculture level, as the occupation says (it used to show "Unknown cannabis seed" below Agriculture 3).

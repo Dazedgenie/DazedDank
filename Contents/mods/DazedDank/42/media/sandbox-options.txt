@@ -98,18 +98,10 @@ option CannabisMod.ToleranceRate
     translation = CannabisMod_ToleranceRate,
 }
 
-option CannabisMod.DependencyEnabled
-{
-    type = boolean,
-    default = true,
-    page = CannabisMod,
-    translation = CannabisMod_DependencyEnabled,
-}
-
 option CannabisMod.DependencyRate
 {
     type = double,
-    min = 0.1,
+    min = 0.0,
     max = 10.0,
     default = 1.0,
     page = CannabisMod,
@@ -164,24 +156,6 @@ option CannabisMod.HydroQualityBonus
     translation = CannabisMod_HydroQualityBonus,
 }
 
-option CannabisMod.PumpsNeedPower
-{
-    type = boolean,
-    default = true,
-    page = CannabisMod,
-    translation = CannabisMod_PumpsNeedPower,
-}
-
-option CannabisMod.DripRadius
-{
-    type = integer,
-    min = 1,
-    max = 15,
-    default = 5,
-    page = CannabisMod,
-    translation = CannabisMod_DripRadius,
-}
-
 option CannabisMod.RoomClimate
 {
     type = boolean,
@@ -206,38 +180,12 @@ option CannabisMod.TraitsAndOccupations
     translation = CannabisMod_TraitsAndOccupations,
 }
 
-option CannabisMod.DoorLeak
-{
-    type = integer,
-    min = 0,
-    max = 100,
-    default = 25,
-    page = CannabisMod,
-    translation = CannabisMod_DoorLeak,
-}
-
 option CannabisMod.RoomPowerPenalty
 {
     type = boolean,
     default = true,
     page = CannabisMod,
     translation = CannabisMod_RoomPowerPenalty,
-}
-
-option CannabisMod.StrainTint
-{
-    type = boolean,
-    default = true,
-    page = CannabisMod,
-    translation = CannabisMod_StrainTint,
-}
-
-option CannabisMod.LampHeat
-{
-    type = boolean,
-    default = true,
-    page = CannabisMod,
-    translation = CannabisMod_LampHeat,
 }
 
 option CannabisMod.PlantTemperature
@@ -248,28 +196,10 @@ option CannabisMod.PlantTemperature
     translation = CannabisMod_PlantTemperature,
 }
 
-option CannabisMod.PurpleBuds
-{
-    type = boolean,
-    default = true,
-    page = CannabisMod,
-    translation = CannabisMod_PurpleBuds,
-}
-
 option CannabisMod.CuringTemperature
 {
     type = boolean,
     default = true,
     page = CannabisMod,
     translation = CannabisMod_CuringTemperature,
-}
-
-option CannabisMod.StrainWords
-{
-    type = enum,
-    numValues = 3,
-    default = 1,
-    page = CannabisMod,
-    translation = CannabisMod_StrainWords,
-    valueTranslation = CannabisMod_StrainWords,
 }

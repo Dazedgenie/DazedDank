@@ -2358,9 +2358,15 @@ end
 do
     local U, Cf = CannabisMod.Use, C
     local function withVars(vars, fn) local old = SandboxVars; SandboxVars = { CannabisMod = vars }; local ok, err = pcall(fn); SandboxVars = old; assert(ok, err) end
-    withVars({ DependencyEnabled = false }, function()
+    withVars({ LampsNeedPower = false }, function()
+        check("grow gear needs power off covers pumps too", C.sandbox("PumpsNeedPower") == false and C.sandbox("LampsNeedPower") == false)
+    end)
+    withVars({ DoorLeak = 90, LampHeat = false, DripRadius = 9 }, function()
+        check("cut options ignore stale saved values", C.sandbox("DoorLeak") == 25 and C.sandbox("LampHeat") == true and C.sandbox("DripRadius") == 5)
+    end)
+    withVars({ DependencyRate = 0 }, function()
         local u = U.new(); U.dose(u, 100, 1, "joint")
-        check("dependency off: none builds and no withdrawal", u.dep == 0 and U.withdrawal({ dep = 90, lastUse = 0 }, 500) == 0)
+        check("dependency rate 0: none builds and no withdrawal", u.dep == 0 and U.withdrawal({ dep = 90, lastUse = 0 }, 500) == 0)
     end)
     withVars({ DependencyRate = 2 }, function()
         local u = U.new(); U.dose(u, 100, 1, "joint")
@@ -2705,10 +2711,10 @@ end
         local before = (function() local q = { x = 803, y = 801, z = 0, warnings = {}, stage = 2, care = 100, stress = 0, lightCap = 85, nextStageAt = 100 }
             CannabisMod.Light.update(q) return q end)()
         -- Sun and the lamp outside both seep in, each at a quarter: half a full leak, not a whole one.
-        SandboxVars = { CannabisMod = { DoorLeak = 0 } }; leakNow()
+        C.SandboxDefaults.DoorLeak = 0; leakNow()
         local base = (function() local q = { x = 803, y = 801, z = 0, warnings = {}, stage = 2, care = 100, stress = 0, lightCap = 85, nextStageAt = 100 }
             CannabisMod.Light.update(q) return q end)()
-        SandboxVars = nil; leakNow()
+        C.SandboxDefaults.DoorLeak = 25; leakNow()
         check("a seeping door stresses a plant a quarter as much per source", math.abs(before.stress - base.stress - C.Timer.LEAK_STRESS_PER_HOUR / 6 * 0.5) < 1e-6
             and before.warnings.lightLeak == true)
         check("a lamp seeping in round a closed door isn't the plant's light", CannabisMod.Light.lampsAt(803, 801, 0).cap == nil)
@@ -2718,11 +2724,11 @@ end
         d = doorOf(leakNow())
         check("a drawn sheet on a closed door seals it", d.leak == 0 and d.covered and not R.sunLeakAt("800_800_0", 803, 801, 19))
         door.sheet = nil
-        SandboxVars = { CannabisMod = { DoorLeak = 0 } }
-        check("Closed Door Light Leak 0: a closed door seals", doorOf(leakNow()).covered)
-        SandboxVars = { CannabisMod = { DoorLeak = 100 } }
-        check("Closed Door Light Leak 100: a closed door leaks like an open one", doorOf(leakNow()).leak == 1)
-        SandboxVars = nil
+        C.SandboxDefaults.DoorLeak = 0
+        check("Door light leak 0: a closed door seals", doorOf(leakNow()).covered)
+        C.SandboxDefaults.DoorLeak = 100
+        check("Door light leak 100: a closed door leaks like an open one", doorOf(leakNow()).leak == 1)
+        C.SandboxDefaults.DoorLeak = 25
         fakeSquares["804_801_0"].getDoorTo = nil
         R.edgeKind, R.edgeBlocked = oldKind, oldBlocked
         R.remove("800_800_0")
@@ -3092,6 +3098,59 @@ do
     info.lamps, info.powered = {}, false
     joined = texts(Dash.build(info, 0, fh, ms))
     check("an empty room counts no lamps, and a dead panel warns", joined:find("0 lamps", 1, true) and joined:find("Panel has no power", 1, true))
+
+    -- Room seal: every opening is listed, the rows scroll inside the card, and no text spills past the card.
+    local function sealOps(model)
+        local S, rows, clipped = model.seal, {}, false
+        local inside = false
+        for _, op in ipairs(model.ops) do
+            if op.kind == "clip" and op.y == S.y and op.x == S.x then inside, clipped = true, true
+            elseif op.kind == "unclip" then inside = false
+            elseif inside and op.kind == "text" then rows[#rows + 1] = op end
+        end
+        return rows, clipped
+    end
+    local function openings(n)
+        local list = {}
+        for i = 1, n do list[i] = { kind = i % 2 == 0 and "door" or "window", x = 100 + i, y = 2000 + i, covered = i % 3 == 0, seeps = i % 3 == 1 } end
+        return list
+    end
+    info.powered, info.openings = true, openings(6)
+    local model = Dash.build(info, 0, fh, ms, 0)
+    local rows = sealOps(model)
+    check("seal: all 6 openings plus the power row are listed", #rows == 7 and rows[1].text == "Panel powered")
+    check("seal: no '+N more' line", not texts(model):find("more", 1, true))
+    check("seal: seeps label is short", texts(model):find("seeps", 1, true) and not texts(model):find("hang a sheet", 1, true))
+    check("seal: many openings scroll, few do not", Dash.maxSealScroll(info, fh) > 0 and Dash.maxSealScroll({ openings = openings(2) }, fh) == 0
+        and Dash.maxSealScroll({ openings = {} }, fh) == 0)
+    local fits = true
+    for _, count in ipairs({ 0, 1, 3, 6, 12 }) do
+        info.openings = openings(count)
+        info.openings[1] = count > 0 and { kind = "window", x = 123456, y = 654321, covered = false, seeps = true } or nil
+        local m = Dash.build(info, 0, fh, ms, 0)
+        local right = m.seal.x + m.seal.w
+        for _, t in ipairs(sealOps(m)) do
+            if t.x + ms("Small", t.text) > right - 8 then fits = false end
+        end
+    end
+    check("seal: every row's text fits inside the card", fits)
+    info.openings = openings(6)
+    local base = Dash.build(info, 0, fh, ms, 0)
+    local moved = Dash.build(info, 0, fh, ms, 20)
+    local r0, r1 = sealOps(base), sealOps(moved)
+    check("seal: scrolling moves the rows up", r1[1].y == r0[1].y - 20)
+    local over = Dash.build(info, 0, fh, ms, 100000)
+    check("seal: scroll is clamped to the maximum", sealOps(over)[1].y == r0[1].y - Dash.maxSealScroll(info, fh))
+    local thumb
+    for _, op in ipairs(base.ops) do if op.kind == "pill" and op.w == 3 then thumb = op end end
+    check("seal: a scrollbar thumb shows only when rows overflow", thumb and thumb.y >= base.seal.y and thumb.y + thumb.h <= base.seal.y + base.seal.h)
+    info.openings = openings(1)
+    local few = Dash.build(info, 0, fh, ms, 0)
+    local bar
+    for _, op in ipairs(few.ops) do if op.kind == "pill" and op.w == 3 then bar = op end end
+    check("seal: no scrollbar when everything fits", bar == nil)
+    info.openings = {}
+    check("seal: an empty list says so", texts(Dash.build(info, 0, fh, ms, 0)):find("No doors or windows", 1, true))
 end
 
 
@@ -3277,9 +3336,10 @@ do
     check("lamp heat: unpowered lamp gives none", LH.heat(dark) == 0)
     SandboxVars = { CannabisMod = { LampsNeedPower = false } }
     check("lamp heat: lamps that need no power stay lit", near(LH.heat(dark), 12))
-    SandboxVars = { CannabisMod = { LampHeat = false } }
-    check("lamp heat: option off gives none", LH.heat(big) == 0)
     SandboxVars = nil
+    C.SandboxDefaults.LampHeat = false
+    check("lamp heat: switched off gives none", LH.heat(big) == 0)
+    C.SandboxDefaults.LampHeat = true
     local sources = {}
     DazedClimate = { Rooms = { addObjectSource = function(src) sources[#sources + 1] = src end } }
     LH.register(); LH.register()
@@ -3378,10 +3438,10 @@ do
     check("old flowering plants get an estimated flower start", p.flowerStartAt ~= nil and p.flowerStartAt < 99)
     p = flowering({ stage = C.STAGE.Flowering, flowerStartAt = 0, nextStageAt = 100, sex = C.SEX.MALE }); PT.update(p, 60, false)
     check("males don't count cold nights", p.coldNightHours == nil)
-    SandboxVars = { CannabisMod = { PurpleBuds = false } }
+    C.SandboxDefaults.PurpleBuds = false
     p = flowering(); PT.update(p, 60, false)
-    check("purple buds option off: no cold night count", p.coldNightHours == nil)
-    SandboxVars = nil
+    check("purple buds switched off: no cold night count", p.coldNightHours == nil)
+    C.SandboxDefaults.PurpleBuds = true
     coreT = 3; p = flowering()
     PT.update(p, 60, false)
     check("near freezing costs 2% yield an hour", near(p.coldYieldLoss, W.FREEZE_YIELD_PER_HOUR / 6) and p.coldNightHours == nil)
@@ -3423,10 +3483,10 @@ do
     CannabisMod.Farming.applyTint(purplePlant, lo)
     local sr, sg = CannabisMod.Strains.tint(purplePlant.strain)
     check("purple plants are painted purple", painted and painted[2] < sg - 0.1 and painted[1] < sr)
-    SandboxVars = { CannabisMod = { StrainTint = false } }
+    C.SandboxDefaults.StrainTint = false
     CannabisMod.Farming.applyTint(purplePlant, lo)
-    check("strain tint off: no purple either", painted[1] == 1 and painted[2] == 1 and painted[3] == 1)
-    SandboxVars = nil
+    check("strain tint switched off: no purple either", painted[1] == 1 and painted[2] == 1 and painted[3] == 1)
+    C.SandboxDefaults.StrainTint = true
     local qp = { lightCap = 80, genetics = 80, care = 100 }
     local plain = G.calcQuality(qp, 0, nil); qp.purple = true
     check("purple adds 5% quality", G.calcQuality(qp, 0, nil) == math.floor(plain * 1.05 + 0.5))
@@ -3915,6 +3975,121 @@ do
     check("reservoir tanks draw glass over water", find(m, "tex", function(op) return op.name == "tank_front" end) ~= nil)
 end
 
+-- All plants window: the View all button and the sortable plant table (pure layout)
+do
+    require "CannabisMod/CannabisStatusLayout"
+    require "CannabisMod/CannabisDashboardLayout"
+    require "CannabisMod/CannabisPlantListLayout"
+    local Dash, PL = CannabisMod.DashboardLayout, CannabisMod.PlantListLayout
+    local fh, ms = function() return 12 end, function(_, t) return #tostring(t) * 6 end
+    local function mk(strain, sex, stageKey, water, health, warnings, type_)
+        return { x = 1, y = 1, z = 0, strain = strain, name = "Cannabis Plant", sex = sex, stageKey = stageKey, stage = stageKey,
+            water = water, health = health, warnings = warnings, type = type_ or "Indica" }
+    end
+    local plants = {
+        mk("Delta", "Female", "Flowering", "40%", "Good", 0),
+        mk("Alpha", "Male", "Seedling", "90%", "Poor", 3),
+        mk(nil, nil, nil, nil, nil, 1),
+        mk("Charlie", "Hermaphrodite", "Ripe", "5%", "Excellent", 1),
+        mk("Bravo", "Female", "PreFlower", "62%", "Fair", 0),
+        mk("Echo", "Female", "Vegetative", "100%", "Good", 2),
+    }
+    local info = { plants = plants, openings = {}, log = {}, climate = { enabled = false } }
+    local function names(order) local o = {} for _, i in ipairs(order) do o[#o + 1] = plants[i].strain or "?" end return table.concat(o, ",") end
+    local m = PL.build(info, nil, 0, fh, ms)
+    local rowHits, headHits = {}, {}
+    for _, h in ipairs(m.hits) do
+        if h.id:sub(1, 6) == "plant:" then rowHits[#rowHits + 1] = h elseif h.id:sub(1, 5) == "sort:" then headHits[h.id] = h end
+    end
+    check("plant list: one row per plant", #rowHits == #plants)
+    local headersOk = true
+    for _, col in ipairs(PL.COLUMNS) do if not headHits["sort:" .. col.key] then headersOk = false end end
+    check("plant list: every column has a header hit", headersOk)
+    check("plant list: default sort is warnings descending, then strain", names(m.order) == "Alpha,Echo,Charlie,?,Bravo,Delta")
+    check("plant list: strain ascending, unknown last", names(PL.order(plants, "strain", true)) == "Alpha,Bravo,Charlie,Delta,Echo,?")
+    check("plant list: strain descending, unknown still last", names(PL.order(plants, "strain", false)) == "Echo,Delta,Charlie,Bravo,Alpha,?")
+    check("plant list: sex ascending, unknown last", names(PL.order(plants, "sex", true)) == "Bravo,Delta,Echo,Charlie,Alpha,?")
+    check("plant list: stage follows growth order", names(PL.order(plants, "stage", true)) == "Alpha,Echo,Bravo,Delta,Charlie,?")
+    check("plant list: stage descending, unknown last", names(PL.order(plants, "stage", false)) == "Charlie,Delta,Bravo,Echo,Alpha,?")
+    check("plant list: water is numeric", names(PL.order(plants, "water", true)) == "Charlie,Delta,Bravo,Alpha,Echo,?")
+    check("plant list: health ranks Poor to Excellent, unknown last", names(PL.order(plants, "health", true)) == "Alpha,Bravo,Delta,Echo,Charlie,?")
+    check("plant list: health descending puts Excellent first", names(PL.order(plants, "health", false)):sub(1, 7) == "Charlie")
+    check("plant list: warnings ascending", names(PL.order(plants, "warnings", true)) == "Bravo,Delta,Charlie,?,Echo,Alpha")
+    local s = PL.nextSort({ key = "water", asc = true }, "water")
+    check("plant list: clicking the sorted column flips it", s.key == "water" and s.asc == false and PL.nextSort(s, "water").asc == true)
+    s = PL.nextSort({ key = "water", asc = false }, "health")
+    check("plant list: a new column starts ascending", s.key == "health" and s.asc == true)
+    local function hasText(model, str) for _, op in ipairs(model.ops) do if op.kind == "text" and op.text == str then return true end end end
+    check("plant list: the sorted header shows an arrow", hasText(m, "Warnings v") and hasText(PL.build(info, { key = "stage", asc = true }, 0, fh, ms), "Stage ^"))
+    check("plant list: title shows the count", hasText(m, "All plants (6)"))
+    -- Rows map back to the original plant index through the sort.
+    local byY = {}
+    for _, h in ipairs(rowHits) do byY[#byY + 1] = h end
+    table.sort(byY, function(a, b) return a.y < b.y end)
+    local mapped = {}
+    for r, h in ipairs(byY) do mapped[r] = tonumber(h.id:sub(7)) end
+    check("plant list: row hits follow the sort order", table.concat(mapped, ",") == table.concat(m.order, ","))
+    local sorted = PL.build(info, { key = "strain", asc = true }, 0, fh, ms)
+    local top
+    for _, h in ipairs(sorted.hits) do if h.id:sub(1, 6) == "plant:" and (not top or h.y < top.y) then top = h end end
+    check("plant list: the first row after sorting is the right plant", top.id == "plant:2")
+    -- Every cell fits its column, even with long text.
+    local long = { mk(string.rep("Longstrain", 6), "Hermaphrodite", "PreFlower", string.rep("9", 20), "Excellent", 1234567) }
+    local lm = PL.build({ plants = long }, { key = "health", asc = true }, 0, fh, ms)
+    local fits, colsX = true, {}
+    local x = 20
+    for _, col in ipairs(PL.COLUMNS) do colsX[#colsX + 1] = { x0 = x, x1 = x + col.w }; x = x + col.w end
+    for _, op in ipairs(lm.ops) do
+        if op.kind == "text" and op.y > 40 then
+            local ok = false
+            for _, c in ipairs(colsX) do
+                if op.x == c.x0 and op.x + ms("Small", op.text) <= c.x1 - 6 + 0.01 then ok = true end
+            end
+            if not ok then fits = false end
+        end
+    end
+    check("plant list: every cell and header fits its column", fits)
+    -- Scrolling.
+    local many = {}
+    for i = 1, 60 do many[i] = mk("P" .. i, "Female", "Ripe", "50%", "Good", i % 3) end
+    local mm = PL.build({ plants = many }, nil, 0, fh, ms)
+    check("plant list: many plants scroll", mm.maxScroll > 0 and PL.metrics(60, fh).maxScroll == mm.maxScroll)
+    check("plant list: few plants don't scroll", PL.build(info, nil, 0, fh, ms).maxScroll == 0 and PL.build({ plants = {} }, nil, 0, fh, ms).maxScroll == 0)
+    local thumb
+    for _, op in ipairs(mm.ops) do if op.kind == "pill" and op.w == 3 then thumb = op end end
+    check("plant list: a scrollbar thumb shows only when rows overflow", thumb ~= nil and thumb.y >= mm.area.y and thumb.y + thumb.h <= mm.area.y + mm.area.h + 0.01
+        and not (function() for _, op in ipairs(PL.build(info, nil, 0, fh, ms).ops) do if op.kind == "pill" then return true end end end)())
+    local far = PL.build({ plants = many }, nil, 1e9, fh, ms)
+    local maxHit
+    for _, h in ipairs(far.hits) do if h.id:sub(1, 6) == "plant:" and (not maxHit or h.y + h.h > maxHit) then maxHit = h.y + h.h end end
+    check("plant list: scroll is clamped so the last row ends at the bottom", math.abs(maxHit - (mm.area.y + mm.area.h)) < 0.01)
+    local inside = true
+    for _, h in ipairs(far.hits) do
+        if h.id:sub(1, 6) == "plant:" and (h.y < mm.area.y - 0.01 or h.y + h.h > mm.area.y + mm.area.h + 0.01) then inside = false end
+    end
+    check("plant list: row hits stay inside the rows area", inside)
+    -- Dashboard button.
+    local function dashInfo(list) return { name = "Shed", plants = list, openings = {}, log = {}, lamps = {}, reservoirs = {}, equipment = {}, climate = { enabled = false } } end
+    local dm = Dash.build(dashInfo(plants), 0, fh, ms)
+    local btn
+    for _, h in ipairs(dm.hits) do if h.id == "allPlants" then btn = h end end
+    check("dashboard: View all shows when there are plants", btn ~= nil)
+    local none = Dash.build(dashInfo({}), 0, fh, ms)
+    local anyBtn = false
+    for _, h in ipairs(none.hits) do if h.id == "allPlants" then anyBtn = true end end
+    check("dashboard: no View all button without plants", not anyBtn)
+    local seal
+    for _, op in ipairs(dm.ops) do if op.kind == "card" and op.x == 12 + 566 then seal = op end end
+    local apart = btn.y >= seal.y + seal.h or btn.y + btn.h <= seal.y or btn.x >= seal.x + seal.w or btn.x + btn.w <= seal.x
+    check("dashboard: View all doesn't overlap the Room seal card", seal ~= nil and apart)
+    local arrows = Dash.build(dashInfo((function() local t = {} for i = 1, 6 do t[i] = mk("S" .. i) end return t end)()), 100, fh, ms)
+    local overlapsArrow = false
+    for _, h in ipairs(arrows.hits) do
+        if (h.id == "scrollLeft" or h.id == "scrollRight") and not (btn.y >= h.y + h.h or btn.y + btn.h <= h.y or btn.x >= h.x + h.w or btn.x + btn.w <= h.x) then overlapsArrow = true end
+    end
+    check("dashboard: View all doesn't overlap the scroll arrows", not overlapsArrow and btn.x + btn.w <= Dash.WIDTH - 12 + 0.01)
+end
+
 do
     -- Racks take whole plants and jars and barrels take buds, through the game's own container check.
     require "CannabisMod/CannabisAccept"
@@ -4288,6 +4463,200 @@ do
 end
 
 
+-- ---- Fix: sowing a chosen seed group no longer calls vanilla's file-local isJoypadCharacter ----
+do
+    local old = { ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState }
+    local queued, seed = {}, newItem(C.SEED_ITEM)
+    S.setData(seed, { type = T.INDICA, sex = C.SEX.FEMALE, genetics = 100 })
+    ISFarmingMenu = { walkToPlant = function() return true end, isSeedValid = function() end,
+        onSeedSquareSelected = function() end,
+        doSeedMenu = function(_, context)
+            local m = context:getNew(context)
+            m.options = { { param1 = C.CROP_TYPE, param4 = "Cannabis", onSelect = function() end } }
+            m.numOptions = 1
+        end }
+    ISFarmingCursorMouse = { new = function() return {} end }
+    ISInventoryPaneContextMenu = { transferIfNeeded = function() end }
+    ISTimedActionQueue = { add = function(a) queued[#queued + 1] = a end }
+    ISSeedActionNew = { new = function(_, ...) return { ... } end }
+    getCell = function() return { setDrag = function() end } end
+    dofile(MOD .. "client/CannabisMod/CannabisSowMenu.lua")
+    local picked
+    local classMethods = { getNew = function() return { addOption = function(_, _, _, fn, ...) picked = picked or { fn = fn, args = { ... } } end } end,
+        addSubMenu = function() end }
+    local context = setmetatable({}, { __index = classMethods })
+    local player = { getInventory = function() return { getAllTypeRecurse = function() return { size = function() return 1 end, get = function() return seed end } end } end,
+        getPerkLevel = function() return 5 end, getPlayerNum = function() return 0 end }
+    ISFarmingMenu:doSeedMenu(context, {}, nil, player)
+    check("sow: the cannabis row offers the carried seed group", picked ~= nil)
+    for _, joy in ipairs({ "nil", "empty", "pad" }) do
+        JoypadState = joy == "nil" and nil or { players = joy == "pad" and { true } or {} }
+        queued = {}
+        local ok, err = pcall(picked.fn, player, table.unpack(picked.args))
+        check("sow: choosing a seed group doesn't crash with JoypadState " .. joy .. (ok and "" or (" (" .. tostring(err) .. ")")), ok)
+        check("sow: a keyboard player queues the seed action (" .. joy .. ")", (joy == "pad") == (#queued == 0))
+    end
+    ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState = table.unpack(old, 1, 7)
+end
+
+
+-- ---- Fix: sowing into a pot that already has a plant is refused ----
+do
+    local G = CannabisMod.GrowBags
+    local grower = newPlayer(7800, 7800, 6)
+    fakeSquare(7800, 7800, 0, false, true)
+    G.makePlot(getCell():getGridSquare(7800, 7800, 0), "small")
+    local plot = SFarmingSystem.instance:getLuaObjectAt(7800, 7800, 0)
+    grower.inv:addExisting(newItem("CannabisMod.SoilSack"))
+    fire("OnClientCommand", "CannabisMod", "fillGrowBag", grower, { x = 7800, y = 7800, z = 0 })
+    local function mk(genetics)
+        local it = newItem(C.SEED_ITEM)
+        S.setData(it, { type = T.SATIVA, sex = C.SEX.FEMALE, genetics = genetics })
+        return it
+    end
+    local first, second = mk(100), mk(40)
+    ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = first, plant = { x = 7800, y = 7800, z = 0 }, character = grower })
+    local rec = R.getPlant(7800, 7800, 0)
+    check("occupied: an empty soiled pot still takes a seed", rec and rec.genetics == 100 and first.removed == true)
+    ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = second, plant = { x = 7800, y = 7800, z = 0 }, character = grower })
+    check("occupied: a second seed is refused and kept", second.removed ~= true and sent[#sent].data.text:find("already growing"))
+    check("occupied: the existing plant's record is unchanged", R.getPlant(7800, 7800, 0) == rec and rec.genetics == 100)
+
+    -- the client action refuses an occupied plot, reading the state fresh each call
+    local oldValid, oldCell, oldCF = ISSeedActionNew.isValid, getCell, CFarmingSystem
+    local calls = 0
+    ISSeedActionNew.isValid = function() calls = calls + 1 return true end
+    local cplot = { state = "plow", spriteName = plot.spriteName, x = 0 }
+    local furrow = { state = "seeded", spriteName = C.FURROW_SPRITE, x = 1 }
+    CFarmingSystem = { instance = { getLuaObjectOnSquare = function(_, sq) return sq.x == 1 and furrow or cplot end } }
+    getCell = function() return { getGridSquare = function(_, x) return { x = x } end } end
+    dofile(MOD .. "client/CannabisMod/CannabisSowGuard.lua")
+    local act = { plant = cplot, typeOfSeed = "Cannabis" }
+    check("occupied: client allows a plowed empty plot", ISSeedActionNew.isValid(act) == true)
+    cplot.state = "seeded"
+    check("occupied: client refuses once the plot is seeded", ISSeedActionNew.isValid(act) == false)
+    local vanillaAct = { plant = furrow, typeOfSeed = "Tomato" }
+    check("occupied: a vanilla crop in a vanilla furrow is left to vanilla", ISSeedActionNew.isValid(vanillaAct) == true)
+    ISSeedActionNew.isValid, getCell, CFarmingSystem = oldValid, oldCell, oldCF
+
+    -- the sow menu does not queue on an occupied plot
+    local old = { ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState }
+    local queued, seed = {}, mk(100)
+    ISFarmingMenu = { walkToPlant = function() return true end, isSeedValid = function() end, onSeedSquareSelected = function() end, doSeedMenu = function() end }
+    ISFarmingCursorMouse = { new = function() return {} end }
+    ISInventoryPaneContextMenu = { transferIfNeeded = function() end }
+    ISTimedActionQueue = { add = function(a) queued[#queued + 1] = a end }
+    ISSeedActionNew = { new = function(_, ...) return { ... } end }
+    getCell = function() return { setDrag = function() end } end
+    JoypadState = nil
+    local oldGroups = CannabisMod.Info.seedGroups
+    CannabisMod.Info.seedGroups = function() return { { label = "g", items = { seed } } } end
+    package.loaded["CannabisMod/CannabisSowMenu"] = nil
+    ISFarmingMenu.ddSowGroups, ISFarmingMenu.ddSowFiltered = nil, nil
+    dofile(MOD .. "client/CannabisMod/CannabisSowMenu.lua")
+    local player = { getInventory = function() return { getAllTypeRecurse = function() return { size = function() return 1 end, get = function() return seed end } end } end,
+        getPerkLevel = function() return 5 end, getPlayerNum = function() return 0 end }
+    local picked
+    local ctx = setmetatable({}, { __index = { getNew = function() return { addOption = function(_, _, _, fn, ...) picked = picked or { fn = fn, args = { ... } } end } end, addSubMenu = function() end } })
+    ISFarmingMenu.doSeedMenu = function(_, context)
+        local m = context:getNew(context)
+        m.options = { { param1 = C.CROP_TYPE, param4 = "Cannabis", onSelect = function() end } }
+        m.numOptions = 1
+    end
+    -- re-wrap doSeedMenu now that it is defined
+    ISFarmingMenu.ddSowFiltered = nil
+    dofile(MOD .. "client/CannabisMod/CannabisSowMenu.lua")
+    ISFarmingMenu:doSeedMenu(ctx, { state = "seeded" }, nil, player)
+    check("occupied: the menu offers no seed list on a planted plot", picked == nil)
+    ISFarmingMenu:doSeedMenu(ctx, { state = "plow" }, nil, player)
+    check("occupied: the menu offers the seed list on a plowed plot", picked ~= nil)
+    queued = {}
+    picked.fn(player, table.unpack(picked.args, 1, 1), { state = "seeded" }, select(3, table.unpack(picked.args)))
+    check("occupied: choosing a group on a planted plot queues nothing", #queued == 0)
+    picked.fn(player, table.unpack(picked.args))
+    check("occupied: choosing a group on a plowed plot queues the action", #queued == 1)
+    CannabisMod.Info.seedGroups = oldGroups
+    ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState = table.unpack(old, 1, 7)
+end
+
+
+-- ---- Fix: a ceiling grow lamp checks its own squares instead of asking vanilla ----
+do
+    local oldProps, oldFlag, oldInst, oldTs = ISMoveableSpriteProps, IsoFlagType, instanceof, getTimestampMs
+    local oldPrint = print
+    print = function(msg, ...) if not tostring(msg):find("lamp can't go", 1, true) then oldPrint(msg, ...) end end
+    local vanillaCalls = 0
+    ISMoveableSpriteProps = { canPlaceMoveable = function() vanillaCalls = vanillaCalls + 1 return false end }
+    IsoFlagType = { canBeCut = "canBeCut", canBeRemoved = "canBeRemoved", water = "water" }
+    getTimestampMs = function() return 0 end
+    local n = 0
+    --- A square holding the named sprites; flags is a set of square-level flags, props maps sprite name to its property set.
+    local function sq(sprites, opts)
+        opts = opts or {}
+        n = n + 1
+        local s = { x = 9700 + n, y = 9700, z = 0 }
+        local flagSet = opts.flags or {}
+        local objs = {}
+        for i, name in ipairs(sprites) do
+            local props = (opts.props or {})[name] or {}
+            objs[i] = { getSprite = function() return { getName = function() return name end,
+                getProperties = function() return { has = function(_, f) return props[f] == true end } end } end }
+            for f in pairs(props) do flagSet[f] = true end
+        end
+        function s:getX() return self.x end
+        function s:getY() return self.y end
+        function s:getZ() return self.z end
+        function s:isOutside() return opts.outside == true end
+        function s:getFloor() if opts.noFloor then return nil end return {} end
+        function s:isVehicleIntersecting() return opts.vehicle == true end
+        function s:has(f) return flagSet[f] == true end
+        function s:getObjects() return { size = function() return #objs end, get = function(_, i) return objs[i + 1] end } end
+        return s
+    end
+    dofile(MOD .. "client/CannabisMod/CannabisLampPlacement.lua")
+    local place = ISMoveableSpriteProps.canPlaceMoveable
+    local LAMP, FLOOR_LAMP = "dazeddank_plants_01_197", "dazeddank_plants_01_234"
+    local function lamp(square, character)
+        return place({ spriteName = LAMP }, character, square, nil)
+    end
+    check("lamp: allowed over the RDWC control bucket (IsLow)", lamp(sq({ "dazeddank_hydro_01_113" }, { props = { ["dazeddank_hydro_01_113"] = { IsLow = true } } })) == true)
+    check("lamp: allowed over a flood table site tile", lamp(sq({ "dazeddank_hydro_01_123" })) == true)
+    check("lamp: allowed over a Dazed Dank pot that blocks placement", lamp(sq({ "dazeddank_plants_01_3" }, { props = { ["dazeddank_plants_01_3"] = { BlocksPlacement = true } } })) == true)
+    check("lamp: allowed on an empty indoor square", lamp(sq({})) == true)
+    check("lamp: refused outdoors", lamp(sq({}, { outside = true })) == false)
+    check("lamp: refused on a table", lamp(sq({ "furniture_tables_01_0" }, { props = { ["furniture_tables_01_0"] = { IsTable = true } } })) == false)
+    check("lamp: refused over a vanilla BlocksPlacement object", lamp(sq({ "furniture_storage_01_0" }, { props = { ["furniture_storage_01_0"] = { BlocksPlacement = true } } })) == false)
+    check("lamp: refused where a ceiling lamp already hangs", lamp(sq({ LAMP })) == false)
+    check("lamp: a floor flood light doesn't count as a lamp already there", lamp(sq({ FLOOR_LAMP })) == true)
+    check("lamp: refused with no floor", lamp(sq({}, { noFloor = true })) == false)
+    check("lamp: refused over water", lamp(sq({}, { flags = { water = true } })) == false)
+    check("lamp: refused with a vehicle in the way", lamp(sq({}, { vehicle = true })) == false)
+    check("lamp: refused with no square", lamp(nil) == false)
+    local top = { spriteName = LAMP, isSquareAtTopOfStairs = function() return true end }
+    check("lamp: refused at the top of stairs", place(top, nil, sq({}), nil) == false)
+    check("lamp: the ceiling lamp path never asks vanilla", vanillaCalls == 0)
+    -- Skill and tool check for a real player.
+    instanceof = function(o, name) return name == "IsoPlayer" and o.isPlayer == true end
+    local hand = { isPlayer = true, isMovablesCheat = function() return false end }
+    local needy = { spriteName = LAMP, placeTool = "Screwdriver", hasRequiredSkill = function() return true end, hasTool = function() return false end }
+    check("lamp: refused when the player lacks the tool", place(needy, hand, sq({}), nil) == false)
+    needy.hasTool = function() return true end
+    check("lamp: allowed when the player has skill and tool", place(needy, hand, sq({}), nil) == true)
+    needy.hasRequiredSkill = function() return false end
+    check("lamp: refused when the player lacks the skill", place(needy, hand, sq({}), nil) == false)
+    hand.isMovablesCheat = function() return true end
+    check("lamp: movables cheat skips the skill check", place(needy, hand, sq({}), nil) == true)
+    -- Everything that isn't a ceiling lamp still goes to vanilla.
+    vanillaCalls = 0
+    place({ spriteName = "some_couch_01" }, nil, sq({}), nil)
+    place({ spriteName = FLOOR_LAMP }, nil, sq({}), nil)
+    check("lamp: non-lamp and floor-lamp sprites still call vanilla", vanillaCalls == 2)
+    check("lamp: the hydro control stays indoors-only", place({ spriteName = C.Hydro.CONTROL_SPRITE }, nil, sq({}, { outside = true }), nil) == false and vanillaCalls == 2)
+    print = oldPrint
+    ISMoveableSpriteProps, IsoFlagType, instanceof, getTimestampMs = oldProps, oldFlag, oldInst, oldTs
+end
+
+
 -- ---- Fix B: one broken plant no longer stops the rest of the plant tick ----
 do
     local good = {}
@@ -4517,8 +4886,11 @@ do
     room.coldNights = "off"
     check("dd56: Off is never armed", not armed(60))
     room.coldNights = "auto"
+    -- Purple Buds is a fixed option since dd55: an older save that switched it off still gets Cold nights; Room Climate off hides it.
     SandboxVars = { CannabisMod = { PurpleBuds = false } }
-    check("dd56: Purple buds off: never armed and the control is hidden", not armed(60) and not Rm.coldNightsAvailable(room))
+    check("dd56: a saved Purple buds off is ignored (fixed on)", armed(60) and Rm.coldNightsAvailable(room))
+    SandboxVars = { CannabisMod = { RoomClimate = false } }
+    check("dd56: Room climate off: never armed and the control is hidden", not armed(60) and not Rm.coldNightsAvailable(room))
     SandboxVars = nil
     room.mode = "Drying"
     check("dd56: a Drying room is never armed", not armed(60))
@@ -4617,7 +4989,7 @@ do
     SandboxVars = { CannabisMod = { PurpleBuds = false } }
     sent = {}
     cmd("requestRoom")
-    check("dd56: Purple buds off sends no cold nights control", sent[#sent].data.climate.coldNights == nil)
+    check("dd56: a saved Purple buds off still sends the cold nights control (fixed on since dd55)", sent[#sent].data.climate.coldNights ~= nil)
     SandboxVars = nil
     room.coldNights = nil
     sent = {}
@@ -4704,6 +5076,18 @@ do
         and ids["cold:on"].y > 52 + 132)
     check("dd56: the strip pushes the plants and the window down", m.height > Dash.HEIGHT and m.plantArea.y == Dash.PLANT_AREA.y + (m.height - Dash.HEIGHT)
         and ids["plant:1"].y == m.plantArea.y)
+    -- The strip and main's scrolling Room seal card share row 1: the seal card runs down beside the strip and its rows get that space.
+    local extra = m.height - Dash.HEIGHT
+    local sealCard, stripCard
+    for _, op in ipairs(m.ops) do
+        if op.kind == "card" and op.x == 12 + 566 then sealCard = op end
+        if op.kind == "card" and op.x == 12 + 186 and op.y > 52 + 132 then stripCard = op end
+    end
+    check("dd56: the Room seal card grows with the strip and its rows fit inside it", sealCard and sealCard.h == 132 + extra
+        and m.seal and m.seal.y + m.seal.h <= sealCard.y + sealCard.h and m.seal.h == veg.seal.h + extra
+        and Dash.sealMetrics(room("Flower", cn), fh).h == m.seal.h)
+    check("dd56: the strip doesn't overlap the Room seal card", stripCard and stripCard.x + stripCard.w <= sealCard.x)
+    check("dd56: the build returns both seal and plantArea", m.seal ~= nil and m.plantArea ~= nil and veg.seal ~= nil and veg.plantArea ~= nil)
     check("dd56: active: the strip says on with the room's temperature", textOp(m, "On  |  room 11 C") ~= nil)
     check("dd56: active: the meter's target shows the night band", textOp(m, "target 6 to 13 C") ~= nil)
     cn.active = false

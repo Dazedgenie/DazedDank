@@ -17,6 +17,7 @@ local HEAD_H, M = 40, 12
 Dash.SHORT_NAMES = { exhaust = "Exhaust", intake = "Intake", cooler = "AC", circfan = "Circ", heater = "Heater",
     dehumidifier = "Dehum", humidifier = "Humid", drip = "Drip" }
 local PLANT_Y, PLANT_H = 214, 168
+local SEAL_CARD_H = 132   -- the first row of cards, Room seal included
 local STAGE_NAME = { Seedling = "Seedling", Vegetative = "Vegetative", PreFlower = "Pre-flower", Flowering = "Flowering", Ripe = "Ripe" }
 local TYPE_COLOR = { Indica = C.Indica, Sativa = C.Sativa, Hybrid = C.Hybrid }
 Dash.PLANT_AREA = { x = M, y = PLANT_Y, w = 760 - 2 * M, h = PLANT_H }
@@ -45,15 +46,42 @@ function Dash.coldTag(cold)
     return { text = string.format("%d/%d h cold", math.floor(cold.hours), cold.need or 12), color = C.purple }
 end
 
+--- The extra height a Flower room's Cold nights strip adds under the first row of cards: the strip's own height and that plus its gap.
+function Dash.coldExtra(info, small)
+    local climate = info.climate or {}
+    if not (climate.enabled and climate.coldNights) then return 0, 0 end
+    local coldH = 2 * small + 28
+    return coldH, coldH + 8
+end
+
 --- How far the plant row can scroll, in pixels.
 function Dash.maxScroll(info)
     local n = #(info.plants or {})
     return math.max(0, n * (Dash.CARD_W + Dash.CARD_GAP) - Dash.CARD_GAP - Dash.PLANT_AREA.w)
 end
 
---- Build the dashboard for a roomInfo reply. `scroll` is the plant row's offset in pixels.
---- @return table { width, height, ops, hits }; hits are { x, y, w, h, id } click regions, plant regions already scrolled
-function Dash.build(info, scroll, fontH, measure)
+--- Where the Room seal card's rows sit and how tall they are, so the window and the layout agree.
+--- @return table { x, y, w, h, rowH, content, maxScroll }; x/y/w/h is the rows area, content its full row height in pixels
+function Dash.sealMetrics(info, fontH)
+    local small = fontH("Small")
+    local rowH = small + 6
+    local top = HEAD_H + M + 14 + small + 8
+    local _, extra = Dash.coldExtra(info, small)
+    local viewH = (HEAD_H + M + SEAL_CARD_H + extra) - 6 - top
+    local rows = 1 + math.max(1, #(info.openings or {}))
+    local content = rows * rowH - 6
+    return { x = M + 566, y = top, w = Dash.WIDTH - M - (M + 566), h = viewH, rowH = rowH, content = content,
+        maxScroll = math.max(0, content - viewH) }
+end
+
+--- How far the Room seal rows can scroll, in pixels.
+function Dash.maxSealScroll(info, fontH)
+    return Dash.sealMetrics(info, fontH).maxScroll
+end
+
+--- Build the dashboard for a roomInfo reply. `scroll` is the plant row's offset and `sealScroll` the Room seal rows' offset, in pixels.
+--- @return table { width, height, ops, hits, seal, plantArea }; hits are { x, y, w, h, id } click regions, plant regions already scrolled; seal is the rows area from sealMetrics, plantArea the plant row (moved down by a Cold nights strip)
+function Dash.build(info, scroll, fontH, measure, sealScroll)
     local W, H = Dash.WIDTH, Dash.HEIGHT
     local ops, hits = {}, {}
     local small, medium = fontH("Small"), fontH("Medium")
@@ -90,8 +118,7 @@ function Dash.build(info, scroll, fontH, measure)
     local climate = info.climate or {}
     -- A Flower room that can run Cold nights gets a strip under the meters; everything below moves down to make room.
     local cn = climate.enabled and climate.coldNights or nil
-    local coldH = cn and (2 * small + 28) or 0
-    local extra = cn and (coldH + 8) or 0
+    local coldH, extra = Dash.coldExtra(info, small)
     H = H + extra
 
     -- Title bar: room name (click to rename), mode pill (click to change), counts, the time.
@@ -112,7 +139,7 @@ function Dash.build(info, scroll, fontH, measure)
     text(string.format("%02d:00", info.hour or 0), W - 44 - rw - 10, (HEAD_H - small) / 2, C.white, "Small", "right")
 
     -- Row 1: lights, temperature, humidity, room seal.
-    local y1, h1 = HEAD_H + M, 132
+    local y1, h1 = HEAD_H + M, SEAL_CARD_H
     -- Lights: a 24-hour ring of dots, lit hours in gold, with the hour marked; click to change the schedule.
     card(M, y1, 176, h1 + extra)
     local cx, cy, r = M + 52, y1 + h1 / 2 + 2, 38
@@ -181,33 +208,45 @@ function Dash.build(info, scroll, fontH, measure)
         text(fit(line, "Small", kw - 28), kx + 14, ky + 20 + small, lc)
     end
 
-    -- Room seal: power and every door or window, with the uncovered ones in amber.
+    -- Room seal: power and every door or window, with the uncovered ones in amber. The rows scroll inside the card.
+    -- With a Cold nights strip the card runs down beside it (h1 + extra), and sealMetrics gives the rows that space too.
     local sx = M + 566
-    card(sx, y1, W - M - sx, h1 + extra)
+    local sw = W - M - sx
+    card(sx, y1, sw, h1 + extra)
     label("Room seal", sx + 14, y1 + 14, "icon_seal")
-    local sy = y1 + 14 + small + 8
+    local S = Dash.sealMetrics(info, fontH)
+    sealScroll = Config.clamp(sealScroll or 0, 0, S.maxScroll)
+    -- Text stops short of the right edge, and further short when the scrollbar is showing.
+    local textW = sw - 30 - (S.maxScroll > 0 and 10 or 8)
+    ops[#ops + 1] = { kind = "clip", x = sx, y = S.y, w = sw, h = S.h }
+    local sy = S.y - sealScroll
     local function dot(ok, str)
         pill(sx + 14, sy + (small - 9) / 2, 9, 9, ok and C.good or C.warn)
-        text(str, sx + 30, sy, ok and C.text or C.warn)
-        sy = sy + small + 6
+        text(fit(str, "Small", textW), sx + 30, sy, ok and C.text or C.warn)
+        sy = sy + S.rowH
     end
     dot(info.powered ~= false, info.powered ~= false and "Panel powered" or "Panel has no power")
     local openings = info.openings or {}
-    local open = 0
-    for i, o in ipairs(openings) do
-        if not o.covered then open = open + 1 end
-        if i <= 3 then
-            local state = o.covered and " covered" or (o.seeps and " seeps (hang a sheet)" or " open")
-            dot(o.covered, (o.kind == "door" and "Door " or "Window ") .. o.x .. "," .. o.y .. state)
-        end
+    for _, o in ipairs(openings) do
+        local state = o.covered and " covered" or (o.seeps and " seeps" or " open")
+        dot(o.covered, (o.kind == "door" and "Door " or "Window ") .. o.x .. "," .. o.y .. state)
     end
-    if #openings > 3 then text("+" .. (#openings - 3) .. " more", sx + 30, sy, C.muted) end
-    if #openings == 0 then text("No doors or windows", sx + 30, sy, C.muted) end
+    if #openings == 0 then text(fit("No doors or windows", "Small", textW), sx + 30, sy, C.muted) end
+    ops[#ops + 1] = { kind = "unclip" }
+    if S.maxScroll > 0 then
+        local th = math.max(12, S.h * S.h / S.content)
+        pill(sx + sw - 6, S.y + (S.h - th) * sealScroll / S.maxScroll, 3, th, C.muted)
+    end
 
     -- Plants: cards in a row that scrolls sideways; click a card to inspect the plant.
     local A = { x = Dash.PLANT_AREA.x, y = PLANT_Y + extra, w = Dash.PLANT_AREA.w, h = PLANT_H }
     label("Plants", M + 2, A.y - small - 6, "icon_plants")
     local plants = info.plants or {}
+    -- "View all" opens the sortable list of every plant; it sits at the right end of the label line, below the Room seal card.
+    if #plants > 0 then
+        local bw = measure("Small", "View all") + 20
+        button(A.x + A.w - bw, A.y - small - 9, bw, small + 6, "View all", "allPlants")
+    end
     if #plants == 0 then
         card(A.x, A.y, A.w, A.h)
         text("No plants in this room yet.", A.x + A.w / 2, A.y + A.h / 2 - small / 2, C.muted, "Small", "center")
@@ -366,7 +405,7 @@ function Dash.build(info, scroll, fontH, measure)
     text(line, M + 12, by + (H - by - M - small) / 2, alert and C.warn or C.muted)
     button(W - M - 70, by + (H - by - M - small - 6) / 2, 60, small + 6, "Log", "log")
 
-    return { width = W, height = H, ops = ops, hits = hits, plantArea = A }
+    return { width = W, height = H, ops = ops, hits = hits, seal = S, plantArea = A }
 end
 
 return Dash

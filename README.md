@@ -42,8 +42,7 @@ indica and three sativa. Cross two plants and the seeds are a new strain with
 the parents' traits averaged (plus a little noise) and a generated name. The
 same strain crossed with itself breeds true. Indica / Sativa / Hybrid is read
 from the indica share (65%+, 35% or less, between), and sets the sprites and
-which Wet Whole Plant item you get. Strains tint their plants a little
-(sandbox: Strain Tint). All the numbers live in `CannabisStrains.lua`.
+which Wet Whole Plant item you get. Strains tint their plants a little. All the numbers live in `CannabisStrains.lua`.
 
 ### Topping, cuttings and mother plants
 
