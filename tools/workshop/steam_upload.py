@@ -1,6 +1,6 @@
 """Helpers for the Steam Workshop upload workflow (.github/workflows/workshop-upload.yml).
 
-  python3 steam_upload.py vdf <repo dir> <out.vdf> <change note file> [--no-description]
+  python3 steam_upload.py vdf <repo dir> <out.vdf> <change note file> [--no-description] [--no-preview]
       Writes the workshop_build_item VDF from workshop.txt. Visibility is left out, so the
       item keeps whatever visibility it already has on Steam.
   python3 steam_upload.py code
@@ -40,8 +40,8 @@ def vdf_str(s):
 
 def write_vdf(repo, out, note_file, with_description):
     info = read_workshop_txt(os.path.join(repo, "workshop.txt"))
-    item_id = info.get("workshopid", "").strip()
-    if not item_id.isdigit():
+    item_id = (info.get("id") or info.get("workshopid") or "").strip()
+    if not item_id.isdigit() or item_id == "0":
         sys.exit("workshop.txt has no workshopid; publish the item from the game once first.")
     content = os.path.join(repo, "Contents")
     preview = os.path.join(repo, "preview.png")
@@ -56,7 +56,7 @@ def write_vdf(repo, out, note_file, with_description):
         ("contentfolder", content),
         ("changenote", note),
     ]
-    if os.path.isfile(preview):
+    if os.path.isfile(preview) and "--no-preview" not in sys.argv:
         fields.append(("previewfile", preview))
     if with_description:
         fields.append(("title", info.get("title", "")))

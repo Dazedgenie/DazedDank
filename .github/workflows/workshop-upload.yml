@@ -1,4 +1,4 @@
-# Uploads the mod to its existing Steam Workshop item (id in workshop.txt).
+# Uploads the mod to its existing Steam Workshop item (id= in workshop.txt).
 # Runs from the Actions tab ("Run workflow") or when a GitHub release is published.
 # Needs repo secrets: STEAM_USERNAME plus either STEAM_CONFIG_VDF (base64 of a logged-in
 # SteamCMD config.vdf) or STEAM_PASSWORD with STEAM_SHARED_SECRET (authenticator secret).
@@ -21,6 +21,12 @@ on:
         default: false
   release:
     types: [published]
+
+env:
+  # Whether a release also replaces the Workshop title and description with workshop.txt.
+  SYNC_TEXT_ON_RELEASE: "true"
+  # Whether to upload preview.png (off when the repo only has a placeholder).
+  UPLOAD_PREVIEW: "true"
 
 concurrency:
   group: workshop-upload
@@ -53,7 +59,10 @@ jobs:
           flag=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.update_description }}" != "true" ]; then
             flag="--no-description"
+          elif [ "${{ github.event_name }}" = "release" ] && [ "$SYNC_TEXT_ON_RELEASE" != "true" ]; then
+            flag="--no-description"
           fi
+          if [ "$UPLOAD_PREVIEW" != "true" ]; then flag="$flag --no-preview"; fi
           python3 tools/workshop/steam_upload.py vdf "$GITHUB_WORKSPACE" "$RUNNER_TEMP/item.vdf" "$RUNNER_TEMP/note.txt" $flag
           grep -v '"description"' "$RUNNER_TEMP/item.vdf"
 
@@ -108,4 +117,4 @@ jobs:
             echo "::error::SteamCMD did not report a successful upload (exit $status). See the log above."
             exit 1
           fi
-          echo "Uploaded. https://steamcommunity.com/sharedfiles/filedetails/?id=$(grep -oP '^workshopid=\K\d+' workshop.txt)"
+          echo "Uploaded. https://steamcommunity.com/sharedfiles/filedetails/?id=$(grep -oP '^(workshop)?id=\K\d+' workshop.txt | head -1)"
