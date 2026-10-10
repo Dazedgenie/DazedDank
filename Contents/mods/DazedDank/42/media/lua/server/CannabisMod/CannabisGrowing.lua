@@ -74,7 +74,7 @@ commands.feedPlant = function(player, args)
 end
 
 commands.debugGrowKit = function(player, args)
-    if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then
+    if not Config.debugAllowed(player) then
         return
     end
     local give = CannabisMod.Farming.giveItems

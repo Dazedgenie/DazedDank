@@ -4971,5 +4971,304 @@ do
     DazedGardenCrops = nil
 end
 
+-- ---- Debug permission and the debug submenu ------------------------------
+;(function()
+    local oldDebug, oldCap, oldCore, oldMenu, oldSend = isDebugEnabled, Capability, DazedCore, ISContextMenu, sendClientCommand
+    isDebugEnabled, DazedCore = function() return false end, nil
+    Capability = { UseMovablesCheat = "movables", BanUnbanUser = "ban" }
+    local function withRole(caps)
+        return { getRole = function() return { hasCapability = function(_, c) return caps[c] == true end } end,
+            getAccessLevel = function() return "user" end }
+    end
+    check("debug: an ordinary B42 player ('user' access level) is refused", C.debugAllowed(withRole({})) == false)
+    check("debug: an admin (UseMovablesCheat) is allowed", C.debugAllowed(withRole({ movables = true })) == true)
+    check("debug: a moderator (BanUnbanUser) is allowed", C.debugAllowed(withRole({ ban = true })) == true)
+    Capability = nil
+    check("debug: without roles only admin or moderator access levels count",
+        C.debugAllowed({ getAccessLevel = function() return "Admin" end }) == true
+        and C.debugAllowed({ getAccessLevel = function() return "None" end }) == false
+        and C.debugAllowed({ getAccessLevel = function() return "user" end }) == false)
+    DazedCore = { DebugSpawn = { isStaff = function(p) return p == "staff" end } }
+    check("debug: Dazed Core's staff check is used when loaded", C.debugAllowed("staff") == true and C.debugAllowed("player") == false)
+    DazedCore = nil
+    check("debug: debug mode allows anyone", (function() isDebugEnabled = function() return true end return C.debugAllowed({}) end)())
+
+    -- The submenu: one "Dazed Dank debug" row holding everything, with the plant rows only on a plant.
+    local function newMenu()
+        local m = { rows = {}, subs = {} }
+        function m:addOption(label, target, fn, a1, a2) local o = { label = label, target = target, fn = fn, a1 = a1, a2 = a2 } table.insert(self.rows, o) return o end
+        return m
+    end
+    ISContextMenu = { getNew = function() return newMenu() end }
+    local context = newMenu()
+    function context:addSubMenu(head, sub) head.sub = sub end
+    dofile(MOD .. "client/CannabisMod/CannabisDebugMenu.lua")
+    local sent = {}
+    sendClientCommand = function(_, module, command, args) sent[#sent + 1] = { module = module, command = command, args = args } end
+    local square = { getX = function() return 5 end, getY = function() return 6 end, getZ = function() return 0 end }
+    CannabisMod.DebugMenu.add("me", context, square, nil)
+    check("debug menu: a single top-level row", #context.rows == 1 and context.rows[1].label == "Dazed Dank debug")
+    local menu = context.rows[1].sub
+    local labels = {}
+    for _, r in ipairs(menu.rows) do labels[#labels + 1] = r.label end
+    check("debug menu: grouped rows, no plant rows off a plant", table.concat(labels, "|")
+        == "Showcase setup|Give kit|Skip time|Fill reservoirs and drip tanks, water pots nearby|Smoker state")
+    local show = menu.rows[1].sub
+    check("debug menu: six showcase setups", #show.rows == 6)
+    local ripe = show.rows[4]
+    ripe.fn(ripe.target, ripe.a1, ripe.a2)
+    check("debug menu: a showcase row sends its setup and the clicked square", sent[1].command == "debugShowcase"
+        and sent[1].args.setup == "ripe" and sent[1].args.x == 5 and sent[1].args.y == 6 and sent[1].module == C.COMMAND_MODULE)
+    context = newMenu()
+    function context:addSubMenu(head, sub) head.sub = sub end
+    CannabisMod.DebugMenu.add("me", context, square, {})
+    check("debug menu: on a plant the This plant group appears", context.rows[1].sub.rows[3].label == "This plant"
+        and #context.rows[1].sub.rows[3].sub.rows == 3)
+    isDebugEnabled = function() return false end
+    context = newMenu()
+    CannabisMod.DebugMenu.add({ getAccessLevel = function() return "user" end }, context, square, nil)
+    check("debug menu: hidden from ordinary players", #context.rows == 0)
+    isDebugEnabled, Capability, DazedCore, ISContextMenu, sendClientCommand = oldDebug, oldCap, oldCore, oldMenu, oldSend
+end)()
+
+-- ---- Showcase setups (debug screenshots) ---------------------------------
+;(function()
+    require "CannabisMod/CannabisShowcase"
+    local Sh, Hy, Dr = CannabisMod.Showcase, CannabisMod.Hydro, CannabisMod.Drying
+    local D, H = C.Drying, C.Hydro
+    local oldCell, oldProps, oldInstance, oldSeed, oldDebug = getCell, ISMoveableSpriteProps, instanceItem, Plot.seed, isDebugEnabled
+    -- Vanilla's seeding of a plowed plot.
+    Plot.seed = function(self, t) self.state, self.typeOfSeed, self.nbOfGrow = "seeded", t, 0 end
+
+    -- A world of indoor rooms: every square powered, empty floor unless something is put on it.
+    local world = {}
+    getCell = function() return { getGridSquare = function(_, x, y, z) return world[x .. "_" .. y .. "_" .. z] end } end
+    local function room(x0, y0, w, h)
+        for x = x0, x0 + w - 1 do
+            for y = y0, y0 + h - 1 do
+                local sq = FakeWorld.square(x, y, 0, false, true)
+                FakeWorld.squares[x .. "_" .. y .. "_0"] = nil
+                function sq:AddWorldInventoryItem(item) self.items[#self.items + 1] = item end
+                function sq:isFree() return true end
+                world[x .. "_" .. y .. "_0"] = sq
+            end
+        end
+    end
+    local function objsIn(x0, y0, w, h, test)
+        local n = 0
+        for x = x0, x0 + w - 1 do
+            for y = y0, y0 + h - 1 do
+                local sq = world[x .. "_" .. y .. "_0"]
+                for _, e in ipairs(sq and sq.objs or {}) do
+                    if test(type(e) == "table" and e.sprite or e, e) then n = n + 1 end
+                end
+            end
+        end
+        return n
+    end
+    local function plantsIn(x0, y0, w, h)
+        local out = {}
+        for x = x0, x0 + w - 1 do
+            for y = y0, y0 + h - 1 do
+                local p = R.getPlant(x, y, 0)
+                if p then out[#out + 1] = p end
+            end
+        end
+        return out
+    end
+
+    -- Moveables: each item's world sprite, the facings it can turn to and the two-tile pieces.
+    local worldSprite = {
+        [C.GrowBag.small.furnItem] = "dazeddank_plants_01_203", [C.GrowBag.large.furnItem] = "dazeddank_plants_01_204",
+        [C.GrowBag.dwc.furnItem] = "dazeddank_plants_01_372", [C.GrowBag.rdwc.furnItem] = "dazeddank_hydro_01_0",
+        [C.GrowBag.ebb.furnItem] = "dazeddank_hydro_01_114",
+        [H.CONTROL_ITEM] = H.CONTROL_SPRITE, [H.FLOOD_ITEM] = H.FLOOD_SPRITE,
+        ["CannabisMod.GrowLampBasic"] = "dazeddank_plants_01_197", ["CannabisMod.GrowLampPro"] = "dazeddank_plants_01_198",
+        [D.RACK_ITEM] = "dazeddank_plants_01_206", [D.BARREL_ITEM] = D.BARREL_SPRITE, [D.FAN_ITEM] = D.FAN_SPRITE,
+    }
+    local FACES = {
+        ["dazeddank_hydro_01_114"] = { E = "dazeddank_hydro_01_114", S = "dazeddank_hydro_01_116" },
+        ["dazeddank_plants_01_206"] = { E = "dazeddank_plants_01_206", S = "dazeddank_plants_01_208" },
+    }
+    local MULTI = {
+        ["dazeddank_hydro_01_114"] = { "dazeddank_hydro_01_115", 0, 1 }, ["dazeddank_hydro_01_116"] = { "dazeddank_hydro_01_117", 1, 0 },
+        ["dazeddank_plants_01_206"] = { "dazeddank_plants_01_207", 0, 1 }, ["dazeddank_plants_01_208"] = { "dazeddank_plants_01_209", 1, 0 },
+    }
+    local HOLDS = { ["dazeddank_plants_01_206"] = true, ["dazeddank_plants_01_208"] = true, [D.BARREL_SPRITE] = true }
+    local placeCalls = 0
+    ISMoveableSpriteProps = { new = function(sprite)
+        local p = { spriteName = sprite, isMoveable = true, isMultiSprite = MULTI[sprite] ~= nil }
+        function p:getFaces() return FACES[sprite] or {} end
+        function p:getSpriteGridInfo(sq)
+            local m = MULTI[self.spriteName]
+            return { { square = sq }, { square = getCell():getGridSquare(sq.x + m[2], sq.y + m[3], sq.z) } }
+        end
+        function p:canPlaceMoveable(_, sq) return sq ~= nil end
+        function p:placeMoveable(character, sq, origSprite)
+            placeCalls = placeCalls + 1
+            local inv = character:getInventory()
+            for _, it in ipairs(inv.items) do
+                if it.getWorldSprite and it:getWorldSprite() == origSprite then inv:Remove(it) break end
+            end
+            local entry = { sprite = self.spriteName, container = HOLDS[self.spriteName] and newContainer() or nil }
+            sq.objs[#sq.objs + 1] = entry
+            local m = MULTI[self.spriteName]
+            if m then
+                local other = getCell():getGridSquare(sq.x + m[2], sq.y + m[3], sq.z)
+                other.objs[#other.objs + 1] = { sprite = m[1] }
+            end
+            fire("OnObjectAdded", sq:getObjects():get(#sq.objs - 1))
+        end
+        return p
+    end }
+    instanceItem = function(fullType)
+        local it = newItem(fullType)
+        local inv = newContainer()
+        it.getInventory = function() return inv end
+        return it
+    end
+    local function showcaser(x, y)
+        local p = newPlayer(x, y, 10)
+        function p.inv:AddItem(fullType)
+            local it = newItem(fullType)
+            it.getWorldSprite = function() return worldSprite[fullType] end
+            return self:addExisting(it)
+        end
+        function p.inv:contains(item)
+            for _, it in ipairs(self.items) do if it == item then return true end end
+            return false
+        end
+        return p
+    end
+    local function run(player, setup, x, y)
+        local before = #sent
+        fire("OnClientCommand", "CannabisMod", "debugShowcase", player, { setup = setup, x = x, y = y, z = 0 })
+        return #sent > before and sent[#sent].data.text or nil
+    end
+    local function isLamp(name) return C.Light.SPRITES[name] ~= nil end
+
+    -- Soil setups: six female plants at the setup's stage under two lamps, a mix of indica, sativa and hybrid.
+    local stages = { seedling = C.STAGE.Seedling, veg = C.STAGE.Vegetative, flower = C.STAGE.Flowering, ripe = C.STAGE.Ripe }
+    local bx = 9000
+    for _, id in ipairs({ "seedling", "veg", "flower", "ripe" }) do
+        room(bx, 9000, 9, 9)
+        local player = showcaser(bx + 4, 9000)
+        local text = run(player, id, bx + 4, 9004)
+        local plants = plantsIn(bx, 9000, 9, 9)
+        local right, female, kinds, bagged, watered = 0, 0, {}, 0, 0
+        for _, p in ipairs(plants) do
+            if p.stage == stages[id] then right = right + 1 end
+            if p.sex == C.SEX.FEMALE then female = female + 1 end
+            kinds[p.type] = true
+            if R.getBag(p.x, p.y, 0) == (id == "seedling" and "small" or "large") and R.isBagSoiled(p.x, p.y, 0) then bagged = bagged + 1 end
+            local plot = SFarmingSystem.instance:getLuaObjectAt(p.x, p.y, 0)
+            if plot and plot.state == "seeded" and plot.waterLvl == Hy.DEBUG_POT_WATER then watered = watered + 1 end
+        end
+        check("showcase " .. id .. ": six plants at the stage", #plants == 6 and right == 6)
+        check("showcase " .. id .. ": all female, in filled bags, watered", female == 6 and bagged == 6 and watered == 6)
+        check("showcase " .. id .. ": indica, sativa and hybrid", kinds[T.INDICA] and kinds[T.SATIVA] and kinds[T.HYBRID])
+        check("showcase " .. id .. ": two lamps, the furniture bags turned into plots",
+            objsIn(bx, 9000, 9, 9, isLamp) == 2 and objsIn(bx, 9000, 9, 9, function(n) return C.bagFromFurnSprite(n) ~= nil end) == 0)
+        check("showcase " .. id .. ": nothing left in the bag", #player.inv.items == 0)
+        check("showcase " .. id .. ": says what it placed", text and text:find("6 plants", 1, true) and text:find("2 grow lamps", 1, true)
+            and not text:find("Couldn't", 1, true))
+        if id == "ripe" then
+            local top = 0
+            for _, p in ipairs(plants) do
+                if p.genetics == 100 and p.care == 100 and p.stress == 0 and p.lightCap == 100 and G.calcQuality(p, 0, 48) == 100 then
+                    top = top + 1
+                end
+            end
+            check("showcase ripe: every plant at top quality and harvestable", top == 6
+                and SFarmingSystem.instance:getLuaObjectAt(plants[1].x, plants[1].y, 0).hasVegetable == true)
+        end
+        bx = bx + 100
+    end
+
+    -- A pot already standing on the clicked square is left alone; the setup moves to free floor.
+    room(9500, 9000, 9, 9)
+    local blocked = world["9504_9004_0"]
+    blocked.objs[1] = "furniture_seating_01_1"
+    run(showcaser(9504, 9000), "veg", 9504, 9004)
+    check("showcase: an occupied square is skipped", #blocked.objs == 1 and R.getPlant(9504, 9004, 0) == nil
+        and #plantsIn(9500, 9000, 9, 9) == 6)
+
+    -- Hydro bench: DWC buckets, an RDWC control with sites and a flood table, all filled, dosed and planted.
+    room(9600, 9000, 10, 7)
+    local hp = showcaser(9605, 9000)
+    local htext = run(hp, "hydro", 9605, 9003)
+    local hplants = plantsIn(9600, 9000, 10, 7)
+    local byBag, healthy = {}, 0
+    for _, p in ipairs(hplants) do
+        byBag[p.bag] = byBag[p.bag] or {}
+        table.insert(byBag[p.bag], p)
+        local r = Hy.reservoirOf(p.x, p.y, 0)
+        if r and r.level > 0 and r.strength > 0 and p.care == 100 then healthy = healthy + 1 end
+    end
+    check("showcase hydro: 2 DWC, 3 RDWC and 2 flood table plants", #hplants == 7 and #(byBag.dwc or {}) == 2
+        and #(byBag.rdwc or {}) == 3 and #(byBag.ebb or {}) == 2)
+    check("showcase hydro: veg in DWC and on the table, flowering in RDWC",
+        byBag.dwc[1].stage == C.STAGE.Vegetative and byBag.ebb[1].stage == C.STAGE.Vegetative and byBag.rdwc[1].stage == C.STAGE.Flowering)
+    check("showcase hydro: every reservoir filled and fed, no penalty", healthy == 7)
+    local site = byBag.rdwc[1]
+    local control = Hy.reservoirOf(site.x, site.y, 0)
+    check("showcase hydro: sites share the control bucket", control and control.isControl
+        and Hy.sitesOf(C.tileKey(control.x, control.y, 0)) == 3 and control.level == Hy.capacity(control))
+    local tbl = byBag.ebb[1]
+    local flood = Hy.reservoirOf(tbl.x, tbl.y, 0)
+    check("showcase hydro: the table is flooded from its reservoir with a timer", flood and flood.isFlood and flood.floodTimer
+        and (Hy.get(tbl.x, tbl.y, 0, "ebb").wetUntil or 0) > worldHours and Hy.get(tbl.x, tbl.y, 0, "ebb").partner ~= nil)
+    check("showcase hydro: rockwool in every net pot", Hy.get(byBag.dwc[1].x, byBag.dwc[1].y, 0).medium == "rockwool")
+    check("showcase hydro: says what it placed", htext and htext:find("7 plants", 1, true) and htext:find("RDWC control", 1, true)
+        and htext:find("flood reservoir", 1, true) and not htext:find("Couldn't", 1, true))
+
+    -- Drying corner: wet plants hanging on the rack, a jar and the barrel curing buds, a fan.
+    room(9700, 9000, 8, 7)
+    local dtext = run(showcaser(9704, 9000), "drying", 9704, 9003)
+    local wet, jarBuds, barrelBuds, fans = 0, 0, 0, 0
+    for x = 9700, 9707 do
+        for y = 9000, 9006 do
+            local sq = world[x .. "_" .. y .. "_0"]
+            for _, e in ipairs(sq.objs) do
+                local name = type(e) == "table" and e.sprite or e
+                if name == D.FAN_SPRITE then fans = fans + 1 end
+                if type(e) == "table" and e.container then
+                    for _, it in ipairs(e.container.items) do
+                        if C.isWetPlant(it.fullType) and it:getModData().CannabisHarvest then wet = wet + 1 end
+                        if it.fullType == D.BUD_ITEM and Dr.budData(it) then barrelBuds = barrelBuds + 1 end
+                    end
+                end
+            end
+            for _, it in ipairs(sq.items) do
+                if it.fullType == D.JAR_ITEM then
+                    for _, b in ipairs(it:getInventory().items) do
+                        if Dr.budData(b) and Dr.budData(b).quality > 0 then jarBuds = jarBuds + 1 end
+                    end
+                end
+            end
+        end
+    end
+    check("showcase drying: four wet plants on the rack", wet == 4)
+    check("showcase drying: a jar of buds, a barrel of buds and a fan", jarBuds == 8 and barrelBuds == 12 and fans == 1)
+    check("showcase drying: says what it placed", dtext and dtext:find("4 wet plants", 1, true) and not dtext:find("Couldn't", 1, true))
+
+    -- Too little floor: nothing is placed and the player is told.
+    room(9800, 9000, 2, 2)
+    local small = run(showcaser(9800, 9000), "flower", 9800, 9000)
+    check("showcase: no room says so and places nothing", small and small:find("No room", 1, true) and #plantsIn(9800, 9000, 2, 2) == 0)
+
+    -- Refused without debug permission, and an unknown setup does nothing.
+    room(9900, 9000, 9, 9)
+    local calls = placeCalls
+    isDebugEnabled = function() return false end
+    local refused = run(showcaser(9904, 9000), "veg", 9904, 9004)
+    isDebugEnabled = oldDebug
+    check("showcase: refused without debug permission", refused == nil and #plantsIn(9900, 9000, 9, 9) == 0 and placeCalls == calls)
+    local unknown = run(showcaser(9904, 9000), "garden", 9904, 9004)
+    check("showcase: unknown setup does nothing", unknown == nil and #plantsIn(9900, 9000, 9, 9) == 0 and placeCalls == calls)
+
+    getCell, ISMoveableSpriteProps, instanceItem, Plot.seed = oldCell, oldProps, oldInstance, oldSeed
+end)()
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

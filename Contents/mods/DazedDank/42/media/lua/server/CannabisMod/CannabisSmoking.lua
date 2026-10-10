@@ -168,12 +168,8 @@ end
 
 -- Debug helpers (debug mode or admins only)
 
-local function debugAllowed(player)
-    return isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")
-end
-
 commands.debugSmokeKit = function(player, args)
-    if not debugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     Farming.giveItems(player, Smoke.PAPER_ITEM, 6)
     Farming.giveItems(player, Smoke.PIPE_ITEM, 1)
     Farming.giveItems(player, "Base.Lighter", 1)
@@ -188,7 +184,7 @@ end
 
 --- Set the caller's tolerance, dependency and how long ago they last used.
 commands.debugUseState = function(player, args)
-    if not debugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     local user = userOf(player)
     user.tol = Config.clamp(tonumber(args.tol) or user.tol, 0, 100)
     user.dep = Config.clamp(tonumber(args.dep) or user.dep, 0, 100)

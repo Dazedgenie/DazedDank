@@ -387,15 +387,10 @@ end
 -- Debug helpers (debug mode or admins only, re-checked here)
 -- --------------------------------------------------------------------------
 
-local function isDebugAllowed(player)
-    return isDebugEnabled()
-        or (player.getAccessLevel and player:getAccessLevel() ~= "None")
-end
-
 --- A kit for testing: a dome, rooting gel and three fresh cuttings (one of
 --- each type).
 commands.debugCloningKit = function(player, args)
-    if not isDebugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     Farming.giveItems(player, Config.DOME_ITEM, 1)
     Farming.giveItems(player, Config.GEL_ITEM, 1)
     for _, t in ipairs({ Config.TYPES.INDICA, Config.TYPES.SATIVA, Config.TYPES.HYBRID }) do
@@ -408,7 +403,7 @@ end
 
 --- Finish rooting right now, in a dome or in soil cuttings nearby.
 commands.debugFinishRooting = function(player, args)
-    if not isDebugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     local now = Registry.nowHours()
     if args.domeId then
         local dome = findDome(player, args)

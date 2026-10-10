@@ -15,6 +15,7 @@ require "ISUI/ISModalDialog"
 require "CannabisMod/ISCannabisSmokeAction"
 require "CannabisMod/CannabisHigh"
 require "CannabisMod/CannabisStatusWindow"
+require "CannabisMod/CannabisDebugMenu"
 require "CannabisMod/ISCannabisItemAction"
 require "Farming/TimedActions/ISSeedActionNew"
 
@@ -506,58 +507,7 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
         end
     end
 
-    -- Debug-mode helpers. The server re-checks debug/admin, so showing these
-    -- grants nothing by itself.
-    if isDebugEnabled() then
-        context:addOption("[Debug] Give cannabis test seeds", player, function(p)
-            send(p, "debugGiveSeeds")
-        end)
-        context:addOption("[Debug] Give cloning kit", player, function(p)
-            send(p, "debugCloningKit")
-        end)
-        context:addOption("[Debug] Give grow kit", player, function(p)
-            send(p, "debugGrowKit")
-        end)
-        context:addOption("[Debug] Give hydro kit", player, function(p)
-            send(p, "debugHydroKit", {})
-        end)
-        context:addOption("[Debug] Give drying kit", player, function(p)
-            send(p, "debugDryingKit")
-        end)
-        context:addOption("[Debug] Give smoking kit", player, function(p)
-            send(p, "debugSmokeKit")
-        end)
-        context:addOption("[Debug] Dependent: tolerance 60, dependency 80, 48h clean", player, function(p)
-            send(p, "debugUseState", { tol = 60, dep = 80, hoursAgo = 48 })
-        end)
-        context:addOption("[Debug] Reset tolerance and dependency", player, function(p)
-            send(p, "debugUseState", { tol = 0, dep = 0, hoursAgo = 0 })
-        end)
-        context:addOption("[Debug] Racks and jars: +24 hours", player, function(p)
-            send(p, "debugAdvanceStations", { hours = 24 })
-        end)
-        context:addOption("[Debug] Fill reservoirs and drip tanks, water pots nearby", player, function(p)
-            send(p, "debugFillWater")
-        end)
-        if plot then
-            context:addOption("[Debug] Cannabis: next stage", player, function(p)
-                send(p, "debugNextStage", squareArgs(square))
-            end)
-            context:addOption("[Debug] Cannabis: quality +20", player, function(p)
-                local a = squareArgs(square)
-                a.amount = 20
-                send(p, "debugBoostQuality", a)
-            end)
-            context:addOption("[Debug] Cannabis: max quality", player, function(p)
-                local a = squareArgs(square)
-                a.amount = "max"
-                send(p, "debugBoostQuality", a)
-            end)
-            context:addOption("[Debug] Cannabis: finish rooting", player, function(p)
-                send(p, "debugFinishRooting")
-            end)
-        end
-    end
+    CannabisMod.DebugMenu.add(player, context, square, plot)
 end
 Events.OnFillWorldObjectContextMenu.Add(onFillWorldObjectContextMenu)
 
@@ -609,8 +559,8 @@ function addDomeOptions(player, context, dome)
     context:addOption("Take Rooted Cuttings", player, function(p)
         send(p, "domeTake", args)
     end)
-    if isDebugEnabled() then
-        context:addOption("[Debug] Finish rooting now", player, function(p)
+    if Config.debugAllowed(player) then
+        context:addOption("Debug: finish rooting in this dome", player, function(p)
             send(p, "debugFinishRooting", args)
         end)
     end

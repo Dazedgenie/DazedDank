@@ -996,6 +996,26 @@ function Config.debugOn()
     return isDebugEnabled ~= nil and isDebugEnabled() == true
 end
 
+--- May this player use the debug helpers? The game in debug mode, or staff. B42 roles call an ordinary player "user",
+--  so an access level other than "None" lets everyone through; staff are told by capability, as Dazed Core does.
+function Config.debugAllowed(player)
+    if Config.debugOn() then return true end
+    if not player then return false end
+    local S = DazedCore and DazedCore.DebugSpawn
+    if S and S.isStaff then return S.isStaff(player) == true end
+    local okRole, role = pcall(function() return player:getRole() end)
+    if okRole and role and Capability then
+        for _, cap in ipairs({ Capability.UseMovablesCheat, Capability.BanUnbanUser }) do
+            local ok, has = pcall(function() return role:hasCapability(cap) end)
+            if cap ~= nil and ok and has == true then return true end
+        end
+        return false
+    end
+    local ok, lvl = pcall(function() return player:getAccessLevel() end)
+    lvl = ok and type(lvl) == "string" and string.lower(lvl) or ""
+    return lvl == "admin" or lvl == "moderator"
+end
+
 --- Write a [DazedDank] tracing line to console.txt, in debug mode only, so normal play keeps the log quiet.
 function Config.debugLog(text)
     if Config.debugOn() then print("[DazedDank] " .. text) end

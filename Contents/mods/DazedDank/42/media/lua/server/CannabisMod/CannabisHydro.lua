@@ -1146,7 +1146,7 @@ CannabisMod.TenMinutes.set("hydroCleanup", Hydro.cleanup)
 
 --- A kit for testing hydro: DWC buckets, an RDWC control with two sites, rockwool, clay pebbles, nutrients and bleach.
 commands.debugHydroKit = function(player, args)
-    if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then return end
+    if not Config.debugAllowed(player) then return end
     Farming.giveItems(player, "CannabisMod.DWCBucket", 2)
     Farming.giveItems(player, Config.GrowBag.xldwc.furnItem, 1)
     Farming.giveItems(player, H.CONTROL_ITEM, 1)
@@ -1217,7 +1217,7 @@ function Hydro.debugFillNear(x, y, range)
 end
 
 commands.debugFillWater = function(player, args)
-    if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then return end
+    if not Config.debugAllowed(player) then return end
     local x, y = math.floor(player:getX()), math.floor(player:getY())
     local reservoirs, pots = Hydro.debugFillNear(x, y, Hydro.DEBUG_FILL_RANGE)
     Net.notify(player, string.format("Filled %d reservoir(s) and watered %d pot(s) within %d tiles", reservoirs, pots,

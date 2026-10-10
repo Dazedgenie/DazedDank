@@ -17,14 +17,19 @@ Mods menu.
 
 ## In-game test (launch with -debug)
 
-1. Right-click the ground: **[Debug] Give cannabis test seeds**. You get 18
+Every debug helper sits under one right-click row, **Dazed Dank debug** (debug mode, or admins and moderators on a
+server): **Showcase setup** (seedlings, veg, flower, ready to harvest, a hydro bench, drying and curing, each spawned
+whole around the clicked spot for screenshots; lamps only light where the building has power), **Give kit**,
+**This plant** (on a plant), **Skip time**, water fill and **Smoker state**.
+
+1. Right-click the ground: **Dazed Dank debug > Give kit > Test seeds**. You get 18
    seeds: 2 female and 1 male of each of the six starter strains.
 2. Right-click a seed in your inventory: **Inspect Seed**. Below
    Agriculture 3 it says "Unknown cannabis seed"; at 3+ it shows type and sex.
 3. Plow a plot, then use the vanilla **Sow Seed** menu. Cannabis is listed there.
 4. Right-click the plant: **Inspect Cannabis Plant** shows what your
    Agriculture level allows in a status window: strain tag, a five-step growth track, a water bar with the healthy zone marked, Health, Stress, Genetics and quality meters, and coloured warning chips. The footer says what level unlocks more detail. The same info is printed to console.txt.
-5. Right-click the plant: **[Debug] Cannabis: next stage** to skip ahead.
+5. Right-click the plant: **Dazed Dank debug > This plant > Next stage** to skip ahead.
    The sprite should change at each stage, and a vanilla Harvest option
    should appear at Ripe.
 6. Harvest a female: you get a **Wet Whole Plant (Indica / Sativa / Hybrid)**,
@@ -56,7 +61,7 @@ Numbers live in `Config.Topping`, `Config.Cuttings` and `Config.Mother`.
 
 ### Nutrients and grow lights
 
-15. Right-click the ground: **[Debug] Give grow kit** (2 Veg, 2 Bloom, a
+15. Right-click the ground: **Dazed Dank debug > Give kit > Grow kit** (2 Veg, 2 Bloom, a
     six grow lamps, 2 light timers, bags).
 16. Right-click a plant in veg: **Feed Veg Nutrients** uses one bottle and
     gives a small care bonus. Feeding twice in one stage burns the plant.
@@ -105,7 +110,7 @@ Numbers live in `Config.Topping`, `Config.Cuttings` and `Config.Mother`.
 
 ### Smoking, effects, tolerance and dependency (first iteration)
 
-29. Right-click the ground: **[Debug] Give smoking kit** (papers, pipe,
+29. Right-click the ground: **Dazed Dank debug > Give kit > Smoking kit** (papers, pipe,
     lighter, 3 buds each of Indica, Sativa and Hybrid, quality 80).
 30. Right-click a bud: **Roll Joint** (needs rolling papers) or **Smoke in
     Pipe** (needs the pipe and a lighter or open flame). Right-click a
@@ -138,7 +143,7 @@ offline: if nothing is tinted, tell me.
 
 ### Drying, trimming and curing
 
-24. Right-click the ground: **[Debug] Give drying kit** (rack, jar, fan,
+24. Right-click the ground: **Dazed Dank debug > Give kit > Drying kit** (rack, jar, fan,
     scissors, 2 wet plants). The **Drying Rack** (two tiles, rotates with R; each tile holds 8 plants) and the **Large lamps** (Large Basic 1x2, Large Pro 1x3)
     and **Drying Fan** are furniture: place them with the move-furniture
     tool on free floor. The jar is set down in the world. They're found
@@ -146,7 +151,7 @@ offline: if nothing is tinted, tell me.
 25. Drag wet plants into the rack (it refuses anything else, max 8). Plants
     dry in 48 hours at a normal pace: warmth speeds it up, a powered
     **Drying Fan** within 3 tiles speeds it a little and cuts mold risk.
-    Once a plant has fully dried (48 hours at a normal pace) it turns into a **Dried Whole Plant** in the rack, which can still be trimmed; leaving it there too long over-dries it. **[Debug] Racks and jars: +24 hours** skips time. **Check Drying Rack**
+    Once a plant has fully dried (48 hours at a normal pace) it turns into a **Dried Whole Plant** in the rack, which can still be trimmed; leaving it there too long over-dries it. **Dazed Dank debug > Skip time > Racks and jars: +24 hours** skips time. **Check Drying Rack**
     reports each plant's progress.
 26. Mold chance is highest while a plant is wet, and rises outdoors, in rain
     and in warm air (the Mold Chance sandbox option scales it). Direct sun
@@ -288,7 +293,7 @@ All under the **Dazed Dank** page of the sandbox settings:
 
 ### Cloning
 
-8. Right-click the ground: **[Debug] Give cloning kit** (a Cloning Dome
+8. Right-click the ground: **Dazed Dank debug > Give kit > Cloning kit** (a Cloning Dome
    container, rooting gel, 3 fresh cuttings). Get scissors or a kitchen knife too.
 9. With a plant in Vegetative or Pre-flower, right-click it: **Take Cutting**.
    The option is greyed out without a cutting tool.
@@ -298,13 +303,13 @@ All under the **Dazed Dank** page of the sandbox settings:
 11. Drag cuttings into the dome like a bag (it refuses anything that isn't
     a cutting, and a 13th cutting). Drop the dome or place it on a table: it
     shows as a container in the loot window, and right-clicking it gives
-    **Check Cuttings** / **Take Rooted Cuttings**. **[Debug] Finish rooting
-    now** skips the wait. A cutting that is rooting in the dome doesn't go stale;
+    **Check Cuttings** / **Take Rooted Cuttings**. **Debug: finish rooting
+    in this dome** skips the wait. A cutting that is rooting in the dome doesn't go stale;
     one that won't root still wilts on the normal timer.
 12. Plant a rooted cutting with **Sow Seed**. It starts in Vegetative.
 13. Or sow a fresh cutting straight into a plot. Inspect shows "Still
-    rooting" until it roots or dies. **[Debug] Cannabis: finish rooting**
-    on the plant settles it on the next 10-minute tick.
+    rooting" until it roots or dies. **Dazed Dank debug > Skip time > Finish rooting**
+    settles it on the next 10-minute tick.
 14. Leave a cutting in your inventory for a day or two: it goes stale and
     disappears from the Sow menu (fridges slow this down).
 

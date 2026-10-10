@@ -638,7 +638,7 @@ end
 
 --- Debug: cut or restore a grow room's power at its panel, to test outages without touching the grid.
 commands.debugRoomPower = function(player, args)
-    if not (isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")) then return end
+    if not Config.debugAllowed(player) then return end
     local room = panelFor(player, args)
     if not room then return end
     local key = Config.tileKey(room.x, room.y, room.z)

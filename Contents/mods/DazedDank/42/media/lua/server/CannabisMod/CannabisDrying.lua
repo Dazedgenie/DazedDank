@@ -798,12 +798,8 @@ end
 
 -- Debug helpers (debug mode or admins only)
 
-local function debugAllowed(player)
-    return isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")
-end
-
 commands.debugDryingKit = function(player, args)
-    if not debugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     Farming.giveItems(player, D.RACK_ITEM, 1)
     Farming.giveItems(player, D.JAR_ITEM, 1)
     Farming.giveItems(player, D.BARREL_ITEM, 1)
@@ -826,7 +822,7 @@ end
 
 --- Pretend `hours` hours have passed at every station (applied at the next settle).
 commands.debugAdvanceStations = function(player, args)
-    if not debugAllowed(player) or not db then return end
+    if not Config.debugAllowed(player) or not db then return end
     local h = tonumber(args.hours) or 24
     for key, station in pairs(db.stations) do
         if station.lastTick then station.lastTick = station.lastTick - h end

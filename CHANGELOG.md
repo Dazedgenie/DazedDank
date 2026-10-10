@@ -1,6 +1,9 @@
 # Dazed Dank patch notes
 
 ## dd56 (vanilla crops in containers, in testing)
+- Changed: every debug helper moved under one right-click row, **Dazed Dank debug**, grouped into Showcase setup, Give kit, This plant, Skip time, water fill and Smoker state, instead of 16 loose "[Debug]" rows.
+- Added: **Showcase setup** debug spawns a whole grow for Workshop screenshots around the clicked spot: seedlings, vegetative, flowering or ready-to-harvest plants in grow bags under lamps, a hydro bench (DWC, RDWC and a flood table, filled and fed), or drying and curing (rack with wet plants, fan, jar and barrel of buds). It needs open floor and lights its lamps only where there is power.
+- Fixed: on a B42 server every player could run the debug commands, because ordinary players have the "user" access level. Debug now needs debug mode or a staff role (admin or moderator), checked the way Dazed Core does it.
 - Added: temperatures read in Celsius or Fahrenheit. The grow panel's temperature meter (reading, target band, outdoor note) and the "room is at" log line follow the **Temperatures** choice on the Dazed Core options page (Game setting, Celsius, Fahrenheit; needs Dazed Core 1.6.0), or the game's own Display > Temperature display option without it. In multiplayer each player sees their own unit. Item and sandbox tooltips show both units. Log lines written before this update keep their old C text.
 - Added: with the new **Dazed Dank: Garden Crops** add-on enabled, grow bags, DWC buckets, RDWC sites and flood tables take vanilla crops too. They grow by vanilla's rules; the add-on draws each one without its furrow so it stands in the container. Without the add-on, containers take cannabis only, as before.
 - Added: root, bulb, sprawling and grain crops (potatoes, carrots, onions, pumpkins, corn, wheat and the like) grow in bags only. In hydro their Sow row is greyed out with "This crop needs soil: use a grow bag".
