@@ -242,8 +242,16 @@ end
 local originalSeedComplete = ISSeedActionNew.complete
 
 function ISSeedActionNew:complete()
-    -- A grow bag has to be filled with soil before its first planting.
     local pl = self.plant
+    -- Never sow over a plant that is already there: refuse before vanilla eats the seed. Vanilla crops in vanilla furrows are left alone.
+    if pl and (self.typeOfSeed == CROP or Registry.getBag(pl.x, pl.y, pl.z)) then
+        local existing = Farming.getVanilla(pl.x, pl.y, pl.z)
+        if existing and existing.state ~= "plow" then
+            if Net and self.character then Net.notify(self.character, "Something is already growing here") end
+            return false
+        end
+    end
+    -- A grow bag has to be filled with soil before its first planting.
     local bagKind = pl and Registry.getBag(pl.x, pl.y, pl.z)
     if bagKind and self.typeOfSeed ~= CROP then
         if Net and self.character then Net.notify(self.character, "Grow bags, buckets and flood tables only take cannabis") end

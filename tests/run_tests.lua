@@ -4385,6 +4385,86 @@ do
 end
 
 
+-- ---- Fix: sowing into a pot that already has a plant is refused ----
+do
+    local G = CannabisMod.GrowBags
+    local grower = newPlayer(7800, 7800, 6)
+    fakeSquare(7800, 7800, 0, false, true)
+    G.makePlot(getCell():getGridSquare(7800, 7800, 0), "small")
+    local plot = SFarmingSystem.instance:getLuaObjectAt(7800, 7800, 0)
+    grower.inv:addExisting(newItem("CannabisMod.SoilSack"))
+    fire("OnClientCommand", "CannabisMod", "fillGrowBag", grower, { x = 7800, y = 7800, z = 0 })
+    local function mk(genetics)
+        local it = newItem(C.SEED_ITEM)
+        S.setData(it, { type = T.SATIVA, sex = C.SEX.FEMALE, genetics = genetics })
+        return it
+    end
+    local first, second = mk(100), mk(40)
+    ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = first, plant = { x = 7800, y = 7800, z = 0 }, character = grower })
+    local rec = R.getPlant(7800, 7800, 0)
+    check("occupied: an empty soiled pot still takes a seed", rec and rec.genetics == 100 and first.removed == true)
+    ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = second, plant = { x = 7800, y = 7800, z = 0 }, character = grower })
+    check("occupied: a second seed is refused and kept", second.removed ~= true and sent[#sent].data.text:find("already growing"))
+    check("occupied: the existing plant's record is unchanged", R.getPlant(7800, 7800, 0) == rec and rec.genetics == 100)
+
+    -- the client action refuses an occupied plot, reading the state fresh each call
+    local oldValid, oldCell, oldCF = ISSeedActionNew.isValid, getCell, CFarmingSystem
+    local calls = 0
+    ISSeedActionNew.isValid = function() calls = calls + 1 return true end
+    local cplot = { state = "plow", spriteName = plot.spriteName, x = 0 }
+    local furrow = { state = "seeded", spriteName = C.FURROW_SPRITE, x = 1 }
+    CFarmingSystem = { instance = { getLuaObjectOnSquare = function(_, sq) return sq.x == 1 and furrow or cplot end } }
+    getCell = function() return { getGridSquare = function(_, x) return { x = x } end } end
+    dofile(MOD .. "client/CannabisMod/CannabisSowGuard.lua")
+    local act = { plant = cplot, typeOfSeed = "Cannabis" }
+    check("occupied: client allows a plowed empty plot", ISSeedActionNew.isValid(act) == true)
+    cplot.state = "seeded"
+    check("occupied: client refuses once the plot is seeded", ISSeedActionNew.isValid(act) == false)
+    local vanillaAct = { plant = furrow, typeOfSeed = "Tomato" }
+    check("occupied: a vanilla crop in a vanilla furrow is left to vanilla", ISSeedActionNew.isValid(vanillaAct) == true)
+    ISSeedActionNew.isValid, getCell, CFarmingSystem = oldValid, oldCell, oldCF
+
+    -- the sow menu does not queue on an occupied plot
+    local old = { ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState }
+    local queued, seed = {}, mk(100)
+    ISFarmingMenu = { walkToPlant = function() return true end, isSeedValid = function() end, onSeedSquareSelected = function() end, doSeedMenu = function() end }
+    ISFarmingCursorMouse = { new = function() return {} end }
+    ISInventoryPaneContextMenu = { transferIfNeeded = function() end }
+    ISTimedActionQueue = { add = function(a) queued[#queued + 1] = a end }
+    ISSeedActionNew = { new = function(_, ...) return { ... } end }
+    getCell = function() return { setDrag = function() end } end
+    JoypadState = nil
+    local oldGroups = CannabisMod.Info.seedGroups
+    CannabisMod.Info.seedGroups = function() return { { label = "g", items = { seed } } } end
+    package.loaded["CannabisMod/CannabisSowMenu"] = nil
+    ISFarmingMenu.ddSowGroups, ISFarmingMenu.ddSowFiltered = nil, nil
+    dofile(MOD .. "client/CannabisMod/CannabisSowMenu.lua")
+    local player = { getInventory = function() return { getAllTypeRecurse = function() return { size = function() return 1 end, get = function() return seed end } end } end,
+        getPerkLevel = function() return 5 end, getPlayerNum = function() return 0 end }
+    local picked
+    local ctx = setmetatable({}, { __index = { getNew = function() return { addOption = function(_, _, _, fn, ...) picked = picked or { fn = fn, args = { ... } } end } end, addSubMenu = function() end } })
+    ISFarmingMenu.doSeedMenu = function(_, context)
+        local m = context:getNew(context)
+        m.options = { { param1 = C.CROP_TYPE, param4 = "Cannabis", onSelect = function() end } }
+        m.numOptions = 1
+    end
+    -- re-wrap doSeedMenu now that it is defined
+    ISFarmingMenu.ddSowFiltered = nil
+    dofile(MOD .. "client/CannabisMod/CannabisSowMenu.lua")
+    ISFarmingMenu:doSeedMenu(ctx, { state = "seeded" }, nil, player)
+    check("occupied: the menu offers no seed list on a planted plot", picked == nil)
+    ISFarmingMenu:doSeedMenu(ctx, { state = "plow" }, nil, player)
+    check("occupied: the menu offers the seed list on a plowed plot", picked ~= nil)
+    queued = {}
+    picked.fn(player, table.unpack(picked.args, 1, 1), { state = "seeded" }, select(3, table.unpack(picked.args)))
+    check("occupied: choosing a group on a planted plot queues nothing", #queued == 0)
+    picked.fn(player, table.unpack(picked.args))
+    check("occupied: choosing a group on a plowed plot queues the action", #queued == 1)
+    CannabisMod.Info.seedGroups = oldGroups
+    ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState = table.unpack(old, 1, 7)
+end
+
+
 -- ---- Fix: a ceiling grow lamp checks its own squares instead of asking vanilla ----
 do
     local oldProps, oldFlag, oldInst, oldTs = ISMoveableSpriteProps, IsoFlagType, instanceof, getTimestampMs

@@ -22,6 +22,7 @@
 - Fixed: a cloning dome that was destroyed or lost with cuttings in it kept its record in the save forever. Domes unseen for 90 days (the same keep time as drying records) are dropped, and a destroyed dome is no longer checked every ten minutes.
 - Fixed: choosing a seed from the Sow Seed list crashed with "Object tried to call nil". It no longer depends on a game function the mod couldn't reach.
 - Fixed: a ceiling grow lamp was refused over flood table tiles and the RDWC reservoir or control bucket. Ceiling lamps now use their own placement check (floor, indoors, off tables, nothing solid in the way, no second lamp on the same tile, not at the top of stairs, and the usual skill and tool). The console says why when a lamp is refused.
+- Fixed: a seed or cutting could be sown into a pot, bag, bucket or flood table that already had a plant, replacing it. The sow is now refused, the seed is kept, and the menu and cursor skip planted plots.
 
 ## dd54 (Climate and UI redesign, in testing)
 - Fixed: a Botanist / Breeder now reads a seed's or cutting's strain and sex at any Agriculture level, as the occupation says (it used to show "Unknown cannabis seed" below Agriculture 3).

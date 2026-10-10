@@ -34,6 +34,11 @@ local function otherCrop(option)
     return false
 end
 
+--- True when a plot already has something growing (a plowed, empty plot has state "plow").
+local function occupied(plant)
+    return plant ~= nil and plant.state ~= nil and plant.state ~= "plow"
+end
+
 --- The cannabis seeds a player carries, bags included.
 local function carriedSeeds(player)
     local out = {}
@@ -62,6 +67,7 @@ end
 
 --- Sow one seed from the chosen group here, then keep that group on the cursor for the next plots, like vanilla.
 local function sowFromGroup(player, typeOfSeed, plant, sq, seedName, label)
+    if occupied(plant) then return end
     if ISFarmingMenu.walkToPlant(player, sq) and not isJoypadCharacter(player) then
         local seed = seedInGroup(player, label)
         if seed then
@@ -83,8 +89,10 @@ if ISFarmingMenu and ISFarmingMenu.onSeedSquareSelected and not ISFarmingMenu.dd
     function ISFarmingMenu:onSeedSquareSelected(...)
         local cursor = ISFarmingMenu.cursor
         if not (cursor and cursor.ddSeedLabel) then return original(self, ...) end
-        if not ISFarmingMenu.walkToPlant(cursor.character, cursor.sq) then return end
         local plant = CFarmingSystem.instance:getLuaObjectOnSquare(cursor.sq)
+        -- A plot that already has a plant is skipped, so a repeat click can't sow over it.
+        if occupied(plant) then return end
+        if not ISFarmingMenu.walkToPlant(cursor.character, cursor.sq) then return end
         local seed = seedInGroup(cursor.character, cursor.ddSeedLabel)
         if seed and plant then
             ISInventoryPaneContextMenu.transferIfNeeded(cursor.character, seed)
@@ -126,7 +134,8 @@ if ISFarmingMenu and ISFarmingMenu.doSeedMenu and not ISFarmingMenu.ddSowFiltere
         local ok, err = pcall(original, self, context, plant, sq, playerObj, ...)
         context.getNew = nil
         if not ok then error(err, 0) end
-        if subMenu then pcall(addSeedChoices, context, subMenu, playerObj, plant, sq) end
+        -- Only a plowed, empty plot gets our seed list.
+        if subMenu and not occupied(plant) then pcall(addSeedChoices, context, subMenu, playerObj, plant, sq) end
         if not (subMenu and isPotSquare(sq)) then return end
         local empty = {}
         for _, option in ipairs(subMenu.options or {}) do
