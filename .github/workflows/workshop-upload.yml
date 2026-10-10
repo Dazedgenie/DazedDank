@@ -75,6 +75,12 @@ jobs:
           STEAM_SHARED_SECRET: ${{ secrets.STEAM_SHARED_SECRET }}
           STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
         run: |
+          # Secrets pasted with a stray newline or space break the login, so trim them.
+          STEAM_USERNAME=$(printf '%s' "$STEAM_USERNAME" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          STEAM_PASSWORD=$(printf '%s' "$STEAM_PASSWORD" | tr -d '\r\n')
+          STEAM_SHARED_SECRET=$(printf '%s' "$STEAM_SHARED_SECRET" | tr -d '\r\n ')
+          STEAM_CONFIG_VDF=$(printf '%s' "$STEAM_CONFIG_VDF" | tr -d '\r\n ')
+          export STEAM_SHARED_SECRET
           if [ -z "$STEAM_USERNAME" ]; then echo "::error::STEAM_USERNAME secret is not set"; exit 1; fi
           login=(+login "$STEAM_USERNAME")
           if [ -n "$STEAM_SHARED_SECRET" ]; then
@@ -91,11 +97,14 @@ jobs:
             login=(+login "$STEAM_USERNAME" "$STEAM_PASSWORD")
           fi
           set +e
-          "$HOME/steamcmd/steamcmd.sh" "${login[@]}" +workshop_build_item "$RUNNER_TEMP/item.vdf" +quit 2>&1 | tee "$RUNNER_TEMP/steam.log"
+          "$HOME/steamcmd/steamcmd.sh" "${login[@]}" +workshop_build_item "$RUNNER_TEMP/item.vdf" +quit < /dev/null 2>&1 | tee "$RUNNER_TEMP/steam.log"
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 0 ] || grep -q 'ERROR!' "$RUNNER_TEMP/steam.log" \
              || ! grep -qi 'Success' "$RUNNER_TEMP/steam.log"; then
+            if grep -q 'Cached credentials not found' "$RUNNER_TEMP/steam.log"; then
+              echo "::error::The saved login in STEAM_CONFIG_VDF wasn't accepted. Check STEAM_USERNAME matches the account you logged in with in SteamCMD, or make a fresh config.vdf."
+            fi
             echo "::error::SteamCMD did not report a successful upload (exit $status). See the log above."
             exit 1
           fi
