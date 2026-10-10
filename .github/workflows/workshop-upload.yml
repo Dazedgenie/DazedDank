@@ -15,6 +15,10 @@ on:
         description: "Also update title and description from workshop.txt"
         type: boolean
         default: true
+      set_visibility:
+        description: "Also set the item's visibility from workshop.txt (unlisted lets dedicated servers download it)"
+        type: boolean
+        default: false
       dry_run:
         description: "Build the upload file and stop (no Steam login)"
         type: boolean
@@ -63,6 +67,7 @@ jobs:
             flag="--no-description"
           fi
           if [ "$UPLOAD_PREVIEW" != "true" ]; then flag="$flag --no-preview"; fi
+          if [ "${{ github.event.inputs.set_visibility }}" = "true" ]; then flag="$flag --set-visibility"; fi
           python3 tools/workshop/steam_upload.py vdf "$GITHUB_WORKSPACE" "$RUNNER_TEMP/item.vdf" "$RUNNER_TEMP/note.txt" $flag
           grep -v '"description"' "$RUNNER_TEMP/item.vdf"
 

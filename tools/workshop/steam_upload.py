@@ -1,8 +1,8 @@
 """Helpers for the Steam Workshop upload workflow (.github/workflows/workshop-upload.yml).
 
-  python3 steam_upload.py vdf <repo dir> <out.vdf> <change note file> [--no-description] [--no-preview]
-      Writes the workshop_build_item VDF from workshop.txt. Visibility is left out, so the
-      item keeps whatever visibility it already has on Steam.
+  python3 steam_upload.py vdf <repo dir> <out.vdf> <change note file> [--no-description] [--no-preview] [--set-visibility]
+      Writes the workshop_build_item VDF from workshop.txt. Visibility is left out (the item
+      keeps what it has on Steam) unless --set-visibility applies workshop.txt's visibility=.
   python3 steam_upload.py code
       Prints a Steam Guard code from the STEAM_SHARED_SECRET environment variable."""
 
@@ -15,6 +15,8 @@ import sys
 import time
 
 APP_ID = "108600"  # Project Zomboid
+# workshop.txt visibility= values to Steam's numbers.
+VISIBILITY = {"public": "0", "friends": "1", "friendsonly": "1", "private": "2", "hidden": "2", "unlisted": "3"}
 
 
 def read_workshop_txt(path):
@@ -63,6 +65,11 @@ def write_vdf(repo, out, note_file, with_description):
     ]
     if os.path.isfile(preview) and "--no-preview" not in sys.argv:
         fields.append(("previewfile", preview))
+    if "--set-visibility" in sys.argv:
+        vis = info.get("visibility", "").strip().lower()
+        if vis not in VISIBILITY:
+            sys.exit("workshop.txt visibility=%r is not one of %s" % (vis, ", ".join(VISIBILITY)))
+        fields.append(("visibility", VISIBILITY[vis]))
     if with_description:
         fields.append(("title", info.get("title", "")))
         fields.append(("description", info["description"]))
