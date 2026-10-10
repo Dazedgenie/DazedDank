@@ -1,5 +1,12 @@
 # Dazed Dank patch notes
 
+## dd56 (vanilla crops in containers, in testing)
+- Added: with the new **Dazed Dank: Garden Crops** add-on enabled, grow bags, DWC buckets, RDWC sites and flood tables take vanilla crops too. They grow by vanilla's rules; the add-on draws each one without its furrow so it stands in the container. Without the add-on, containers take cannabis only, as before.
+- Added: root, bulb, sprawling and grain crops (potatoes, carrots, onions, pumpkins, corn, wheat and the like) grow in bags only. In hydro their Sow row is greyed out with "This crop needs soil: use a grow bag".
+- Added: a vanilla crop in hydro drinks from its reservoir (0.3 L an hour) and stays watered while there is water (flood tables: while the rockwool is wet); a dry reservoir leaves it thirsty. Each growth step in hydro waits 15% less. Bags grow at vanilla speed and are watered by hand.
+- Added: harvesting a crop that doesn't regrow, or a dead plant rotting away, leaves the container empty and ready to sow (rockwool is spent, soil and clay pebbles stay). Regrowing crops keep growing in place.
+- Added: with vanilla's **Kill Crops Grown Inside** on, a vanilla crop in one of our containers is spared while a powered grow lamp reaches it or it stands in a grow room.
+
 ## dd55 (performance, in testing)
 - Changed: sandbox options cut from 30 to 22. Lamp Heat, Strain Name Words, Strain Tint, Purple Buds, Closed Door Light Leak and Drip Irrigation Radius are gone and keep their old defaults (everything on; doors leak 25%; drip tanks reach 5 tiles). **Grow Gear Needs Power** now covers lamps and pumps together, and **Dependency Build Rate** at 0 replaces the Dependency tick box. Saved values for the cut options are ignored.
 - Changed: grow lamp glow no longer scans 61 squares every frame. Lamps are remembered as they load or are placed and re-checked about once a second (and at once when the hour changes), so a lamp's glow may switch up to a second later.

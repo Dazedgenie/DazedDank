@@ -207,6 +207,34 @@ function Config.hydroOf(bag)
     return def and def.hydro or nil
 end
 
+-- --------------------------------------------------------------------------
+-- Vanilla crops in our containers (needs the Dazed Dank: Garden Crops add-on)
+-- --------------------------------------------------------------------------
+-- The add-on draws each vanilla crop without its furrow, so it can stand in a bag, bucket or table. Without it,
+-- containers take cannabis only.
+Config.GARDEN_PREFIX = "dazeddank_gardencrops_"
+
+--- The Garden Crops add-on's table when it is enabled, else nil.
+function Config.gardenCrops()
+    local gc = DazedGardenCrops
+    return (gc ~= nil and gc.SPRITES ~= nil) and gc or nil
+end
+
+--- Whether a vanilla crop can be sown in a container kind. Returns true, or false and why: "needsSoil" (a root,
+--- sprawling or grain crop in hydro) or "notSupported" (Garden Crops is off, or has no plant for this crop).
+function Config.canSowVanilla(crop, bag)
+    local gc = Config.gardenCrops()
+    if not gc or not crop or crop == Config.CROP_TYPE or not (gc.hasCrop and gc.hasCrop(crop)) then return false, "notSupported" end
+    if Config.isHydro(bag) and gc.SOIL_ONLY and gc.SOIL_ONLY[crop] then return false, "needsSoil" end
+    return true
+end
+
+--- The soil-free plant Garden Crops draws for a vanilla crop sprite, or nil.
+function Config.gardenPlantSprite(vanillaSprite)
+    local gc = Config.gardenCrops()
+    return gc and vanillaSprite and gc.SPRITES[vanillaSprite] or nil
+end
+
 --- True for the XL pots that suit a mother plant.
 function Config.isMotherPot(bag)
     local def = bag and Config.GrowBag[bag]
@@ -271,10 +299,11 @@ function Config.splitSprite(spriteName)
     return hit[1], hit[2]
 end
 
---- True if a sprite name is a plant layer from either overlay sheet.
+--- True if a sprite name is a plant layer: from either overlay sheet, or a vanilla crop's plant from Garden Crops.
 function Config.isOverlaySprite(spriteName)
     local sheet = Config.splitSprite(spriteName)
-    return sheet == Config.OVERLAY_SHEET or sheet == Config.OVERLAY_SHEET_XL
+    if sheet == Config.OVERLAY_SHEET or sheet == Config.OVERLAY_SHEET_XL then return true end
+    return type(spriteName) == "string" and spriteName:sub(1, #Config.GARDEN_PREFIX) == Config.GARDEN_PREFIX
 end
 
 -- Furniture sprite name -> bag kind, built on first use (the bag table never changes while playing).
@@ -389,6 +418,7 @@ end
 Config.bagIsUnfilled = memoBySprite(Config.bagIsUnfilled, false)
 Config.bagFromSprite = memoBySprite(Config.bagFromSprite, nil)
 Config.isMaleSprite = memoBySprite(Config.isMaleSprite, false)
+Config.isOverlaySprite = memoBySprite(Config.isOverlaySprite, false)
 
 --- True if a container kind is a hydro system rather than a soil pot.
 function Config.isHydro(bag)

@@ -81,7 +81,15 @@ end
 setmetatable(SFarmingSystem.instance, { __index = SFarmingSystem })
 function SFarmingSystem.instance:getLuaObjectByIndex(i) return plots[i] end
 local vanillaHarvested = nil
-function SFarmingSystem:harvest(lo, player) vanillaHarvested = lo end
+function SFarmingSystem:harvest(lo, player)  -- vanilla: a crop that doesn't regrow is left harvested
+    vanillaHarvested = lo
+    if lo.harvestsOut then lo:harvestThis() end
+end
+function SFarmingSystem:changeHealth() end
+farming_vegetableconf.grow = function(p)  -- vanilla: the next growth step 100 hours on
+    p.nextGrowing = SFarmingSystem.instance.hoursElapsed + 100
+    return p
+end
 ISSeedActionNew = {}
 function ISSeedActionNew:complete()  -- vanilla: removes the seed, seeds the plot
     self.seed.removed = true
@@ -178,6 +186,7 @@ require "CannabisMod/CannabisHydro"
 require "CannabisMod/CannabisDrip"
 SPlantGlobalObject = SPlantGlobalObject or { setSpriteName = function(self, n) self.spriteName = n end }
 require "CannabisMod/CannabisPotPlants"
+require "CannabisMod/CannabisVanillaCrops"
 require "CannabisMod/CannabisPlantTemp"
 require "CannabisMod/CannabisLampHeat"
 --- The plant layer a plot shows (plots themselves show the furrow or container).
@@ -4369,8 +4378,8 @@ end)()
     fire("EveryTenMinutes")
     for name, fn in pairs(saved) do TM.steps[name] = fn end
     check("ten-minute steps run once each, in their fixed order, past a failing one", table.concat(order, ",")
-        == "roomsRebuild,timersCleanup,hydroCleanup,plants,roomsTick,drip,drying,domes")
-    check("every server file hands its step to the dispatcher", saved.plants and saved.roomsRebuild and saved.timersCleanup
+        == "roomsRebuild,timersCleanup,hydroCleanup,plants,vanillaCrops,roomsTick,drip,drying,domes")
+    check("every server file hands its step to the dispatcher", saved.plants and saved.vanillaCrops and saved.roomsRebuild and saved.timersCleanup
         and saved.hydroCleanup and saved.roomsTick and saved.drip and saved.drying and saved.domes)
     local clock, oldTs = 0, getTimestampMs
     getTimestampMs = function() return clock end
@@ -4577,6 +4586,56 @@ do
     check("occupied: choosing a group on a plowed plot queues the action", #queued == 1)
     CannabisMod.Info.seedGroups = oldGroups
     ISFarmingMenu, ISFarmingCursorMouse, ISInventoryPaneContextMenu, ISTimedActionQueue, ISSeedActionNew, getCell, JoypadState = table.unpack(old, 1, 7)
+end
+
+
+-- ---- Garden Crops: the Sow menu on a pot keeps the vanilla crops that can grow there ----
+do
+    local old = { ISFarmingMenu, ISInventoryPaneContextMenu, getCell }
+    farming_vegetableconf.props.Tomato = farming_vegetableconf.props.Tomato or {}
+    farming_vegetableconf.props.Carrots = farming_vegetableconf.props.Carrots or {}
+    ISInventoryPaneContextMenu = { addToolTip = function() return {} end, transferIfNeeded = function() end }
+    getCell = function() return { setDrag = function() end } end
+    local menu
+    ISFarmingMenu = { walkToPlant = function() return true end, isSeedValid = function() end, onSeedSquareSelected = function() end,
+        doSeedMenu = function(_, context)
+            menu = context:getNew(context)
+            menu.options = { { name = "Tomato : 2", param1 = "Tomato", onSelect = function() end },
+                             { name = "Carrots : 1", param1 = "Carrots", onSelect = function() end },
+                             { name = "Lettuce : 0", param1 = "Tomato", onSelect = function() end } }
+            menu.numOptions = 4
+        end }
+    dofile(MOD .. "client/CannabisMod/CannabisSowMenu.lua")
+    local function newMenu()
+        local m = { options = {} }
+        function m:removeOptionByName(n)
+            for i, o in ipairs(self.options) do if o.name == n then table.remove(self.options, i) self.numOptions = self.numOptions - 1 return end end
+        end
+        function m:addOption(n) local o = { name = n } self.options[#self.options + 1] = o self.numOptions = self.numOptions + 1 return o end
+        return m
+    end
+    local ctx = setmetatable({}, { __index = { getNew = function() return newMenu() end, addSubMenu = function() end } })
+    local function potSquare(sprite)
+        return { getObjects = function() return { size = function() return 1 end,
+            get = function() return { getSprite = function() return { getName = function() return sprite end } end } end } end }
+    end
+    local function rows(sprite)
+        ISFarmingMenu:doSeedMenu(ctx, { state = "seeded" }, potSquare(sprite), {})
+        local out = {}
+        for _, o in ipairs(menu.options) do out[o.name] = o end
+        return out
+    end
+    local r = rows(C.bagEmptySprite("small", true))
+    check("sow menu: without Garden Crops a bag drops vanilla rows", not r["Tomato : 2"] and not r["Carrots : 1"])
+    DazedGardenCrops = { SPRITES = {}, SOIL_ONLY = { Carrots = true }, hasCrop = function(c) return c == "Tomato" or c == "Carrots" end }
+    r = rows(C.bagEmptySprite("small", true))
+    check("sow menu: with Garden Crops a bag keeps them, seeds not carried still go", r["Tomato : 2"] and r["Carrots : 1"]
+        and not r["Carrots : 1"].notAvailable and not r["Lettuce : 0"])
+    r = rows(C.bagEmptySprite("dwc", true))
+    check("sow menu: a soil-only crop shows greyed out in hydro", r["Tomato : 2"] and not r["Tomato : 2"].notAvailable
+        and r["Carrots : 1"] and r["Carrots : 1"].notAvailable and r["Carrots : 1"].onSelect == nil)
+    DazedGardenCrops = nil
+    ISFarmingMenu, ISInventoryPaneContextMenu, getCell = table.unpack(old, 1, 3)
 end
 
 
@@ -4798,6 +4857,88 @@ do
     check("H: a dropped dome is only watched again once it syncs", cut.age == 2.5)
     R.setDome(live:getID(), {})
     worldHours = start
+end
+
+-- ---- Vanilla crops in containers (Garden Crops add-on) -------------------
+do
+    local GB, HY, VC, HC = CannabisMod.GrowBags, CannabisMod.Hydro, CannabisMod.VanillaCrops, C.Hydro
+    local function sow(crop, x, y, who)
+        ISSeedActionNew.complete({ typeOfSeed = crop, seed = newItem("Base.Seed"), plant = { x = x, y = y, z = 0 }, character = who })
+    end
+    local sq = FakeWorld.square(900, 900, 0, false, true)
+    local bag = GB.makePlot(sq, "small")
+    R.setBagSoiled(900, 900, 0, true)
+    local farmer = newPlayer(900, 900, 5)
+    sow("Tomato", 900, 900, farmer)
+    check("GC: without Garden Crops a bag refuses vanilla seeds", bag.state == "plow" and sent[#sent].data.text:find("only take cannabis"))
+
+    DazedGardenCrops = { SPRITES = { tomato_3 = "dazeddank_gardencrops_01_2" }, SOIL_ONLY = { Carrots = true },
+        hasCrop = function(c) return c == "Tomato" or c == "Carrots" end }
+    farming_vegetableconf.sprite.Tomato = { "tomato_1", "tomato_2", "tomato_3" }
+    check("GC: which crops go where", C.canSowVanilla("Tomato", "small") and C.canSowVanilla("Carrots", "large")
+        and select(2, C.canSowVanilla("Carrots", "dwc")) == "needsSoil" and not C.canSowVanilla("Cannabis", "small")
+        and select(2, C.canSowVanilla("Pineapple", "small")) == "notSupported")
+    check("GC: its plants count as a plant layer", C.isOverlaySprite("dazeddank_gardencrops_03_7") and not C.isOverlaySprite("vegetation_farming_01_3"))
+    sow("Tomato", 900, 900, farmer)
+    check("GC: a tomato sown in a bag", bag.state == "seeded" and bag.typeOfSeed == "Tomato")
+    bag.nbOfGrow = 3
+    check("GC: the bag shows itself, the plant is the soil-free layer", farming_vegetableconf.getSpriteName(bag) == C.bagEmptySprite("small", true)
+        and plantSprite(bag) == "dazeddank_gardencrops_01_2")
+    bag.nbOfGrow = 2
+    check("GC: a stage it has no plant for draws no layer", plantSprite(bag) == nil)
+    local loose = newPlot(905, 900, 0); loose.state, loose.typeOfSeed, loose.nbOfGrow = "seeded", "Tomato", 3
+    check("GC: a tomato in the ground keeps vanilla's sprite", farming_vegetableconf.getSpriteName(loose) == "tomato_3" and plantSprite(loose) == nil)
+    bag.harvestsOut = true
+    SFarmingSystem.harvest(SFarmingSystem.instance, bag, farmer)
+    check("GC: harvest empties the bag, soil kept", bag.state == "plow" and R.getBag(900, 900, 0) == "small" and R.isBagSoiled(900, 900, 0))
+    sow("Tomato", 900, 900, farmer)
+    bag.state = "destroyed"
+    VC.tick()
+    check("GC: a plant that rotted away leaves the bag empty", bag.state == "plow" and R.getBag(900, 900, 0) == "small")
+
+    -- Hydro: soil-only crops refused; the rest drink from the reservoir and grow faster.
+    local hsq = FakeWorld.square(910, 910, 0, false, true)
+    local pot = GB.makePlot(hsq, "dwc")
+    R.setBagSoiled(910, 910, 0, true)
+    local res = HY.get(910, 910, 0, "dwc")
+    res.level = 10
+    sow("Carrots", 910, 910, farmer)
+    check("GC: carrots refused in hydro", pot.state == "plow" and sent[#sent].data.text:find("needs soil"))
+    sow("Tomato", 910, 910, farmer)
+    check("GC: a tomato sown in a DWC bucket", pot.state == "seeded")
+    pot.waterNeeded, pot.waterLvl = 80, 20
+    VC.tick()
+    check("GC: the reservoir waters the plot a little over the crop's need", pot.waterLvl == 85 and res.level < 10 and res.level > 9.9)
+    pot.waterNeededMax = 75
+    VC.tick()
+    check("GC: never past the crop's upper limit", pot.waterLvl == 75)
+    res.level = 0
+    VC.tick()
+    check("GC: a dry reservoir leaves the plot dry", pot.waterLvl == HC.DRY_PLOT_WATER)
+    SFarmingSystem.instance.hoursElapsed = 500
+    farming_vegetableconf.grow(pot)
+    check("GC: hydro growth steps wait 15% less", pot.nextGrowing == 585)
+    sow("Tomato", 900, 900, farmer)
+    farming_vegetableconf.grow(bag)
+    check("GC: a bag grows at vanilla speed", bag.nextGrowing == 600)
+
+    -- Kill Crops Grown Inside: a lamp or grow room gives back vanilla's indoor penalty.
+    local killInside = true
+    getSandboxOptions = function() return { getOptionByName = function() return { getValue = function() return killInside end } end } end
+    local kept = VC.keptAliveIndoors
+    VC.keptAliveIndoors = function() return true end
+    bag.exterior, bag.health, bag.cursed = false, 50, true
+    SFarmingSystem.changeHealth(SFarmingSystem.instance)
+    check("GC: lit indoors, the penalty is given back", bag.health == 52)
+    VC.keptAliveIndoors = function() return false end
+    SFarmingSystem.changeHealth(SFarmingSystem.instance)
+    check("GC: unlit indoors, vanilla's rule stands", bag.health == 52)
+    killInside = false
+    VC.keptAliveIndoors = function() return true end
+    SFarmingSystem.changeHealth(SFarmingSystem.instance)
+    check("GC: with the option off nothing changes", bag.health == 52)
+    VC.keptAliveIndoors = kept
+    DazedGardenCrops = nil
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

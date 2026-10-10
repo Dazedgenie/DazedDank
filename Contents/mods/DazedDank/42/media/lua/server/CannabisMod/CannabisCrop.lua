@@ -84,7 +84,8 @@ local function vanillaCondition(plot)
     return "sprite"
 end
 
-local originalGetSpriteName = farming_vegetableconf.getSpriteName
+-- Kept from the first load, so a reloaded file never wraps its own wrapper (vanilla crops in pots read vanilla's sprite).
+local originalGetSpriteName = CannabisMod.vanillaSpriteName or farming_vegetableconf.getSpriteName
 CannabisMod.vanillaSpriteName = originalGetSpriteName
 
 --- What a cannabis plot looks like: shape and colour indices from its strain, stage index, vanilla condition, and male.
@@ -100,12 +101,17 @@ function CannabisMod.plantLook(plot)
 end
 
 farming_vegetableconf.getSpriteName = function(plot)
-    -- Other crops go straight to vanilla, without a bag lookup.
-    local plowed = plot and plot.state == "plow"
-    if not plot or (not plowed and plot.typeOfSeed ~= CROP) then return originalGetSpriteName(plot) end
+    if not plot then return originalGetSpriteName(plot) end
     -- Grow bags are registered on the server by tile.
     local Registry = CannabisMod.Registry
     local bag = Registry and Registry.getBag and Registry.getBag(plot.x, plot.y, plot.z) or nil
+    local plowed = plot.state == "plow"
+    if not plowed and plot.typeOfSeed ~= CROP then
+        -- A vanilla crop in a container (Garden Crops): the plot shows the filled container and the plant is a layer
+        -- on top, like cannabis. In the ground, vanilla's own sprite.
+        if bag and Config.GrowBag[bag] then return Config.bagEmptySprite(bag, true) end
+        return originalGetSpriteName(plot)
+    end
 
     -- An empty grow bag shows the bag, not plowed soil.
     if plowed and bag then

@@ -1,5 +1,6 @@
--- The Sow Seed menu on a grow bag, bucket or flood table lists only cannabis seeds the player is carrying,
--- and the cannabis row opens a list of the seeds carried, grouped by what the player can read of them.
+-- The Sow Seed menu on a grow bag, bucket or flood table lists only the seeds the player is carrying that can grow
+-- there (cannabis, plus vanilla crops with the Garden Crops add-on), and the cannabis row opens a list of the seeds
+-- carried, grouped by what the player can read of them.
 
 require "Farming/ISUI/ISFarmingMenu"
 require "CannabisMod/CannabisConfig"
@@ -11,27 +12,28 @@ local Config = CannabisMod.Config
 local Info = CannabisMod.Info
 local Seeds = CannabisMod.Seeds
 
---- True when a square holds one of our pots or tables (any plot sprite on a Dank sheet that is a bag kind).
-local function isPotSquare(square)
-    if not square then return false end
+--- The kind of pot or table on a square (any plot sprite on a Dank sheet that is a bag kind), or nil.
+local function potKind(square)
+    if not square then return nil end
     local objects = square:getObjects()
     for i = 0, objects:size() - 1 do
         local sprite = objects:get(i):getSprite()
         local name = sprite and sprite:getName()
-        if name and Config.bagFromSprite(name) then return true end
+        local kind = name and Config.bagFromSprite(name)
+        if kind then return kind end
     end
-    return false
+    return nil
 end
 
---- True when a Sow row plants a crop other than cannabis (its crop name is one of the option's arguments).
+--- The crop a Sow row plants when it is not cannabis (its crop name is one of the option's arguments), else nil.
 local function otherCrop(option)
     local props = farming_vegetableconf and farming_vegetableconf.props
-    if not props then return false end
+    if not props then return nil end
     for i = 1, 10 do
         local v = option["param" .. i]
-        if type(v) == "string" and props[v] then return v ~= Config.CROP_TYPE end
+        if type(v) == "string" and props[v] then return v ~= Config.CROP_TYPE and v or nil end
     end
-    return false
+    return nil
 end
 
 --- True when a plot already has something growing (a plowed, empty plot has state "plow").
@@ -136,14 +138,30 @@ if ISFarmingMenu and ISFarmingMenu.doSeedMenu and not ISFarmingMenu.ddSowFiltere
         if not ok then error(err, 0) end
         -- Only a plowed, empty plot gets our seed list.
         if subMenu and not occupied(plant) then pcall(addSeedChoices, context, subMenu, playerObj, plant, sq) end
-        if not (subMenu and isPotSquare(sq)) then return end
-        local empty = {}
+        local kind = subMenu and potKind(sq)
+        if not kind then return end
+        -- Rows for seeds not carried, or crops that can't grow here, go; a soil-only crop in hydro stays, greyed out.
+        local drop = {}
         for _, option in ipairs(subMenu.options or {}) do
-            if type(option.name) == "string" and (option.name:match(" : 0$") or otherCrop(option)) then empty[#empty + 1] = option.name end
+            if type(option.name) == "string" then
+                local crop = otherCrop(option)
+                local ok, why = true, nil
+                if crop then ok, why = Config.canSowVanilla(crop, kind) end
+                if option.name:match(" : 0$") or (not ok and why ~= "needsSoil") then
+                    drop[#drop + 1] = option.name
+                elseif not ok then
+                    option.notAvailable = true
+                    option.onSelect = nil
+                    local tip = ISInventoryPaneContextMenu.addToolTip()
+                    tip.description = "This crop needs soil: use a grow bag"
+                    option.toolTip = tip
+                end
+            end
         end
-        for _, name in ipairs(empty) do subMenu:removeOptionByName(name) end
+        for _, name in ipairs(drop) do subMenu:removeOptionByName(name) end
         if subMenu.numOptions <= 1 then
-            subMenu:addOption(getText("IGUI_DD_NoSeedsCarried") ~= "IGUI_DD_NoSeedsCarried" and getText("IGUI_DD_NoSeedsCarried") or "No cannabis seeds carried", nil, nil).notAvailable = true
+            local none = Config.gardenCrops() and "No seeds carried that grow here" or "No cannabis seeds carried"
+            subMenu:addOption(none, nil, nil).notAvailable = true
         end
     end
 end

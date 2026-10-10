@@ -11,7 +11,7 @@ local TenMinutes = CannabisMod.TenMinutes or { steps = {} }
 CannabisMod.TenMinutes = TenMinutes
 
 -- Room shapes first so everything after sees this tick's rooms; the plant tick before the room climate that reads it.
-TenMinutes.ORDER = { "roomsRebuild", "timersCleanup", "hydroCleanup", "plants", "roomsTick", "drip", "drying", "domes" }
+TenMinutes.ORDER = { "roomsRebuild", "timersCleanup", "hydroCleanup", "plants", "vanillaCrops", "roomsTick", "drip", "drying", "domes" }
 
 --- Set the function a named step runs (names from TenMinutes.ORDER).
 function TenMinutes.set(name, fn) TenMinutes.steps[name] = fn end

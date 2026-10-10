@@ -349,6 +349,7 @@ type changes on a fresh save.
 | server/CannabisMod/CannabisDrying.lua | server | Drying racks, trimming into buds, curing jars, mold |
 | server/CannabisMod/CannabisLight.lua | server | Sun and grow-lamp light, stalling, light interruptions |
 | server/CannabisMod/CannabisGrowBags.lua | server | Placing (furniture or menu), picking up and emptying grow bags |
+| server/CannabisMod/CannabisVanillaCrops.lua | server | Vanilla crops in containers (Garden Crops add-on): hydro water, growth speed, indoor survival |
 | server/CannabisMod/CannabisGrowing.lua | server | Feeding nutrients, debug grow kit |
 | server/CannabisMod/CannabisRegistry.lua | server | Plant records, growth clock, water, feeding, pollination |
 | server/CannabisMod/CannabisServerCommands.lua | server | Validates and answers client requests |

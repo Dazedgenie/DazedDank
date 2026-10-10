@@ -254,8 +254,14 @@ function ISSeedActionNew:complete()
     -- A grow bag has to be filled with soil before its first planting.
     local bagKind = pl and Registry.getBag(pl.x, pl.y, pl.z)
     if bagKind and self.typeOfSeed ~= CROP then
-        if Net and self.character then Net.notify(self.character, "Grow bags, buckets and flood tables only take cannabis") end
-        return false
+        -- Vanilla crops go in with the Garden Crops add-on; root, sprawling and grain crops only in soil.
+        local ok, why = Config.canSowVanilla(self.typeOfSeed, bagKind)
+        if not ok then
+            local msg = why == "needsSoil" and "This crop needs soil: use a grow bag"
+                or "Grow bags, buckets and flood tables only take cannabis"
+            if Net and self.character then Net.notify(self.character, msg) end
+            return false
+        end
     end
     if bagKind and not Registry.isBagSoiled(pl.x, pl.y, pl.z) then
         local msg = Config.isHydro(bagKind) and "Add a rockwool cube or clay pebbles first" or "Fill the grow bag with soil first"
@@ -446,5 +452,11 @@ function SFarmingSystem:harvest(luaObject, player)
         harvestCannabis(luaObject, player)
         return
     end
-    return originalHarvest(self, luaObject, player)
+    local result = originalHarvest(self, luaObject, player)
+    -- A vanilla crop that doesn't regrow leaves its container empty and ready to sow again, as cannabis does.
+    local GrowBags = CannabisMod.GrowBags
+    if luaObject and luaObject.state == "harvested" and GrowBags and Registry.getBag(luaObject.x, luaObject.y, luaObject.z) then
+        GrowBags.reset(luaObject)
+    end
+    return result
 end
