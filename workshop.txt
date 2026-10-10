@@ -1,5 +1,5 @@
 version=1
-workshopid=0
+workshopid=3816693450
 title=Dazed Dank
 description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're not comfortable with that, please stop reading here.
 description=
