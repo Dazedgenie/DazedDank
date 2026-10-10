@@ -1,0 +1,102 @@
+# Uploads the mod to its existing Steam Workshop item (id in workshop.txt).
+# Runs from the Actions tab ("Run workflow") or when a GitHub release is published.
+# Needs repo secrets: STEAM_USERNAME, STEAM_PASSWORD, and for Steam Guard either
+# STEAM_SHARED_SECRET (authenticator secret) or STEAM_CONFIG_VDF (base64 of a logged-in config.vdf).
+name: Workshop upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      change_note:
+        description: "Change note shown on the Workshop page"
+        required: false
+        default: ""
+      update_description:
+        description: "Also update title and description from workshop.txt"
+        type: boolean
+        default: true
+      dry_run:
+        description: "Build the upload file and stop (no Steam login)"
+        type: boolean
+        default: false
+  release:
+    types: [published]
+
+concurrency:
+  group: workshop-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write change note
+        env:
+          INPUT_NOTE: ${{ github.event.inputs.change_note }}
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            { echo "${RELEASE_NAME:-$RELEASE_TAG}"; echo; echo "$RELEASE_BODY"; } > "$RUNNER_TEMP/note.txt"
+          elif [ -n "$INPUT_NOTE" ]; then
+            echo "$INPUT_NOTE" > "$RUNNER_TEMP/note.txt"
+          else
+            git log -1 --format=%s > "$RUNNER_TEMP/note.txt"
+          fi
+
+      - name: Build upload file
+        run: |
+          flag=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.update_description }}" != "true" ]; then
+            flag="--no-description"
+          fi
+          python3 tools/workshop/steam_upload.py vdf "$GITHUB_WORKSPACE" "$RUNNER_TEMP/item.vdf" "$RUNNER_TEMP/note.txt" $flag
+          grep -v '"description"' "$RUNNER_TEMP/item.vdf"
+
+      - name: Install SteamCMD
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lib32gcc-s1
+          mkdir -p "$HOME/steamcmd"
+          curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C "$HOME/steamcmd"
+          "$HOME/steamcmd/steamcmd.sh" +quit || true
+
+      - name: Upload to Steam Workshop
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+          STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+          STEAM_SHARED_SECRET: ${{ secrets.STEAM_SHARED_SECRET }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+        run: |
+          if [ -z "$STEAM_USERNAME" ]; then echo "::error::STEAM_USERNAME secret is not set"; exit 1; fi
+          login=(+login "$STEAM_USERNAME")
+          if [ -n "$STEAM_SHARED_SECRET" ]; then
+            code=$(python3 tools/workshop/steam_upload.py code)
+            echo "::add-mask::$code"
+            login=(+login "$STEAM_USERNAME" "$STEAM_PASSWORD" "$code")
+          elif [ -n "$STEAM_CONFIG_VDF" ]; then
+            # Cached login from a machine that already passed Steam Guard.
+            for dir in "$HOME/steamcmd/config" "$HOME/Steam/config"; do
+              mkdir -p "$dir"
+              echo "$STEAM_CONFIG_VDF" | base64 -d > "$dir/config.vdf"
+            done
+          elif [ -n "$STEAM_PASSWORD" ]; then
+            login=(+login "$STEAM_USERNAME" "$STEAM_PASSWORD")
+          fi
+          set +e
+          "$HOME/steamcmd/steamcmd.sh" "${login[@]}" +workshop_build_item "$RUNNER_TEMP/item.vdf" +quit 2>&1 | tee "$RUNNER_TEMP/steam.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ] || grep -q 'ERROR!' "$RUNNER_TEMP/steam.log" \
+             || ! grep -qi 'Success' "$RUNNER_TEMP/steam.log"; then
+            echo "::error::SteamCMD did not report a successful upload (exit $status). See the log above."
+            exit 1
+          fi
+          echo "Uploaded. https://steamcommunity.com/sharedfiles/filedetails/?id=$(grep -oP '^workshopid=\K\d+' workshop.txt)"
