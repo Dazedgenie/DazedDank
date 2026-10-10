@@ -34,8 +34,13 @@ def read_workshop_txt(path):
 
 
 def vdf_str(s):
-    """Quote a string for a VDF file."""
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    """Quote a string for a VDF file. SteamCMD's parser ignores backslash escapes, so straight
+    double quotes inside the text become curly ones instead of ending the string."""
+    parts = s.split('"')
+    out = parts[0]
+    for i, part in enumerate(parts[1:]):
+        out += ("\u201c" if i % 2 == 0 else "\u201d") + part
+    return '"' + out + '"'
 
 
 def write_vdf(repo, out, note_file, with_description):

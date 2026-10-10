@@ -91,6 +91,7 @@ jobs:
           STEAM_SHARED_SECRET=$(printf '%s' "$STEAM_SHARED_SECRET" | tr -d '\r\n ')
           STEAM_CONFIG_VDF=$(printf '%s' "$STEAM_CONFIG_VDF" | tr -cd 'A-Za-z0-9+/=')
           export STEAM_SHARED_SECRET
+          echo "::add-mask::$STEAM_USERNAME"
           if [ -z "$STEAM_USERNAME" ]; then echo "::error::STEAM_USERNAME secret is not set"; exit 1; fi
           login=(+login "$STEAM_USERNAME")
           if [ -n "$STEAM_SHARED_SECRET" ]; then
