@@ -8,6 +8,7 @@
 - Changed: the ten-minute jobs (rooms, timers, hydro, plants, drip, drying, domes) run in one fixed order; drying racks are found at the ten-minute tick instead of every minute.
 - Changed: empty grow bags are kept from fading once an hour instead of every 10 minutes, and lost bag objects are redrawn as their square loads plus an hourly sweep.
 - Changed: a flood table on a timer shows as 100% wet and is only re-sent to clients when the timer starts or stops.
+- Added: a **View all** button on the grow panel's Plants line opens an All plants window: one row per plant (strain, sex, stage, water, health, warnings). Click a column title to sort, click it again to flip the order, click a row to inspect that plant. It updates when the panel refreshes and closes with the panel.
 - Removed: the old Lights, Hydro, Climate, Equipment and Plants panel tabs (the dashboard replaced them) and the unused root mod.info.
 
 ### Fixes

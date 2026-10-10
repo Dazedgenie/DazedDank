@@ -3975,6 +3975,121 @@ do
     check("reservoir tanks draw glass over water", find(m, "tex", function(op) return op.name == "tank_front" end) ~= nil)
 end
 
+-- All plants window: the View all button and the sortable plant table (pure layout)
+do
+    require "CannabisMod/CannabisStatusLayout"
+    require "CannabisMod/CannabisDashboardLayout"
+    require "CannabisMod/CannabisPlantListLayout"
+    local Dash, PL = CannabisMod.DashboardLayout, CannabisMod.PlantListLayout
+    local fh, ms = function() return 12 end, function(_, t) return #tostring(t) * 6 end
+    local function mk(strain, sex, stageKey, water, health, warnings, type_)
+        return { x = 1, y = 1, z = 0, strain = strain, name = "Cannabis Plant", sex = sex, stageKey = stageKey, stage = stageKey,
+            water = water, health = health, warnings = warnings, type = type_ or "Indica" }
+    end
+    local plants = {
+        mk("Delta", "Female", "Flowering", "40%", "Good", 0),
+        mk("Alpha", "Male", "Seedling", "90%", "Poor", 3),
+        mk(nil, nil, nil, nil, nil, 1),
+        mk("Charlie", "Hermaphrodite", "Ripe", "5%", "Excellent", 1),
+        mk("Bravo", "Female", "PreFlower", "62%", "Fair", 0),
+        mk("Echo", "Female", "Vegetative", "100%", "Good", 2),
+    }
+    local info = { plants = plants, openings = {}, log = {}, climate = { enabled = false } }
+    local function names(order) local o = {} for _, i in ipairs(order) do o[#o + 1] = plants[i].strain or "?" end return table.concat(o, ",") end
+    local m = PL.build(info, nil, 0, fh, ms)
+    local rowHits, headHits = {}, {}
+    for _, h in ipairs(m.hits) do
+        if h.id:sub(1, 6) == "plant:" then rowHits[#rowHits + 1] = h elseif h.id:sub(1, 5) == "sort:" then headHits[h.id] = h end
+    end
+    check("plant list: one row per plant", #rowHits == #plants)
+    local headersOk = true
+    for _, col in ipairs(PL.COLUMNS) do if not headHits["sort:" .. col.key] then headersOk = false end end
+    check("plant list: every column has a header hit", headersOk)
+    check("plant list: default sort is warnings descending, then strain", names(m.order) == "Alpha,Echo,Charlie,?,Bravo,Delta")
+    check("plant list: strain ascending, unknown last", names(PL.order(plants, "strain", true)) == "Alpha,Bravo,Charlie,Delta,Echo,?")
+    check("plant list: strain descending, unknown still last", names(PL.order(plants, "strain", false)) == "Echo,Delta,Charlie,Bravo,Alpha,?")
+    check("plant list: sex ascending, unknown last", names(PL.order(plants, "sex", true)) == "Bravo,Delta,Echo,Charlie,Alpha,?")
+    check("plant list: stage follows growth order", names(PL.order(plants, "stage", true)) == "Alpha,Echo,Bravo,Delta,Charlie,?")
+    check("plant list: stage descending, unknown last", names(PL.order(plants, "stage", false)) == "Charlie,Delta,Bravo,Echo,Alpha,?")
+    check("plant list: water is numeric", names(PL.order(plants, "water", true)) == "Charlie,Delta,Bravo,Alpha,Echo,?")
+    check("plant list: health ranks Poor to Excellent, unknown last", names(PL.order(plants, "health", true)) == "Alpha,Bravo,Delta,Echo,Charlie,?")
+    check("plant list: health descending puts Excellent first", names(PL.order(plants, "health", false)):sub(1, 7) == "Charlie")
+    check("plant list: warnings ascending", names(PL.order(plants, "warnings", true)) == "Bravo,Delta,Charlie,?,Echo,Alpha")
+    local s = PL.nextSort({ key = "water", asc = true }, "water")
+    check("plant list: clicking the sorted column flips it", s.key == "water" and s.asc == false and PL.nextSort(s, "water").asc == true)
+    s = PL.nextSort({ key = "water", asc = false }, "health")
+    check("plant list: a new column starts ascending", s.key == "health" and s.asc == true)
+    local function hasText(model, str) for _, op in ipairs(model.ops) do if op.kind == "text" and op.text == str then return true end end end
+    check("plant list: the sorted header shows an arrow", hasText(m, "Warnings v") and hasText(PL.build(info, { key = "stage", asc = true }, 0, fh, ms), "Stage ^"))
+    check("plant list: title shows the count", hasText(m, "All plants (6)"))
+    -- Rows map back to the original plant index through the sort.
+    local byY = {}
+    for _, h in ipairs(rowHits) do byY[#byY + 1] = h end
+    table.sort(byY, function(a, b) return a.y < b.y end)
+    local mapped = {}
+    for r, h in ipairs(byY) do mapped[r] = tonumber(h.id:sub(7)) end
+    check("plant list: row hits follow the sort order", table.concat(mapped, ",") == table.concat(m.order, ","))
+    local sorted = PL.build(info, { key = "strain", asc = true }, 0, fh, ms)
+    local top
+    for _, h in ipairs(sorted.hits) do if h.id:sub(1, 6) == "plant:" and (not top or h.y < top.y) then top = h end end
+    check("plant list: the first row after sorting is the right plant", top.id == "plant:2")
+    -- Every cell fits its column, even with long text.
+    local long = { mk(string.rep("Longstrain", 6), "Hermaphrodite", "PreFlower", string.rep("9", 20), "Excellent", 1234567) }
+    local lm = PL.build({ plants = long }, { key = "health", asc = true }, 0, fh, ms)
+    local fits, colsX = true, {}
+    local x = 20
+    for _, col in ipairs(PL.COLUMNS) do colsX[#colsX + 1] = { x0 = x, x1 = x + col.w }; x = x + col.w end
+    for _, op in ipairs(lm.ops) do
+        if op.kind == "text" and op.y > 40 then
+            local ok = false
+            for _, c in ipairs(colsX) do
+                if op.x == c.x0 and op.x + ms("Small", op.text) <= c.x1 - 6 + 0.01 then ok = true end
+            end
+            if not ok then fits = false end
+        end
+    end
+    check("plant list: every cell and header fits its column", fits)
+    -- Scrolling.
+    local many = {}
+    for i = 1, 60 do many[i] = mk("P" .. i, "Female", "Ripe", "50%", "Good", i % 3) end
+    local mm = PL.build({ plants = many }, nil, 0, fh, ms)
+    check("plant list: many plants scroll", mm.maxScroll > 0 and PL.metrics(60, fh).maxScroll == mm.maxScroll)
+    check("plant list: few plants don't scroll", PL.build(info, nil, 0, fh, ms).maxScroll == 0 and PL.build({ plants = {} }, nil, 0, fh, ms).maxScroll == 0)
+    local thumb
+    for _, op in ipairs(mm.ops) do if op.kind == "pill" and op.w == 3 then thumb = op end end
+    check("plant list: a scrollbar thumb shows only when rows overflow", thumb ~= nil and thumb.y >= mm.area.y and thumb.y + thumb.h <= mm.area.y + mm.area.h + 0.01
+        and not (function() for _, op in ipairs(PL.build(info, nil, 0, fh, ms).ops) do if op.kind == "pill" then return true end end end)())
+    local far = PL.build({ plants = many }, nil, 1e9, fh, ms)
+    local maxHit
+    for _, h in ipairs(far.hits) do if h.id:sub(1, 6) == "plant:" and (not maxHit or h.y + h.h > maxHit) then maxHit = h.y + h.h end end
+    check("plant list: scroll is clamped so the last row ends at the bottom", math.abs(maxHit - (mm.area.y + mm.area.h)) < 0.01)
+    local inside = true
+    for _, h in ipairs(far.hits) do
+        if h.id:sub(1, 6) == "plant:" and (h.y < mm.area.y - 0.01 or h.y + h.h > mm.area.y + mm.area.h + 0.01) then inside = false end
+    end
+    check("plant list: row hits stay inside the rows area", inside)
+    -- Dashboard button.
+    local function dashInfo(list) return { name = "Shed", plants = list, openings = {}, log = {}, lamps = {}, reservoirs = {}, equipment = {}, climate = { enabled = false } } end
+    local dm = Dash.build(dashInfo(plants), 0, fh, ms)
+    local btn
+    for _, h in ipairs(dm.hits) do if h.id == "allPlants" then btn = h end end
+    check("dashboard: View all shows when there are plants", btn ~= nil)
+    local none = Dash.build(dashInfo({}), 0, fh, ms)
+    local anyBtn = false
+    for _, h in ipairs(none.hits) do if h.id == "allPlants" then anyBtn = true end end
+    check("dashboard: no View all button without plants", not anyBtn)
+    local seal
+    for _, op in ipairs(dm.ops) do if op.kind == "card" and op.x == 12 + 566 then seal = op end end
+    local apart = btn.y >= seal.y + seal.h or btn.y + btn.h <= seal.y or btn.x >= seal.x + seal.w or btn.x + btn.w <= seal.x
+    check("dashboard: View all doesn't overlap the Room seal card", seal ~= nil and apart)
+    local arrows = Dash.build(dashInfo((function() local t = {} for i = 1, 6 do t[i] = mk("S" .. i) end return t end)()), 100, fh, ms)
+    local overlapsArrow = false
+    for _, h in ipairs(arrows.hits) do
+        if (h.id == "scrollLeft" or h.id == "scrollRight") and not (btn.y >= h.y + h.h or btn.y + btn.h <= h.y or btn.x >= h.x + h.w or btn.x + btn.w <= h.x) then overlapsArrow = true end
+    end
+    check("dashboard: View all doesn't overlap the scroll arrows", not overlapsArrow and btn.x + btn.w <= Dash.WIDTH - 12 + 0.01)
+end
+
 do
     -- Racks take whole plants and jars and barrels take buds, through the game's own container check.
     require "CannabisMod/CannabisAccept"

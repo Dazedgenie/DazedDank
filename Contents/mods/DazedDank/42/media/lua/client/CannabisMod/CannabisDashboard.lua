@@ -50,6 +50,8 @@ function DashPanel:setInfo(info)
     self.scroll = math.max(0, math.min(self.scroll or 0, Dash.maxScroll(info)))
     self.sealScroll = math.max(0, math.min(self.sealScroll or 0, Dash.maxSealScroll(info, fontHeight)))
     self.model = Dash.build(info, self.scroll, fontHeight, measure, self.sealScroll)
+    -- An open All plants window shows the same fresh reply.
+    if self.listWindow then self.listWindow:setInfo(info) end
 end
 
 function DashPanel:setScroll(value)
@@ -225,6 +227,16 @@ function DashPanel:openLog()
     self.logWindow = win
 end
 
+--- The All plants window, one per dashboard: a second click brings the open one to the front.
+function DashPanel:openAllPlants()
+    if not CannabisMod.PlantList then return end
+    if self.listWindow then
+        pcall(self.listWindow.bringToTop, self.listWindow)
+        return
+    end
+    self.listWindow = CannabisMod.PlantList.create(self, function(w) if self.listWindow == w then self.listWindow = nil end end)
+end
+
 local function hydro(self, action, target, nutrient)
     send("roomHydro", self:args({ action = action, target = target, nutrient = nutrient }))
 end
@@ -297,6 +309,8 @@ function DashPanel:onHit(id, right)
         menu(items)
     elseif id == "log" then
         self:openLog()
+    elseif id == "allPlants" then
+        self:openAllPlants()
     elseif id == "refresh" then
         self.refreshSent = getTimestampMs()
         self:setLabel("...", nil)
@@ -305,6 +319,8 @@ function DashPanel:onHit(id, right)
 end
 
 function DashPanel:close()
+    if self.listWindow then pcall(self.listWindow.close, self.listWindow) end
+    self.listWindow = nil
     if self.logWindow then pcall(self.logWindow.removeFromUIManager, self.logWindow) end
     self:removeFromUIManager()
 end

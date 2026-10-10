@@ -9,6 +9,7 @@ require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisWorld"
 require "CannabisMod/CannabisDashboard"
+require "CannabisMod/CannabisPlantList"
 
 local Config = CannabisMod.Config
 local Net = CannabisMod.Net

@@ -189,6 +189,11 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     local A = Dash.PLANT_AREA
     label("Plants", M + 2, A.y - small - 6, "icon_plants")
     local plants = info.plants or {}
+    -- "View all" opens the sortable list of every plant; it sits at the right end of the label line, below the Room seal card.
+    if #plants > 0 then
+        local bw = measure("Small", "View all") + 20
+        button(A.x + A.w - bw, A.y - small - 9, bw, small + 6, "View all", "allPlants")
+    end
     if #plants == 0 then
         card(A.x, A.y, A.w, A.h)
         text("No plants in this room yet.", A.x + A.w / 2, A.y + A.h / 2 - small / 2, C.muted, "Small", "center")
