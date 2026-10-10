@@ -4800,5 +4800,323 @@ do
     worldHours = start
 end
 
+-- ---- dd56: Cold nights on the grow room panel -------------------------------
+do
+    local Rm, CL, K, W = CannabisMod.Rooms, CannabisMod.Climate, C.Climate, C.Weather
+    local Reg, PT = CannabisMod.Registry, CannabisMod.PlantTemp
+    local oldHours, oldHour = worldHours, hourOfDay
+    local function near(a, b, eps) return a ~= nil and math.abs(a - b) < (eps or 1e-6) end
+
+    -- The targets: the Flower range by day, the cold band at night, humidity untouched.
+    local day, night = CL.targetsFor("Flower", false, false), CL.targetsFor("Flower", false, true)
+    check("dd56: targetsFor without a cold night is the mode's range", day.tLo == 20 and day.tHi == 26 and day.hLo == 40 and day.hHi == 50)
+    check("dd56: the cold night band is 6-13 C with Flower humidity", night.tLo == 6 and night.tHi == 13 and night.hLo == 40 and night.hHi == 50)
+    check("dd56: young plants keep their humid range on a cold night", CL.targetsFor("Flower", true, true).hLo == 65
+        and CL.targetsFor("Flower", true, true).tHi == K.COLD_NIGHT.tHi)
+    check("dd56: Climate.targets is unchanged", CL.targets("Flower", false).tLo == 20 and CL.targets("Veg", false).tHi == 28)
+
+    -- Night follows the room's timer, or the clock with no timer.
+    check("dd56: a 12/12 room's night is 18:00 to 06:00", Rm.isNight({ schedule = "12/12" }, 19) and Rm.isNight({ schedule = "12/12" }, 5)
+        and not Rm.isNight({ schedule = "12/12" }, 12))
+    check("dd56: an 18/6 room's night is midnight to 06:00", Rm.isNight({ schedule = "18/6" }, 2) and not Rm.isNight({ schedule = "18/6" }, 22))
+    check("dd56: a 24/0 room falls back to the clock's night", Rm.isNight({ schedule = "24/0" }, 22) and not Rm.isNight({ schedule = "24/0" }, 12))
+    check("dd56: isNightAt is nil outside a room", Rm.isNightAt(99999, 99999, 0, 22) == nil)
+
+    -- A sealed Flower room on 12/12 with no lamps, against cool outdoor air.
+    local sqs = FakeWorld.squares
+    for x = 5600, 5604 do for y = 5600, 5603 do FakeWorld.square(x, y, 0, false, true) end end
+    table.insert(sqs["5600_5600_0"].objs, { sprite = "dazeddank_rooms_01_0", md = {} })
+    local oldBlocked, oldOutdoor = Rm.edgeBlocked, Rm.outdoor
+    Rm.edgeBlocked = function() return false end
+    Rm.outdoor = function() return { t = 11, h = 45 } end
+    local pl = newPlayer(5601, 5600, 10)
+    Rm.register(sqs["5600_5600_0"], pl)
+    local key = "5600_5600_0"
+    local function args(extra) local a = { x = 5600, y = 5600, z = 0 } for k, v in pairs(extra or {}) do a[k] = v end return a end
+    local function cmd(name, extra, who) fire("OnClientCommand", "CannabisMod", name, who or pl, args(extra)) end
+    cmd("roomSetSchedule", { schedule = "12/12" })
+    cmd("roomSetMode", { mode = "Flower" })
+    local room = Rm.roomAt(5600, 5600, 0)
+    check("dd56: Rooms.isNightAt reads the room's timer", Rm.isNightAt(5601, 5601, 0, 20) == true and Rm.isNightAt(5601, 5601, 0, 10) == false)
+    local function countLog(pattern)
+        local n = 0
+        for _, e in ipairs(room.log or {}) do if e.text:find(pattern, 1, true) then n = n + 1 end end
+        return n
+    end
+
+    -- The command: validated like the equipment overrides, logged, kept across modes.
+    check("dd56: a new room has cold nights off (missing = off)", room.coldNights == nil and Rm.coldNightsState(room) == "off")
+    cmd("roomColdNights", { state = "freezing" })
+    cmd("roomColdNights", {})
+    cmd("roomColdNights", { state = 3 })
+    check("dd56: an unknown cold nights state is ignored", room.coldNights == nil and countLog("Cold nights set") == 0)
+    cmd("roomColdNights", { state = "on" }, newPlayer(9000, 9000, 10))
+    check("dd56: a player away from the room can't set cold nights", room.coldNights == nil)
+    sent = {}
+    cmd("roomColdNights", { state = "auto" })
+    check("dd56: Late flower is stored, logged and the panel refreshed", room.coldNights == "auto" and countLog("Cold nights set to Late flower") == 1
+        and sent[#sent] and sent[#sent].cmd == "roomInfo")
+    cmd("roomSetMode", { mode = "Veg" })
+    check("dd56: Veg mode keeps the stored setting but can't run it", room.coldNights == "auto" and not Rm.coldNightsAvailable(room))
+    cmd("roomSetMode", { mode = "Flower" })
+
+    -- Arming: Late flower waits for a living, rooted female in late flower; On is always armed.
+    local function plantAt(x, y, extra)
+        local p = Reg.addPlant(x, y, 0, G.newSeed(T.INDICA))
+        p.sex, p.stage, p.flowerStartAt, p.nextStageAt = C.SEX.FEMALE, C.STAGE.Flowering, 0, 100
+        p.dead, p.rooting, p.lightStalled, p.warnings = nil, nil, nil, {}
+        for k, v in pairs(extra or {}) do p[k] = v end
+        return p
+    end
+    hourOfDay = 20
+    local a = plantAt(5601, 5601)
+    local function armed(now) return Rm.coldNightsArmed(room, Rm.plantsIn(key), now) end
+    check("dd56: early flower doesn't arm Late flower", not armed(20))
+    check("dd56: late flower arms it", armed(60))
+    a.sex = C.SEX.MALE
+    check("dd56: a male in late flower doesn't arm it", not armed(60))
+    a.sex, a.rooting = C.SEX.FEMALE, { readyAt = 999 }
+    check("dd56: a rooting cutting doesn't arm it", not armed(60))
+    a.rooting = nil
+    a.stage = C.STAGE.Ripe
+    check("dd56: a ripe plant waiting for harvest keeps it armed", armed(60))
+    a.stage = C.STAGE.Flowering
+    room.coldNights = "on"
+    check("dd56: On is armed with no plant in late flower", armed(20))
+    room.coldNights = "off"
+    check("dd56: Off is never armed", not armed(60))
+    room.coldNights = "auto"
+    -- Purple Buds is a fixed option since dd55: an older save that switched it off still gets Cold nights; Room Climate off hides it.
+    SandboxVars = { CannabisMod = { PurpleBuds = false } }
+    check("dd56: a saved Purple buds off is ignored (fixed on)", armed(60) and Rm.coldNightsAvailable(room))
+    SandboxVars = { CannabisMod = { RoomClimate = false } }
+    check("dd56: Room climate off: never armed and the control is hidden", not armed(60) and not Rm.coldNightsAvailable(room))
+    SandboxVars = nil
+    room.mode = "Drying"
+    check("dd56: a Drying room is never armed", not armed(60))
+    room.mode = "Flower"
+
+    -- The ten-minute pass logs the arming once and clears it after harvest.
+    worldHours = 20; Rm.tick(20)
+    check("dd56: not armed yet, nothing logged", room.coldArmed == nil and countLog("Cold nights armed") == 0)
+    worldHours = 60; Rm.tick(60); Rm.tick(60)
+    check("dd56: arming is logged once when a plant reaches late flower", room.coldArmed == true and countLog("Cold nights armed: plants in late flower") == 1)
+    Reg.removePlant(5601, 5601, 0)
+    Rm.tick(60)
+    check("dd56: after harvest Late flower disarms itself", room.coldArmed == nil and room.coldActive == nil and not armed(60))
+    sent = {}
+    cmd("requestRoom")
+    local cn = sent[#sent].data.climate.coldNights
+    check("dd56: info says Late flower is waiting", cn and cn.state == "auto" and cn.armed == false and cn.active == false)
+
+    -- The night band drives the equipment only in the room's lights-off hours.
+    table.insert(sqs["5602_5600_0"].objs, { sprite = "dazeddank_rooms_01_32", md = {} })
+    table.insert(sqs["5603_5600_0"].objs, { sprite = "dazeddank_rooms_01_20", md = {} })
+    room.coldNights = "on"
+    hourOfDay = 12; room.temp, room.auto = 20, nil
+    Rm.tick(60)
+    check("dd56: by day the Flower range applies (20 C: no AC)", room.coldActive == nil and room.running.cooler == false)
+    hourOfDay = 20; room.temp, room.auto = 20, nil
+    Rm.tick(60)
+    check("dd56: at night the AC works to the cold band (20 C > 13 C)", room.coldActive == true and room.running.cooler == true)
+    room.temp = 12
+    Rm.tick(60)
+    check("dd56: the AC holds on down to 2 C under the band's top", room.running.cooler == true)
+    room.temp = 10.9
+    Rm.tick(60)
+    check("dd56: and rests at 11 C", room.running.cooler == false and room.running.heater == false)
+    room.temp = 5
+    Rm.tick(60)
+    check("dd56: the heater still guards the bottom of the band", room.running.heater == true)
+    hourOfDay = 7; room.temp = 11
+    Rm.tick(60)
+    check("dd56: at lights-on the heater brings the room back to the Flower range", room.coldActive == nil and room.running.heater == true)
+    room.coldNights = "off"; hourOfDay = 20; room.temp, room.auto = 20, nil
+    Rm.tick(60)
+    check("dd56: with cold nights off the night keeps the Flower range", room.coldActive == nil and room.running.cooler == false)
+    table.remove(sqs["5602_5600_0"].objs); table.remove(sqs["5603_5600_0"].objs)
+
+    -- The cost: 15% slower flowering per tick while active, only for flowering females.
+    local f = plantAt(5601, 5601)
+    local r = plantAt(5602, 5601, { stage = C.STAGE.Ripe })
+    local m = plantAt(5603, 5601, { sex = C.SEX.MALE })
+    local stalledP = plantAt(5604, 5601, { lightStalled = true })
+    room.coldNights = "on"; hourOfDay = 20
+    Rm.tick(60)
+    check("dd56: an active cold night slows flowering by 15% of the tick", near(f.nextStageAt, 100 + W.COLD_NIGHT_SLOW / 6) and f.warnings.coldNight == true)
+    check("dd56: ripe plants and males are unaffected", r.nextStageAt == 100 and r.warnings.coldNight == nil and m.nextStageAt == 100 and m.warnings.coldNight == nil)
+    check("dd56: a plant already held by a light stall isn't slowed twice", stalledP.nextStageAt == 100)
+    for _ = 1, 5 do Rm.tick(60) end
+    check("dd56: an hour of cold night costs 0.15 h of flowering", near(f.nextStageAt, 100 + W.COLD_NIGHT_SLOW))
+    hourOfDay = 12
+    Rm.tick(60)
+    check("dd56: no slowdown by day, and the warning clears", near(f.nextStageAt, 100 + W.COLD_NIGHT_SLOW) and f.warnings.coldNight == nil)
+    room.coldNights = "auto"; hourOfDay = 20
+    f.flowerStartAt, stalledP.flowerStartAt, r.stage, r.flowerStartAt = 50, 50, C.STAGE.Flowering, 50
+    Rm.tick(60)
+    check("dd56: no slowdown while Late flower waits", near(f.nextStageAt, 100 + W.COLD_NIGHT_SLOW) and f.warnings.coldNight == nil)
+    f.flowerStartAt, stalledP.flowerStartAt, r.stage, r.flowerStartAt = 0, 0, C.STAGE.Ripe, 0
+    cmd("roomSetMode", { mode = "Veg" })
+    Rm.tick(60)
+    check("dd56: inert in a Veg room", near(f.nextStageAt, 100 + W.COLD_NIGHT_SLOW) and room.coldActive == nil)
+    cmd("roomSetMode", { mode = "Flower" })
+    SandboxVars = { CannabisMod = { RoomClimate = false } }
+    f.warnings.coldNight = true
+    Rm.tick(60)
+    check("dd56: room climate off: no band, no slowdown", near(f.nextStageAt, 100 + W.COLD_NIGHT_SLOW) and f.warnings.coldNight == nil)
+    SandboxVars = nil
+
+    -- What the panel gets: the setting and its state, and each plant's cold night count.
+    room.coldNights = "on"; hourOfDay = 20
+    sent = {}
+    cmd("requestRoom")
+    local info = sent[#sent].data
+    cn = info.climate.coldNights
+    check("dd56: info carries the cold nights state, armed and active, with the band", cn and cn.state == "on" and cn.armed == true and cn.active == true
+        and cn.nightLo == 6 and cn.nightHi == 13)
+    check("dd56: the panel's targets show the night band while active", info.climate.targets.tLo == 6 and info.climate.targets.tHi == 13)
+    hourOfDay = 12
+    sent = {}
+    cmd("requestRoom")
+    info = sent[#sent].data
+    check("dd56: by day the panel shows the Flower range, still armed", info.climate.coldNights.active == false and info.climate.coldNights.armed == true
+        and info.climate.targets.tHi == 26)
+    cmd("roomSetMode", { mode = "Veg" })
+    sent = {}
+    cmd("requestRoom")
+    check("dd56: a Veg room sends no cold nights control", sent[#sent].data.climate.coldNights == nil)
+    cmd("roomSetMode", { mode = "Flower" })
+    SandboxVars = { CannabisMod = { PurpleBuds = false } }
+    sent = {}
+    cmd("requestRoom")
+    check("dd56: a saved Purple buds off still sends the cold nights control (fixed on since dd55)", sent[#sent].data.climate.coldNights ~= nil)
+    SandboxVars = nil
+    room.coldNights = nil
+    sent = {}
+    cmd("requestRoom")
+    check("dd56: an old room record reads as off", sent[#sent].data.climate.coldNights.state == "off")
+
+    f.coldNightHours, f.warnings = 7, { coldNight = true }
+    r.purpleRolled, r.purple = true, true
+    local veg = plantAt(5603, 5602, { stage = C.STAGE.Vegetative })
+    local function rowAt(rows, x, y) for _, row in ipairs(rows) do if row.x == x and row.y == y then return row end end end
+    local rows = Rm.plantRows(key, 10)
+    local fr, rr = rowAt(rows, 5601, 5601), rowAt(rows, 5602, 5601)
+    check("dd56: plant rows carry the cold night count", fr.cold and fr.cold.hours == 7 and fr.cold.need == W.PURPLE_HOURS and fr.cold.rolled == false
+        and fr.cold.purple == false)
+    check("dd56: a rolled purple plant says so", rr.cold and rr.cold.rolled == true and rr.cold.purple == true)
+    check("dd56: males and veg plants carry no cold count", rowAt(rows, 5603, 5601).cold == nil and rowAt(rows, 5603, 5602).cold == nil)
+    check("dd56: a novice who can't read the strain gets no cold count", rowAt(Rm.plantRows(key, 0), 5601, 5601).cold == nil
+        and rowAt(Rm.plantRows(key, 3), 5601, 5601).cold ~= nil)
+    check("dd56: cold night slowing isn't counted as a card warning", fr.warnings == 0)
+    f.warnings.roomTemp = true
+    check("dd56: real warnings still count", rowAt(Rm.plantRows(key, 10), 5601, 5601).warnings == 1)
+    check("dd56: Inspect lists the cold night warning", (function()
+        for _, w in ipairs(I.buildVisible(f, 10, 60).warnings) do if w == "coldNight" then return true end end
+        return false end)())
+    for _, xy in ipairs({ { 5601, 5601 }, { 5602, 5601 }, { 5603, 5601 }, { 5604, 5601 }, { 5603, 5602 } }) do Reg.removePlant(xy[1], xy[2], 0) end
+
+    -- End to end: a plant in the room held at 11 C through 12 lights-off hours rolls (forced purple), and the room logs it.
+    local oldRoll = C.rollPercent
+    C.rollPercent = function() return true end
+    local e = plantAt(5602, 5602)
+    room.coldNights, room.temp, room.hum, room.auto = "auto", 11, 45, nil
+    hourOfDay, worldHours = 20, 60
+    for _ = 1, 72 do
+        PT.update(e, worldHours, false)
+        Rm.tick(worldHours)
+    end
+    C.rollPercent = oldRoll
+    check("dd56: the room held 11 C on its cold night", near(room.temp, 11, 0.01) and room.coldActive == true)
+    check("dd56: 12 lights-off hours at 11 C reach 12 cold night hours and roll", near(e.coldNightHours, W.PURPLE_HOURS, 0.01) and e.purpleRolled == true)
+    check("dd56: the forced roll turns it purple and the room logs it", e.purple == true and countLog(CannabisMod.Strains.of(e).name .. " turned purple") == 1)
+    check("dd56: the flowering clock paid 15% over those 12 hours", near(e.nextStageAt, 100 + 12 * W.COLD_NIGHT_SLOW, 0.01))
+    Reg.removePlant(5602, 5602, 0)
+
+    Rm.edgeBlocked, Rm.outdoor = oldBlocked, oldOutdoor
+    Rm.remove(key)
+    worldHours, hourOfDay = oldHours, oldHour
+end
+
+-- ---- dd56: Cold nights on the dashboard and the plant window ---------------------
+do
+    require "CannabisMod/CannabisStatusLayout"
+    require "CannabisMod/CannabisDashboardLayout"
+    local Dash, Lay = CannabisMod.DashboardLayout, CannabisMod.StatusLayout
+    local fh, ms = function() return 12 end, function(_, t) return #tostring(t) * 6 end
+    local function textOp(m, str) for _, op in ipairs(m.ops) do if op.kind == "text" and op.text == str then return op end end end
+    local function hitIds(m) local out = {} for _, h in ipairs(m.hits) do out[h.id] = h end return out end
+    local function pillUnder(m, op)
+        for _, o in ipairs(m.ops) do
+            if o.kind == "pill" and op.x >= o.x and op.x <= o.x + o.w and op.y >= o.y and op.y <= o.y + o.h then return o end
+        end
+    end
+    local plants = {
+        { x = 1, y = 1, z = 0, strain = "Kush", sex = "Female", stage = "Flowering", stageKey = "Flowering", water = "50%", cold = { hours = 7.4, need = 12, rolled = false, purple = false } },
+        { x = 2, y = 1, z = 0, strain = "Haze", sex = "Female", stage = "Ripe", stageKey = "Ripe", water = "50%", cold = { hours = 12, need = 12, rolled = true, purple = true } },
+        { x = 3, y = 1, z = 0, strain = "Skunk", sex = "Female", stage = "Ripe", stageKey = "Ripe", water = "50%", cold = { hours = 12, need = 12, rolled = true, purple = false } },
+        { x = 4, y = 1, z = 0, strain = "Fresh", sex = "Female", stage = "Flowering", stageKey = "Flowering", water = "50%", cold = { hours = 0, need = 12, rolled = false, purple = false } },
+    }
+    local function room(mode, cn, temp)
+        return { name = "Flower Room", mode = mode, schedule = "12/12", hour = 21, tiles = 9, lamps = {}, plants = plants, reservoirs = {}, equipment = {},
+            openings = {}, log = {}, climate = { enabled = true, temp = temp or 11, hum = 45, targets = { tLo = 6, tHi = 13, hLo = 40, hHi = 50 }, coldNights = cn } }
+    end
+    local veg = Dash.build(room("Veg", nil), 0, fh, ms)
+    check("dd56: no cold nights control without the server's coldNights (Veg rooms)", not hitIds(veg)["cold:off"] and veg.height == Dash.HEIGHT
+        and veg.plantArea.y == Dash.PLANT_AREA.y)
+    local cn = { state = "on", armed = true, active = true, nightLo = 6, nightHi = 13 }
+    local m = Dash.build(room("Flower", cn), 0, fh, ms)
+    local ids = hitIds(m)
+    check("dd56: a Flower room shows Off / Late flower / On pills", ids["cold:off"] and ids["cold:auto"] and ids["cold:on"]
+        and textOp(m, "Off") and textOp(m, "Late flower") and textOp(m, "On") and textOp(m, "COLD NIGHTS"))
+    local onPill, offPill = pillUnder(m, textOp(m, "On")), pillUnder(m, textOp(m, "Off"))
+    check("dd56: the current setting's pill is filled purple, the others plain", onPill and onPill.color == Lay.COLORS.purple
+        and offPill and offPill.color == Lay.COLORS.photo)
+    check("dd56: pills sit in a strip under the temperature and humidity meters", ids["cold:on"].x > 198 and ids["cold:on"].x + ids["cold:on"].w < 568
+        and ids["cold:on"].y > 52 + 132)
+    check("dd56: the strip pushes the plants and the window down", m.height > Dash.HEIGHT and m.plantArea.y == Dash.PLANT_AREA.y + (m.height - Dash.HEIGHT)
+        and ids["plant:1"].y == m.plantArea.y)
+    -- The strip and main's scrolling Room seal card share row 1: the seal card runs down beside the strip and its rows get that space.
+    local extra = m.height - Dash.HEIGHT
+    local sealCard, stripCard
+    for _, op in ipairs(m.ops) do
+        if op.kind == "card" and op.x == 12 + 566 then sealCard = op end
+        if op.kind == "card" and op.x == 12 + 186 and op.y > 52 + 132 then stripCard = op end
+    end
+    check("dd56: the Room seal card grows with the strip and its rows fit inside it", sealCard and sealCard.h == 132 + extra
+        and m.seal and m.seal.y + m.seal.h <= sealCard.y + sealCard.h and m.seal.h == veg.seal.h + extra
+        and Dash.sealMetrics(room("Flower", cn), fh).h == m.seal.h)
+    check("dd56: the strip doesn't overlap the Room seal card", stripCard and stripCard.x + stripCard.w <= sealCard.x)
+    check("dd56: the build returns both seal and plantArea", m.seal ~= nil and m.plantArea ~= nil and veg.seal ~= nil and veg.plantArea ~= nil)
+    check("dd56: active: the strip says on with the room's temperature", textOp(m, "On  |  room 11 C") ~= nil)
+    check("dd56: active: the meter's target shows the night band", textOp(m, "target 6 to 13 C") ~= nil)
+    cn.active = false
+    check("dd56: armed by day: tonight's band", textOp(Dash.build(room("Flower", cn), 0, fh, ms), "Armed  |  tonight 6 to 13 C") ~= nil)
+    cn.state, cn.armed = "auto", false
+    check("dd56: Late flower waiting says so", textOp(Dash.build(room("Flower", cn), 0, fh, ms), "Waiting for late flower") ~= nil)
+    cn.state = "off"
+    local offM = Dash.build(room("Flower", cn), 0, fh, ms)
+    check("dd56: off says so and fills the Off pill", textOp(offM, "Off  |  nights keep the Flower range") ~= nil
+        and pillUnder(offM, textOp(offM, "Off")).color == Lay.COLORS.purple)
+    local disabled = room("Flower", cn); disabled.climate.enabled = false
+    check("dd56: no strip while room climate is off", not hitIds(Dash.build(disabled, 0, fh, ms))["cold:off"])
+
+    -- Plant cards: hours so far, then Purple as a pill or "stayed green" muted.
+    local tag = textOp(m, "7/12 h cold")
+    check("dd56: a plant counting cold nights shows 7/12 h cold", tag ~= nil and tag.color == Lay.COLORS.purple)
+    local purple = textOp(m, "Purple")
+    check("dd56: a purple plant shows a purple pill", purple ~= nil and pillUnder(m, purple) and pillUnder(m, purple).color == Lay.COLORS.purple)
+    local green = textOp(m, "stayed green")
+    check("dd56: a plant that rolled green says stayed green, muted", green ~= nil and green.color == Lay.COLORS.muted)
+    check("dd56: no tag before any cold night", textOp(m, "0/12 h cold") == nil)
+    check("dd56: the tag sits under the Health row, inside the card", tag.y > textOp(m, "Water").y and tag.y + 12 <= m.plantArea.y + m.plantArea.h - 4)
+    check("dd56: Dash.coldTag is nil without a count", Dash.coldTag(nil) == nil and Dash.coldTag({ hours = 0, need = 12 }) == nil)
+
+    -- The plant window's warning chip.
+    local lay = Lay.build({ level = 10, name = "Cannabis Plant", stage = "Flowering", warnings = { "coldNight" } }, fh, ms)
+    local chip = textOp(lay, "Ripening slowed by cold nights")
+    check("dd56: the plant window shows ripening slowed by cold nights", chip ~= nil and pillUnder(lay, chip).color == Lay.COLORS.purple)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

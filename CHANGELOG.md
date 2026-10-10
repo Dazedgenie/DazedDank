@@ -1,5 +1,14 @@
 # Dazed Dank patch notes
 
+## dd56 (Cold nights, in testing)
+- Added: **Cold nights** on the grow room panel. Flower rooms get a strip under the temperature and humidity meters with three pills: Off, Late flower and On (Off by default, and for rooms from older saves).
+- Added: while Cold nights is armed, the room's lights-off hours work to a 6-13 C night band instead of the Flower range: ACs run above 13 C and rest at 11 C, inside the 5-15 C purple window, and a heater still guards 6 C so the under-5 C yield loss only bites rooms without one. Lit hours keep the normal 20-26 C. Humidity targets don't change and no new equipment is needed, so a warm night outdoors may need more than one AC (an AC still can't pull a room below 12 C).
+- Added: Late flower arms itself once a living, rooted female in the room reaches the second half of flower (or is ripe), and disarms after harvest. On is always armed. In Veg and Drying rooms, or with Room Climate switched off, the control is hidden and does nothing (the setting is kept).
+- Added: the cost: while the night band runs, flowering females in the room ripen 15% slower (ripe plants are unaffected). The plant window shows "Ripening slowed by cold nights"; it isn't counted as a warning on the dashboard's plant cards.
+- Added: the strip says what Cold nights is doing ("Armed | tonight 6 to 13 C", "Waiting for late flower", "On | room 11 C"), and the temperature meter shows the night band while it runs.
+- Added: plant cards in flowering rooms show cold night progress ("7/12 h cold"), then a purple "Purple" pill or "stayed green" once the plant has rolled. Shown at Agriculture 3, like the strain.
+- Added: the room log notes "Cold nights set to ...", "Cold nights armed: plants in late flower" and "<strain> turned purple".
+
 ## dd55 (performance, in testing)
 - Changed: sandbox options cut from 30 to 22. Lamp Heat, Strain Name Words, Strain Tint, Purple Buds, Closed Door Light Leak and Drip Irrigation Radius are gone and keep their old defaults (everything on; doors leak 25%; drip tanks reach 5 tiles). **Grow Gear Needs Power** now covers lamps and pumps together, and **Dependency Build Rate** at 0 replaces the Dependency tick box. Saved values for the cut options are ignored.
 - Changed: grow lamp glow no longer scans 61 squares every frame. Lamps are remembered as they load or are placed and re-checked about once a second (and at once when the hour changes), so a lamp's glow may switch up to a second later.

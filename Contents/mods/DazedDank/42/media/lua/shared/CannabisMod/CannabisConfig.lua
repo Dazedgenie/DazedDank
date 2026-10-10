@@ -579,6 +579,7 @@ Config.Climate = {
     COOLER_C = 6, COOLER_DRY = 6,               -- a running wall AC takes this many C and humidity points off the room
     COOLER_CAPACITY = 8,                        -- heat a running AC carries out first, in lamp-radius units (two large pro lamps)
     COOLER_FLOOR_C = 12,                        -- an AC won't pull a room below this
+    COLD_NIGHT = { tLo = 6, tHi = 13 },         -- a Flower room's lights-off temperatures while Cold nights runs (inside the 5-15 C purple window)
     CIRC_FAN_C = 1.5, CIRC_FAN_MAX_C = 3,       -- circulation fans break up hot spots: this much each, this much at most
     COOLER_HEAT = -24,                          -- a running AC's pull on a Dazed Climate room, in C x squares per hour (two large pro lamps)
     MAX_RISE = 30,                              -- the most a room can climb above the outdoor temperature
@@ -600,6 +601,7 @@ Config.Weather = {
     PURPLE_TINT = { 0.6, 0.35, 0.8 }, PURPLE_BLEND = 0.6,
     PURPLE_QUALITY = 1.05,                      -- purple buds' bag appeal
     FREEZE_YIELD_PER_HOUR = 0.02, FREEZE_YIELD_MAX = 0.25, -- yield lost per night hour under 5 C in late flower
+    COLD_NIGHT_SLOW = 0.15,                     -- flowering runs this much slower while a room's Cold nights band is on
     LAMP_HEAT_PER_RADIUS = 3,                   -- heat a lit lamp gives a Dazed Climate room, in C x squares per hour
     CURE_BEST_LO = 15, CURE_BEST_HI = 21,       -- jars cure at full speed here
     CURE_OK_LO = 10, CURE_OK_HI = 25,           -- and at half speed outside this

@@ -50,6 +50,8 @@ function DashPanel:setInfo(info)
     self.scroll = math.max(0, math.min(self.scroll or 0, Dash.maxScroll(info)))
     self.sealScroll = math.max(0, math.min(self.sealScroll or 0, Dash.maxSealScroll(info, fontHeight)))
     self.model = Dash.build(info, self.scroll, fontHeight, measure, self.sealScroll)
+    -- A Flower room's Cold nights strip makes the dashboard taller, so the window follows the layout's height.
+    if self.model.height and self.model.height ~= self.height then self:setHeight(self.model.height) end
     -- An open All plants window shows the same fresh reply.
     if self.listWindow then self.listWindow:setInfo(info) end
 end
@@ -176,7 +178,8 @@ function DashPanel:onMouseWheel(del)
         self:setSealScroll(self.sealScroll + del * S.rowH)
         return true
     end
-    local A = Dash.PLANT_AREA
+    -- The Cold nights strip moves the plant row down, so use the row the layout actually drew.
+    local A = self.model.plantArea or Dash.PLANT_AREA
     if mx < A.x or mx > A.x + A.w or my < A.y or my > A.y + A.h then return false end
     self:setScroll(self.scroll + del * STEP)
     return true
@@ -307,6 +310,8 @@ function DashPanel:onHit(id, right)
         end
         items[#items + 1] = { "Show in room", function() show(list) end }
         menu(items)
+    elseif id:sub(1, 5) == "cold:" then
+        send("roomColdNights", self:args({ state = id:sub(6) }))
     elseif id == "log" then
         self:openLog()
     elseif id == "allPlants" then

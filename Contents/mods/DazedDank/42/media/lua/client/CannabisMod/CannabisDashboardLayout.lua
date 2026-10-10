@@ -21,6 +21,38 @@ local SEAL_CARD_H = 132   -- the first row of cards, Room seal included
 local STAGE_NAME = { Seedling = "Seedling", Vegetative = "Vegetative", PreFlower = "Pre-flower", Flowering = "Flowering", Ripe = "Ripe" }
 local TYPE_COLOR = { Indica = C.Indica, Sativa = C.Sativa, Hybrid = C.Hybrid }
 Dash.PLANT_AREA = { x = M, y = PLANT_Y, w = 760 - 2 * M, h = PLANT_H }
+-- The Cold nights pills of a Flower room, in order: the setting each sends and its label.
+Dash.COLD_OPTIONS = { { "off", "Off" }, { "auto", "Late flower" }, { "on", "On" } }
+
+--- The Cold nights status line for the climate strip, and its colour.
+function Dash.coldNightsText(cn, temp)
+    if not cn or cn.state == "off" then return "Off  |  nights keep the Flower range", C.muted end
+    if cn.active then
+        if temp then return string.format("On  |  room %d C", math.floor(temp + 0.5)), C.purple end
+        return "On", C.purple
+    end
+    if cn.armed then return string.format("Armed  |  tonight %d to %d C", cn.nightLo or 6, cn.nightHi or 13), C.text end
+    return "Waiting for late flower", C.muted
+end
+
+--- A plant card's cold night tag as { text, pill or color } (`pill` draws a purple pill), or nil when there is nothing to show.
+function Dash.coldTag(cold)
+    if not cold then return nil end
+    if cold.rolled then
+        if cold.purple then return { text = "Purple", pill = true } end
+        return { text = "stayed green", color = C.muted }
+    end
+    if (cold.hours or 0) <= 0 then return nil end
+    return { text = string.format("%d/%d h cold", math.floor(cold.hours), cold.need or 12), color = C.purple }
+end
+
+--- The extra height a Flower room's Cold nights strip adds under the first row of cards: the strip's own height and that plus its gap.
+function Dash.coldExtra(info, small)
+    local climate = info.climate or {}
+    if not (climate.enabled and climate.coldNights) then return 0, 0 end
+    local coldH = 2 * small + 28
+    return coldH, coldH + 8
+end
 
 --- How far the plant row can scroll, in pixels.
 function Dash.maxScroll(info)
@@ -34,7 +66,8 @@ function Dash.sealMetrics(info, fontH)
     local small = fontH("Small")
     local rowH = small + 6
     local top = HEAD_H + M + 14 + small + 8
-    local viewH = (HEAD_H + M + SEAL_CARD_H) - 6 - top
+    local _, extra = Dash.coldExtra(info, small)
+    local viewH = (HEAD_H + M + SEAL_CARD_H + extra) - 6 - top
     local rows = 1 + math.max(1, #(info.openings or {}))
     local content = rows * rowH - 6
     return { x = M + 566, y = top, w = Dash.WIDTH - M - (M + 566), h = viewH, rowH = rowH, content = content,
@@ -47,7 +80,7 @@ function Dash.maxSealScroll(info, fontH)
 end
 
 --- Build the dashboard for a roomInfo reply. `scroll` is the plant row's offset and `sealScroll` the Room seal rows' offset, in pixels.
---- @return table { width, height, ops, hits, seal }; hits are { x, y, w, h, id } click regions, plant regions already scrolled; seal is the rows area from sealMetrics
+--- @return table { width, height, ops, hits, seal, plantArea }; hits are { x, y, w, h, id } click regions, plant regions already scrolled; seal is the rows area from sealMetrics, plantArea the plant row (moved down by a Cold nights strip)
 function Dash.build(info, scroll, fontH, measure, sealScroll)
     local W, H = Dash.WIDTH, Dash.HEIGHT
     local ops, hits = {}, {}
@@ -83,6 +116,10 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
         hit(x, y, w, h, id)
     end
     local climate = info.climate or {}
+    -- A Flower room that can run Cold nights gets a strip under the meters; everything below moves down to make room.
+    local cn = climate.enabled and climate.coldNights or nil
+    local coldH, extra = Dash.coldExtra(info, small)
+    H = H + extra
 
     -- Title bar: room name (click to rename), mode pill (click to change), counts, the time.
     rect(0, 0, W, HEAD_H, C.head)
@@ -104,7 +141,7 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     -- Row 1: lights, temperature, humidity, room seal.
     local y1, h1 = HEAD_H + M, SEAL_CARD_H
     -- Lights: a 24-hour ring of dots, lit hours in gold, with the hour marked; click to change the schedule.
-    card(M, y1, 176, h1)
+    card(M, y1, 176, h1 + extra)
     local cx, cy, r = M + 52, y1 + h1 / 2 + 2, 38
     for hr = 0, 23 do
         local a = (hr / 24) * 2 * math.pi - math.pi / 2
@@ -121,8 +158,8 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     local onH = Config.Timer.SCHEDULES[info.schedule or ""]
     local on = onH and string.format("on %02d to %02d", Config.Timer.ON_HOUR, (Config.Timer.ON_HOUR + onH) % 24) or "always on"
     text(on, lx, y1 + 14 + small + medium + 8, C.muted)
-    button(lx, y1 + h1 - small - 20, 62, small + 6, "Change", "schedule")
-    hit(M, y1, 176, h1, "schedule")
+    button(lx, y1 + h1 + extra - small - 20, 62, small + 6, "Change", "schedule")
+    hit(M, y1, 176, h1 + extra, "schedule")
 
     -- Temperature and humidity: the reading, the target band, a marker on it.
     local function meter(x, w, title, icon, value, unit, lo, hi, mn, mx, note)
@@ -156,10 +193,26 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     if climate.hum and t.hHi and climate.hum > t.hHi then humNote = "too humid" elseif climate.hum and t.hLo and climate.hum < t.hLo then humNote = "too dry" end
     meter(M + 376, 180, "Humidity", "icon_humid", climate.hum, "%", t.hLo or 40, t.hHi or 60, 10, 90, humNote)
 
+    -- Cold nights: the three-way setting as pills, styled like the equipment modes, and what it is doing tonight.
+    if cn then
+        local kx, ky, kw = M + 186, y1 + h1 + 8, 370
+        card(kx, ky, kw, coldH)
+        label("Cold nights", kx + 14, ky + 10)
+        local px = kx + 14 + measure("Small", "COLD NIGHTS") + 12
+        for _, opt in ipairs(Dash.COLD_OPTIONS) do
+            local pw = measure("Small", opt[2]) + 20
+            button(px, ky + 7, pw, small + 6, opt[2], "cold:" .. opt[1], cn.state == opt[1])
+            px = px + pw + 6
+        end
+        local line, lc = Dash.coldNightsText(cn, climate.temp)
+        text(fit(line, "Small", kw - 28), kx + 14, ky + 20 + small, lc)
+    end
+
     -- Room seal: power and every door or window, with the uncovered ones in amber. The rows scroll inside the card.
+    -- With a Cold nights strip the card runs down beside it (h1 + extra), and sealMetrics gives the rows that space too.
     local sx = M + 566
     local sw = W - M - sx
-    card(sx, y1, sw, h1)
+    card(sx, y1, sw, h1 + extra)
     label("Room seal", sx + 14, y1 + 14, "icon_seal")
     local S = Dash.sealMetrics(info, fontH)
     sealScroll = Config.clamp(sealScroll or 0, 0, S.maxScroll)
@@ -186,7 +239,7 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     end
 
     -- Plants: cards in a row that scrolls sideways; click a card to inspect the plant.
-    local A = Dash.PLANT_AREA
+    local A = { x = Dash.PLANT_AREA.x, y = PLANT_Y + extra, w = Dash.PLANT_AREA.w, h = PLANT_H }
     label("Plants", M + 2, A.y - small - 6, "icon_plants")
     local plants = info.plants or {}
     -- "View all" opens the sortable list of every plant; it sits at the right end of the label line, below the Room seal card.
@@ -229,6 +282,16 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
                 if p.health then
                     local hc = (p.health == "Excellent" or p.health == "Good") and C.good or (p.health == "Fair" and C.warn or C.bad)
                     text("Health", tx, ty, C.muted); text(p.health, x + cw - 12, ty, hc, "Small", "right")
+                    ty = ty + small + 4
+                end
+                -- The cold night tag gets the last line of the column: hours so far, then Purple or stayed green.
+                local tag = Dash.coldTag(p.cold)
+                if tag and tag.pill then
+                    local pw = math.min(measure("Small", tag.text) + 12, cw - 114)
+                    pill(tx, ty - 1, pw, small + 2, C.purple)
+                    text(fit(tag.text, "Small", pw - 6), tx + pw / 2, ty, C.white, "Small", "center")
+                elseif tag then
+                    text(fit(tag.text, "Small", cw - 114), tx, ty, tag.color)
                 end
                 -- The warning chip sits on the bottom of the photo, so it never covers the rows beside it.
                 local chip = nil
@@ -255,7 +318,7 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     end
 
     -- Reservoirs: tanks with their level, food and roots; click one for its actions.
-    local y3, h3 = PLANT_Y + PLANT_H + 12, 126
+    local y3, h3 = A.y + PLANT_H + 12, 126
     local rw = 300
     card(M, y3, rw, h3)
     label("Reservoirs", M + 14, y3 + 12, "icon_tank")
@@ -342,7 +405,7 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     text(line, M + 12, by + (H - by - M - small) / 2, alert and C.warn or C.muted)
     button(W - M - 70, by + (H - by - M - small - 6) / 2, 60, small + 6, "Log", "log")
 
-    return { width = W, height = H, ops = ops, hits = hits, seal = S }
+    return { width = W, height = H, ops = ops, hits = hits, seal = S, plantArea = A }
 end
 
 return Dash
