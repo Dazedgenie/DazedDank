@@ -1200,7 +1200,7 @@ function Rooms.updateClimate(panelKey, plants, outdoor, advance, now)
         wetNow = wetNow or wet
     end
     if hotNow then
-        Rooms.noteOnce(panelKey, "temp", string.format("Plants stressed: the room is at %d C", math.floor(room.temp + 0.5)), now)
+        Rooms.noteOnce(panelKey, "temp", "Plants stressed: the room is at " .. CannabisMod.Weather.logTemp(room.temp), now)
     end
     if wetNow then
         Rooms.noteOnce(panelKey, "humid", string.format("Mold risk: %d%% humidity with flowering plants", math.floor(room.hum + 0.5)), now)

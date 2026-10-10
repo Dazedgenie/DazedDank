@@ -3,8 +3,10 @@
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisStatusLayout"
+require "CannabisMod/CannabisWeather"
 
 local Config = CannabisMod.Config
+local Weather = CannabisMod.Weather
 local C = CannabisMod.StatusLayout.COLORS
 
 local Dash = {}
@@ -146,12 +148,15 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
         pill(x + 14 + bw * (lo - mn) / (mx - mn), by, bw * (hi - lo) / (mx - mn), 8, { 0.62, 0.84, 0.66 })
         local mxp = x + 14 + bw * Config.clamp((value - mn) / (mx - mn), 0, 1)
         pill(mxp - 6, by - 3, 12, 14, color)
-        text("target " .. lo .. " to " .. hi .. " " .. unit, x + 14, by + 16, C.muted)
+        text(string.format("target %d to %d %s", math.floor(lo + 0.5), math.floor(hi + 0.5), unit), x + 14, by + 16, C.muted)
         if note then text(note, x + 14, by + 16 + small + 2, ok and C.muted or C.warn) end
     end
     local t = climate.targets or {}
-    meter(M + 186, 180, "Temperature", "icon_temp", climate.temp, "C", t.tLo or 20, t.tHi or 26, 5, 40,
-        climate.outT and string.format("outdoors %d C", math.floor(climate.outT + 0.5)))
+    -- Rooms work in C; the meter shows the player's unit (the conversion is linear, so the band and marker sit the same).
+    local function temp(c) return c and (Weather.display(c)) end
+    local _, tUnit = Weather.display(0)
+    meter(M + 186, 180, "Temperature", "icon_temp", temp(climate.temp), tUnit, temp(t.tLo or 20), temp(t.tHi or 26), temp(5), temp(40),
+        climate.outT and ("outdoors " .. Weather.tempText(climate.outT)))
     local humNote = climate.outH and string.format("outdoors %d%%", math.floor(climate.outH + 0.5))
     if climate.hum and t.hHi and climate.hum > t.hHi then humNote = "too humid" elseif climate.hum and t.hLo and climate.hum < t.hLo then humNote = "too dry" end
     meter(M + 376, 180, "Humidity", "icon_humid", climate.hum, "%", t.hLo or 40, t.hHi or 60, 10, 90, humNote)
@@ -338,7 +343,7 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     local log = info.log or {}
     local alert = note ~= nil
     card(M, by, W - 2 * M, H - by - M, alert and C.alert or C.card, alert and C.warn or C.line)
-    local line = note and ("! " .. note) or (log[#log] and ("Latest: " .. log[#log].text) or "Nothing logged yet")
+    local line = note and ("! " .. note) or (log[#log] and ("Latest: " .. Weather.localize(log[#log].text)) or "Nothing logged yet")
     text(line, M + 12, by + (H - by - M - small) / 2, alert and C.warn or C.muted)
     button(W - M - 70, by + (H - by - M - small - 6) / 2, 60, small + 6, "Log", "log")
 

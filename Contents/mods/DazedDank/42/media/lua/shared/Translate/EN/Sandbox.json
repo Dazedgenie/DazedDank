@@ -41,7 +41,7 @@
     "Sandbox_CannabisMod_RoomPowerPenalty": "Room Power Penalty",
     "Sandbox_CannabisMod_RoomPowerPenalty_tooltip": "If enabled, a power cut in a grow room adds stress to flowering plants for every lit hour lost. If off, only the normal per-plant penalty applies.",
     "Sandbox_CannabisMod_PlantTemperature": "Plant Temperature",
-    "Sandbox_CannabisMod_PlantTemperature_tooltip": "If enabled, plants outside a grow room are stressed below 15 C or above 32 C, grow slower in the cold and stop at 5 C. Nights under 5 C in late flower cost yield.",
+    "Sandbox_CannabisMod_PlantTemperature_tooltip": "If enabled, plants outside a grow room are stressed below 15 C (59 F) or above 32 C (90 F), grow slower in the cold and stop at 5 C (41 F). Nights under 5 C (41 F) in late flower cost yield.",
     "Sandbox_CannabisMod_CuringTemperature": "Curing Temperature",
-    "Sandbox_CannabisMod_CuringTemperature_tooltip": "If enabled, jars cure at full speed at 15-21 C and down to half speed when colder or warmer. Above 25 C a missed burp is more likely to mold."
+    "Sandbox_CannabisMod_CuringTemperature_tooltip": "If enabled, jars cure at full speed at 15-21 C (59-70 F) and down to half speed when colder or warmer. Above 25 C (77 F) a missed burp is more likely to mold."
 }

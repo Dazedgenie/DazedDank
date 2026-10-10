@@ -3104,6 +3104,26 @@ do
     local joined = texts(Dash.build(info, 0, fh, ms))
     check("dashboard shows the room, its lamp count and schedule", joined:find("Mother Room", 1, true) and joined:find("14 lamps", 1, true)
         and joined:find("18/6", 1, true) and joined:find("on 06 to 00", 1, true) and joined:find("Panel powered", 1, true))
+    -- the temperature meter: Celsius by default, Fahrenheit when the game (or Dazed Core) says so; humidity stays in %
+    local W = CannabisMod.Weather
+    info.climate = { enabled = true, temp = 30, hum = 50, outT = 10, outH = 70, targets = { tLo = 20, tHi = 26, hLo = 40, hHi = 60 } }
+    joined = texts(Dash.build(info, 0, fh, ms))
+    check("dashboard temperature reads in Celsius", joined:find("30.0 C", 1, true) and joined:find("target 20 to 26 C", 1, true)
+        and joined:find("outdoors 10 C", 1, true) and joined:find("target 40 to 60 %", 1, true))
+    local oldGetCore = getCore
+    getCore = function() return { getOptionDisplayAsCelsius = function() return false end } end
+    joined = texts(Dash.build(info, 0, fh, ms))
+    check("dashboard temperature reads in Fahrenheit", joined:find("86.0 F", 1, true) and joined:find("target 68 to 79 F", 1, true)
+        and joined:find("outdoors 50 F", 1, true) and joined:find("target 40 to 60 %", 1, true) and not joined:find(" C|", 1, true))
+    local oldCore = DazedCore
+    DazedCore = { Climate = { temperatureAt = function() end, outdoor = function() end, display = function(t) return t, "C" end } }
+    check("Dazed Core's Temperatures choice beats the game's option", W.tempText(21.6) == "22 C")
+    DazedCore = oldCore
+    getCore = oldGetCore
+    check("tempText rounds and converts", W.tempText(-40) == "-40 C" and W.tempText(21.64, 1) == "21.6 C")
+    check("logTemp keeps C for each client to convert", W.localize("at " .. W.logTemp(-3.2) .. "!") == "at -3 C!"
+        and W.localize("no temperature here") == "no temperature here")
+    info.climate = { enabled = false }
     info.lamps, info.powered = {}, false
     joined = texts(Dash.build(info, 0, fh, ms))
     check("an empty room counts no lamps, and a dead panel warns", joined:find("0 lamps", 1, true) and joined:find("Panel has no power", 1, true))
@@ -3201,6 +3221,16 @@ end
     joined = table.concat(texts, "|")
     check("Log tab shows ages", joined:find("just now", 1, true) and joined:find("10 h ago", 1, true) and joined:find("3 d ago", 1, true))
     check("ages read well", CannabisMod.LogTab.ago(0.2) == "just now" and CannabisMod.LogTab.ago(5) == "5 h ago" and CannabisMod.LogTab.ago(72) == "3 d ago")
+    -- a temperature the server logged reads in the player's unit
+    local W = CannabisMod.Weather
+    linfo.log = { { t = 99, text = "Plants stressed: the room is at " .. W.logTemp(33.4) } }
+    local oldGetCore = getCore
+    getCore = function() return { getOptionDisplayAsCelsius = function() return false end } end
+    ltab:rebuild(); texts = {}; ltab:render()
+    check("Log tab shows a logged temperature in Fahrenheit", table.concat(texts, "|"):find("the room is at 92 F", 1, true))
+    getCore = oldGetCore
+    ltab:rebuild(); texts = {}; ltab:render()
+    check("Log tab shows a logged temperature in Celsius", table.concat(texts, "|"):find("the room is at 33 C", 1, true))
     linfo.log = {}
     ltab:rebuild(); texts = {}; ltab:render()
     check("an empty log says so", table.concat(texts, "|"):find("Nothing has happened", 1, true))

@@ -39,6 +39,7 @@ Agreed 2026-10-03. Builds on the released mod without changing any existing item
 - Humidity rises from plants, open reservoirs and wet plants on racks; dehumidifier lowers, humidifier raises, fans pull toward outdoor.
 - Targets by the **player-set mode** (Veg, Flower, Drying); the panel warns when the room's contents don't match the mode.
   - Temperature: veg 24–28 C, flower 20–26 C, drying 15–21 C; stress below 15 or above 32.
+  - The panel shows temperatures in Celsius or Fahrenheit: the **Temperatures** choice on the Dazed Core options page when Dazed Core 1.6.0+ is loaded (Game setting, Celsius, Fahrenheit), otherwise the game's own Display > Temperature display option. Everything is still worked out in C.
   - Humidity: seedlings and clones 65–75%, veg 50–65%, flower 40–50%, drying 55–62%; above 65% in flower raises mold.
 - Equipment (all need power): **exhaust fan**, **intake fan**, **heater**, **dehumidifier**, **humidifier**. Fans on a wall bordering outdoors work fully; on an inside wall 25%. They run **automatically** toward the targets, with a manual override on the panel.
 - A **drying room** is a room in Drying mode: racks use room humidity and temperature instead of the outdoor and rain guesses. Racks in a Veg or Flower room raise its humidity for real and the panel warns to separate them.
