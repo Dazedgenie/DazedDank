@@ -1,7 +1,7 @@
 # Uploads the mod to its existing Steam Workshop item (id in workshop.txt).
 # Runs from the Actions tab ("Run workflow") or when a GitHub release is published.
-# Needs repo secrets: STEAM_USERNAME, STEAM_PASSWORD, and for Steam Guard either
-# STEAM_SHARED_SECRET (authenticator secret) or STEAM_CONFIG_VDF (base64 of a logged-in config.vdf).
+# Needs repo secrets: STEAM_USERNAME plus either STEAM_CONFIG_VDF (base64 of a logged-in
+# SteamCMD config.vdf) or STEAM_PASSWORD with STEAM_SHARED_SECRET (authenticator secret).
 name: Workshop upload
 
 on:
