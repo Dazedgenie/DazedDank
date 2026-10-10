@@ -390,26 +390,3 @@ farming files) and runs 191 checks. From the repo root:
 ## Art pipeline
 
 Plants, furniture and item icons are rendered in Blender by `tools/blender/render_plants.py`, `render_furniture.py` and `render_icons.py`. The renders in `tools/blender/{plants,furniture,icons}` feed `tools/draw_placeholders.py`, which falls back to its procedural drawings for any missing render.
-
-### Grow-room equipment (dazeddank_rooms_01)
-
-All 40 sprites of the rooms sheet (grow panel, blackout curtains, exhaust/intake fans, the old floor heater,
-dehumidifier and humidifier, the wall heater, dehumidifier, humidifier, through-wall AC, circulation fan and drip
-tank) and the item icons of the room gear (Flood and Light Timers, Grow Room Panel, Heater, Humidifier,
-Dehumidifier, Exhaust and Intake Fans, Wall AC, Circulation Fan, Drip Tank, Blackout Curtain) are modelled and rendered in
-DazedPower's style by `tools/blender/room_render.py`. It loads `tools/blender/dz_render.py`, a copy of
-DazedPower's rig (2:1 ortho tile camera, sky fill + key and rim suns, worn materials, bevelled geometry, no
-outlines), so keep that copy in step with DazedPower's. Wall units are built facing S on the north wall and turned
-for E, N and W; the N and W cells show the unit's back, as the game draws a unit hung on a wall in front of the
-camera. Then `tools/blender/room_post.py` grades and shrinks the renders exactly like DazedPower
-(`grade_all.py` + `import_art.py`: 256x512 to 128x256 premultiplied LANCZOS + unsharp mask, icons trimmed to
-30x30 on 32x32), lays a contact-shadow pass under the floor units, and with `--install` replaces those frames in
-the pack (the `.tiles` file and every index stay as they are), copies the icons into `42/media/textures` and
-rebuilds the depth map with `tools/make_room_depth.py`:
-
-    blender -b --factory-startup -P tools/blender/room_render.py -- build/rooms all   # or: python ... with pip bpy
-    python3 tools/blender/room_post.py build/rooms build/rooms_final --install
-
-Jobs are `all`, `cells`, `icons`, `icon:<Name>[,<Name>]` or one set name (`panel`, `exhaust`, `wall_ac`, ...).
-The older `room_art_blender.py`, `draw_room_art.py`, `add_wall_climate.py` and `add_room_cooling.py` made the
-previous art and still define the sheet's tile properties; don't re-run them over the new art.
