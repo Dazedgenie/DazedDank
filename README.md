@@ -391,6 +391,29 @@ farming files) and runs 191 checks. From the repo root:
 
 Plants, furniture and item icons are rendered in Blender by `tools/blender/render_plants.py`, `render_furniture.py` and `render_icons.py`. The renders in `tools/blender/{plants,furniture,icons}` feed `tools/draw_placeholders.py`, which falls back to its procedural drawings for any missing render.
 
+### Plant layers (dazeddank_overlay_01 / overlay_02)
+
+The plant layers drawn over pots, bags, buckets and furrows are rendered by `tools/blender/render_plants_v2.py` in
+the "in-between" style: real plant structure (serrated 3-9 finger fan leaves, decussate then alternate nodes, a branch
+in each leaf axil, colas of calyx clusters with pistils turning orange and frosty sugar leaves, late-flower fade on old
+fan leaves) with bold, full, green foliage that reads at 1x. Camera and stem anchor are the old `render_plants.py`'s
+(stem base at 1x row 226 of the 128x256 cell), lighting is DazedPower's rig and the renders get DazedPower's grade, so
+the layers sit with the rest of the art. The 7 body plans (landrace, haze, hybrid, kush, afghan, auto, tree), the 4
+colour phenotypes (purple, frosty, gold, dark) and the males (pale pollen-sac clusters) are built from the same
+parameters as `render_shapes.py`; each strain (shape + colour) has its own seed and its stages grow from the same
+plant. 106 renders: seedling, 7 shapes x 4 stages, 7 x 3 males, 4 colours x 7 shapes x flowering/ripe. A quick wide probe
+render squeezes any plant whose foliage would reach past the cell edge (with room for the 10% bigger XL sheet).
+
+    python3 tools/blender/plant_textures.py tools/blender/shapes/tex          # procedural leaf textures (~40 s)
+    blender -b --factory-startup -P tools/blender/render_plants_v2.py -- tools/blender/shapes/tex build/plants all
+        # or: python tools/blender/render_plants_v2.py -- ...  with the pip bpy module (~45 s a render on 4 CPU cores)
+    python3 tools/blender/plants_v2_post.py build/plants                       # grade into tools/blender/shapes/
+    python3 tools/make_overlay_sprites.py                                       # rebuild both overlay sheets
+
+`make_overlay_sprites.py` makes the unhealthy, dying, dead and trampled versions by recolouring, the XL sheet
+(overlay_02) by scaling 10% about the stem base, and shrinks with premultiplied alpha. Frame names, counts and
+anchors are unchanged, so no Lua changes are needed. `tools/blender/shapes/` is git-ignored (renders and textures).
+
 ### Grow-room equipment (dazeddank_rooms_01)
 
 All 40 sprites of the rooms sheet (grow panel, blackout curtains, exhaust/intake fans, the old floor heater,

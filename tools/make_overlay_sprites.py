@@ -5,14 +5,16 @@ Each sheet: per condition a seedling plus 4 stages for each of the 7 shapes (145
 (105), then the coloured flowering and ripe plants, healthy and unhealthy (112). The game raises each layer onto its
 plot (furrow, bag, bucket or table). Also writes the bare furrow a ground plant stands in (dazeddank_plants_01_65) and
 drops the old ground plant sprites. Uses Blender renders from tools/blender/shapes when present:
-    shape_<shape>_<Stage>.png, male_<shape>_<Stage>.png, colour_<colour>_<shape>_<Stage>.png
+    seedling.png, shape_<shape>_<Stage>.png, male_<shape>_<Stage>.png, colour_<colour>_<shape>_<Stage>.png
+(made by tools/blender/render_plants_v2.py + plants_v2_post.py; layers are shrunk with premultiplied alpha and a light
+unsharp mask like DazedPower's import_art.py)
 and otherwise stands in a reshaped, recoloured copy of the three original type renders. Run from the repo root:
 
     python tools/make_overlay_sprites.py
 """
 import math, os, random, sys, zlib
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageEnhance
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 sys.path.insert(0, os.path.dirname(__file__))
 import draw_placeholders as dp
 import pzpack, tdef
@@ -45,10 +47,16 @@ def stretch(im, kx, ky):
     """Scale a plant layer by kx, ky about the point where its stem meets the soil."""
     ax, ay = dp.BASE[0] * dp.S, dp.BASE[1] * dp.S
     W, H = im.size
-    big = im.resize((max(1, round(W * kx)), max(1, round(H * ky))), Image.LANCZOS)
+    big = im.convert("RGBa").resize((max(1, round(W * kx)), max(1, round(H * ky))), Image.LANCZOS).convert("RGBA")
     out = Image.new("RGBA", (W, H))
-    out.paste(big, (round(ax - ax * kx), round(ay - ay * ky)), big)
+    out.paste(big, (round(ax - ax * kx), round(ay - ay * ky)))
     return out
+
+
+def shrink(im):
+    """A 4x layer to its 128x256 cell: premultiplied LANCZOS (no dark fringes) and a light sharpen, as DazedPower."""
+    small = im.convert("RGBa").resize((dp.CELL_W, dp.CELL_H), Image.LANCZOS)
+    return small.filter(ImageFilter.UnsharpMask(radius=0.8, percent=70, threshold=1)).convert("RGBA")
 
 
 def tint(im, colour):
@@ -85,7 +93,7 @@ def coloured(colour, shape, stage):
 def layers():
     """Every plant layer in sheet order, as (kind, image, condition)."""
     blank = Image.new("RGBA", (dp.CELL_W * dp.S, dp.CELL_H * dp.S))
-    seedling = dp.draw_plant("Hybrid", "Seedling", zlib.crc32(b"Hybrid/Seedling"))
+    seedling = load("seedling.png") or dp.draw_plant("Hybrid", "Seedling", zlib.crc32(b"Hybrid/Seedling"))
     fem = {(s, st): female(s, st) for s in SHAPES for st in STAGES}
     mal = {(s, st): male(s, st) for s in SHAPES for st in MALE_STAGES}
     col = {(c, s, st): coloured(c, s, st) for c in COLOURS for s in SHAPES for st in ("Flowering", "Ripe")}
@@ -143,7 +151,7 @@ def main():
         frames = []
         for img, cond in out:
             layer = img if k == 1.0 else stretch(img, k, k)
-            frames.append(dp.shrink(dp.variant(layer, cond, blank), (dp.CELL_W, dp.CELL_H)))
+            frames.append(shrink(dp.variant(layer, cond, blank)))
         pages = write_sheet(name, frames)
         print(name, len(frames), "sprites in", pages, "pages")
     write_furrow()
