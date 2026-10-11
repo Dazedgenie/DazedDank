@@ -33,6 +33,9 @@ CannabisMod.Smoking = Smoking
 
 -- db.users[username] = { tol, dep, lastUse, at, doses }
 -- A joint carries { type, quality, moldy } under Smoke.JOINT_DATA; db.joints[itemId] only holds joints rolled before that.
+-- A blunt (or half-smoked blunt) carries the same under JOINT_DATA plus { wrap = "leaf" or "tobacco", hits = sessions left }.
+-- Each session swaps the item for a fresh half-smoked one carrying the new count, because later item data changes
+-- don't reliably sync in multiplayer.
 local db = nil
 
 local function onInitGlobalModData()
@@ -110,11 +113,133 @@ commands.rollJoint = function(player, args)
     Net.notify(player, "Rolled a " .. name)
 end
 
+--- A wrap for a blunt in the player's bag: a cured fan leaf (hemp wrap) or vanilla dried tobacco, as asked
+--- (`want` = "leaf" or "tobacco"; nil takes a hemp wrap first). Returns the item and its kind.
+local function findWrap(player, want)
+    if want ~= "tobacco" then
+        local leaf = findType(player, Config.FanLeaves.CURED_ITEM)
+        if leaf then return leaf, "leaf" end
+        if want == "leaf" then return nil end
+    end
+    local tobacco = findType(player, Smoke.TOBACCO_WRAP)
+    if tobacco then return tobacco, "tobacco" end
+    return nil
+end
+
+--- The blunt's display name: quality and strain, the wrap, and the sessions left on a half-smoked one.
+function Smoking.bluntName(info)
+    local wrap = info.wrap == "tobacco" and " Tobacco" or ""
+    local base = (info.moldy and "Moldy " or (Config.qualityTier(info.quality) .. " ")) .. strainWord(info) .. wrap .. " Blunt"
+    local hits = tonumber(info.hits) or Smoke.BLUNT_HITS
+    if hits >= Smoke.BLUNT_HITS then return base end
+    return "Half-smoked " .. base .. " (" .. hits .. " hit" .. (hits == 1 and "" or "s") .. " left)"
+end
+
+--- Roll a blunt from the bud right-clicked, one more bud and a wrap (hemp wrap or dried tobacco leaf).
+commands.rollBlunt = function(player, args)
+    local id = tonumber(args.id)
+    local bud = id and findById(player, id, Config.Drying.BUD_ITEM)
+    if not bud then return end
+    -- The second bud: one of the same strain if there is one, else any.
+    local first = budInfo(bud)
+    local want = first.strain and first.strain.name
+    local other = Seeds.findItem(player:getInventory(), function(item)
+        if item == bud or item:getFullType() ~= Config.Drying.BUD_ITEM then return false end
+        local rec = Drying.budRecord(item)
+        return want == nil or (rec and rec.strain and rec.strain.name == want)
+    end) or Seeds.findItem(player:getInventory(), function(item)
+        return item ~= bud and item:getFullType() == Config.Drying.BUD_ITEM
+    end)
+    if not other then
+        Net.notify(player, "A blunt takes " .. Smoke.BLUNT_BUDS .. " buds")
+        return
+    end
+    local wrap, kind = findWrap(player, args.wrap)
+    if not wrap then
+        Net.notify(player, "You need a hemp wrap (cured fan leaf) or a dried tobacco leaf")
+        return
+    end
+    local second = budInfo(other)
+    local wrapMoldy = kind == "leaf" and Drying.leafData(wrap).moldy == true
+    local info = {
+        type = first.type, strain = first.strain, purple = first.purple,
+        quality = math.floor((first.quality + second.quality) / 2 + 0.5),
+        moldy = first.moldy or second.moldy or wrapMoldy,
+        wrap = kind, hits = Smoke.BLUNT_HITS,
+    }
+    take(player, bud)
+    take(player, other)
+    take(player, wrap)
+    Drying.data().buds[id] = nil
+    Drying.data().buds[other:getID()] = nil
+    local name = Smoking.bluntName(info)
+    Farming.giveItems(player, Smoke.BLUNT_ITEM, 1, function(item)
+        item:setName(name)
+        item:getModData()[Smoke.JOINT_DATA] = info
+    end)
+    Net.notify(player, "Rolled a " .. name)
+end
+
+--- True if the player can light up: a lighter or matches in the bag (vanilla's LIGHTERS list), or an open flame
+--- the client found next to them.
+local function canLight(player, args)
+    if args and args.flame == true then return true end
+    local found = Seeds.findItem(player:getInventory(), function(item)
+        local t = item:getFullType()
+        for _, l in ipairs(Smoke.LIGHTERS) do
+            if t == l then
+                local ok, uses = pcall(function() return item:getCurrentUsesFloat() end)
+                return not ok or uses == nil or uses > 0
+            end
+        end
+        return false
+    end)
+    return found ~= nil
+end
+
+--- Smoke one session of a blunt: the dose, then the rest is put out as a half-smoked blunt (nothing left: gone).
+--- args.portion (0.5-1) is how much of the session was smoked before it was put out.
+local function smokeBlunt(player, args, id)
+    local item = findById(player, id, Smoke.BLUNT_ITEM) or findById(player, id, Smoke.HALF_BLUNT_ITEM)
+    if not item then return end
+    local half = item:getFullType() == Smoke.HALF_BLUNT_ITEM
+    if not canLight(player, args) then
+        Net.notify(player, half and "You need a lighter to relight it" or "You need a lighter")
+        return
+    end
+    local info = item:getModData()[Smoke.JOINT_DATA] or { type = "Hybrid", quality = 50, moldy = false }
+    local hits = math.max(1, math.floor(tonumber(info.hits) or Smoke.BLUNT_HITS))
+    local portion = Config.clamp(tonumber(args.portion) or 1, Smoke.PUT_OUT_COUNTS, 1)
+    take(player, item)
+
+    local left = {}
+    for k, v in pairs(info) do left[k] = v end
+    left.strain = Strains.copy(info.strain)
+    left.hits = hits - 1
+    if left.hits > 0 then
+        local name = Smoking.bluntName(left)
+        Farming.giveItems(player, Smoke.HALF_BLUNT_ITEM, 1, function(fresh)
+            fresh:setName(name)
+            fresh:getModData()[Smoke.JOINT_DATA] = left
+        end)
+    end
+
+    local user = userOf(player)
+    local light = CannabisMod.Traits.has(player, "lightweight") and { mult = CannabisMod.Traits.LIGHTWEIGHT_STRENGTH } or nil
+    local strength, hours = Use.dose(user, now(), Use.potency(info.quality, info.moldy, info.strain) * portion, "blunt", light)
+    Net.toPlayer(player, "smoked", {
+        type = info.type, strain = info.strain, moldy = info.moldy, strength = strength, hours = hours,
+        tolerance = user.tol, dependency = user.dep, method = "blunt", to = Net.targetOf(player),
+        nicotine = info.wrap == "tobacco" or nil, hitsLeft = left.hits,
+    })
+end
+
 commands.smoke = function(player, args)
     local id = tonumber(args.id)
     local method = args.method
     Config.debugLog("smoke command: id " .. tostring(id) .. ", method " .. tostring(method))
     if not (id and Smoke.METHODS[method]) then return end
+    if method == "blunt" then return smokeBlunt(player, args, id) end
     local item, info
     if method == "joint" then
         item = findById(player, id, Smoke.JOINT_ITEM)
@@ -173,13 +298,17 @@ commands.debugSmokeKit = function(player, args)
     Farming.giveItems(player, Smoke.PAPER_ITEM, 6)
     Farming.giveItems(player, Smoke.PIPE_ITEM, 1)
     Farming.giveItems(player, "Base.Lighter", 1)
+    Farming.giveItems(player, Config.FanLeaves.CURED_ITEM, 2, function(item)
+        item:getModData()[Config.FanLeaves.DATA] = { moldy = false }
+    end)
+    Farming.giveItems(player, Smoke.TOBACCO_WRAP, 1)
     for _, kind in ipairs({ "Indica", "Sativa", "Hybrid" }) do
         Farming.giveItems(player, Config.Drying.BUD_ITEM, 3, function(item)
             item:setName("Good " .. kind .. " Bud")
             item:getModData()[Config.Drying.BUD_DATA] = { type = kind, quality = 80, cureHours = 0, moldy = false }
         end)
     end
-    Net.notify(player, "Gave papers, a pipe, a lighter and 9 buds")
+    Net.notify(player, "Gave papers, a pipe, a lighter, 2 hemp wraps, a tobacco leaf and 9 buds")
 end
 
 --- Set the caller's tolerance, dependency and how long ago they last used.

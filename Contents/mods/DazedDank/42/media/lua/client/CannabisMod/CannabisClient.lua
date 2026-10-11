@@ -5,6 +5,7 @@
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisDomeContainer"
 require "CannabisMod/CannabisInfo"
+require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisNet"
@@ -21,6 +22,7 @@ require "Farming/TimedActions/ISSeedActionNew"
 
 local Config = CannabisMod.Config
 local Info   = CannabisMod.Info
+local Genetics = CannabisMod.Genetics
 local Seeds  = CannabisMod.Seeds
 local Net    = CannabisMod.Net
 
@@ -495,6 +497,35 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
             end
             option.toolTip = tip
         end
+
+        -- Strip Fan Leaves: late veg and early flower. The server copies the plant's window onto the plot (DDLeaf),
+        -- so outside a window the option is greyed with the reason; an over-strip is allowed but warned about.
+        if plot.nbOfGrow and plot.nbOfGrow >= Config.STAGE_TO_NBOFGROW.Vegetative then
+            local code = nil
+            pcall(function() code = plot:getIsoObject():getModData().DDLeaf end)
+            local option = context:addOption("Strip Fan Leaves", player, function(p)
+                if ISFarmingMenu.walkToPlant(p, square) then
+                    ISTimedActionQueue.add(ISTakeCannabisCuttingAction:new(p, plot, square, "stripLeaves"))
+                end
+            end)
+            local tip = ISToolTip:new()
+            tip:initialise()
+            tip:setVisible(false)
+            tip.description = (code and Genetics.LEAF_TEXT[code])
+                or "Strip the big fan leaves so light reaches the bud sites: once in late veg and once in early flower."
+            if code == "again" or code == "late" then
+                tip.description = " <RGB:1,0.4,0.4> " .. tip.description
+            elseif code == "veg" or code == "flower" then
+                tip.description = tip.description .. ". Gives fresh fan leaves to dry and cure into hemp wraps."
+            end
+            if not Seeds.findCuttingTool(player) then
+                option.notAvailable = true
+                tip.description = "Needs scissors, a sharp knife or another plant-cutting tool"
+            elseif Genetics.leafRefused(code) then
+                option.notAvailable = true
+            end
+            option.toolTip = tip
+        end
     end
 
     -- A cloning dome sitting in the world (on a table or the floor).
@@ -591,7 +622,24 @@ local function canLight(player)
     return (ok and flame) and true or findLighter(player) ~= nil
 end
 
---- Smoking menu options for a bud or a joint.
+--- How many of an item type the player carries (bags too); nil when the game can't say (the server checks anyway).
+local function countCarried(player, fullType)
+    local ok, n = pcall(function() return player:getInventory():getCountTypeRecurse(fullType) end)
+    return ok and tonumber(n) or nil
+end
+
+--- The blunt-smoking action running on this item right now, or nil.
+local function bluntActionOn(player, item)
+    local found = nil
+    pcall(function()
+        local queue = ISTimedActionQueue.getTimedActionQueue(player)
+        local current = queue and queue.queue and queue.queue[1]
+        if current and current.Type == "ISCannabisSmokeAction" and current.method == "blunt" and current.item == item then found = current end
+    end)
+    return found
+end
+
+--- Smoking menu options for a bud, a joint or a blunt.
 local function addSmokingOptions(player, context, item)
     local fullType = item:getFullType()
     local S = Config.Smoking
@@ -614,6 +662,24 @@ local function addSmokingOptions(player, context, item)
         end)
         if not paper then needs(roll, "Needs rolling papers") end
 
+        -- Blunts: two buds in a hemp wrap (cured fan leaf) or a dried tobacco leaf.
+        local buds = countCarried(player, Config.Drying.BUD_ITEM)
+        local hemp = player:getInventory():containsTypeRecurse(Config.FanLeaves.CURED_ITEM)
+        local tobacco = player:getInventory():containsTypeRecurse(S.TOBACCO_WRAP)
+        local function bluntOption(label, wrap)
+            local opt = context:addOption(label, player, function(p)
+                ISTimedActionQueue.add(ISCannabisItemAction:new(p, item, "rollBlunt", 160, { wrap = wrap }))
+            end)
+            if buds and buds < S.BLUNT_BUDS then needs(opt, "Needs " .. S.BLUNT_BUDS .. " buds") end
+            return opt
+        end
+        if hemp then bluntOption("Roll Blunt (Hemp Wrap)", "leaf") end
+        if tobacco then bluntOption("Roll Blunt (Tobacco Leaf)", "tobacco") end
+        if not hemp and not tobacco then
+            needs(context:addOption("Roll Blunt", player, nil), "Needs a hemp wrap (cured fan leaf) or a dried tobacco leaf, and "
+                .. S.BLUNT_BUDS .. " buds")
+        end
+
         local pipe = player:getInventory():containsTypeRecurse(S.PIPE_ITEM)
         local opt = context:addOption("Smoke in Pipe", player, function() smoke("pipe") end)
         if not pipe then needs(opt, "Needs a smoking pipe")
@@ -621,6 +687,25 @@ local function addSmokingOptions(player, context, item)
     elseif fullType == S.JOINT_ITEM then
         local opt = context:addOption("Smoke Joint", player, function() smoke("joint") end)
         if not canLight(player) then needs(opt, "Needs a lighter or an open flame") end
+    elseif fullType == S.BLUNT_ITEM or fullType == S.HALF_BLUNT_ITEM then
+        -- Being smoked right now: offer to put it out for later.
+        local running = bluntActionOn(player, item)
+        if running then
+            context:addOption("Put Out Blunt", player, function() pcall(function() running:forceStop() end) end)
+            return
+        end
+        local data = item:getModData()[S.JOINT_DATA]
+        local hits = (type(data) == "table" and tonumber(data.hits)) or S.BLUNT_HITS
+        local half = fullType == S.HALF_BLUNT_ITEM
+        local opt = context:addOption(half and "Relight Blunt" or "Smoke Blunt", player, function() smoke("blunt") end)
+        local tip = ISToolTip:new()
+        tip:initialise()
+        tip:setVisible(false)
+        tip.description = hits .. " session" .. (hits == 1 and "" or "s") .. " left. Each one is stronger and lasts longer than a joint; "
+            .. "it's put out after each session to relight later."
+        if type(data) == "table" and data.wrap == "tobacco" then tip.description = tip.description .. " Tobacco leaf: nicotine too." end
+        opt.toolTip = tip
+        if not canLight(player) then needs(opt, half and "Needs a lighter to relight it" or "Needs a lighter or an open flame") end
     end
 end
 

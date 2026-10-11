@@ -5270,5 +5270,343 @@ end)()
     getCell, ISMoveableSpriteProps, instanceItem, Plot.seed = oldCell, oldProps, oldInstance, oldSeed
 end)()
 
+-- ---- Fan leaves: strip windows, skill-scaled gain, over-strip stress, leaf counts ----
+;(function()
+    local Gn, Rg, Cf, In = CannabisMod.Genetics, CannabisMod.Registry, CannabisMod.Config, CannabisMod.Info
+    local F = Cf.FanLeaves
+    local t0 = 20000
+    worldHours = t0
+    local lp = Rg.addPlant(5000, 5000, 0, Gn.newSeed(Cf.TYPES.HYBRID))
+    lp.stress, lp.care = 0, 100
+    local none, why = Rg.stripLeaves(lp, t0, 5)
+    check("leaves: a seedling is too young to strip", none == nil and Gn.leafWindow(lp, t0) == "young" and why:find("Too young", 1, true))
+    lp.stage, lp.stageStartAt, lp.nextStageAt = Cf.STAGE.Vegetative, t0, t0 + 40
+    check("leaves: the first half of veg is refused", Gn.leafWindow(lp, t0 + 10) == "young" and Rg.stripLeaves(lp, t0 + 10, 5) == nil)
+    check("leaves: the second half of veg is the first window", Gn.leafWindow(lp, t0 + 20) == "veg" and Gn.leafWindow(lp, t0 + 39) == "veg")
+    lp.vegHeld = true
+    check("leaves: a plant held in veg is in late veg", Gn.leafWindow(lp, t0 + 1) == "veg")
+    lp.vegHeld = nil
+    local legacy = { stage = Cf.STAGE.Vegetative, nextStageAt = t0 + 5 }
+    check("leaves: a plant from before stage starts were saved gets an estimate", Gn.leafWindow(legacy, t0) == "veg"
+        and Gn.leafWindow({ stage = Cf.STAGE.Vegetative, nextStageAt = t0 + 35 }, t0) == "young")
+
+    -- Skill scales the gain: 3 care at Agriculture 0, 4 at 5, 5 at 10.
+    check("leaves: gain is 3 to 5 by Agriculture level", Gn.leafGain(0) == 3 and Gn.leafGain(5) == 4 and Gn.leafGain(10) == 5 and Gn.leafGain(15) == 5)
+    local r = Rg.stripLeaves(lp, t0 + 25, 0)
+    check("leaves: a late-veg strip at Agriculture 0 adds 3 care and a little stress", r and not r.over and r.gain == 3
+        and lp.leafBonus == 3 and lp.leafGood == 1 and lp.leafVeg and lp.stress == F.STRESS and lp.care == 100)
+    check("leaves: a ground plant gives 2-3 fresh leaves", r.leaves >= 2 and r.leaves <= 3)
+    check("leaves: the plant needs time to regrow", Gn.leafWindow(lp, t0 + 30) == "regrow" and Rg.stripLeaves(lp, t0 + 30, 5) == nil)
+    check("leaves: stripping again in the same window is an over-strip", Gn.leafWindow(lp, t0 + 25 + F.REGROW_HOURS) == "again")
+    lp.stage, lp.stageStartAt, lp.nextStageAt = Cf.STAGE.PreFlower, t0 + 40, t0 + 80
+    check("leaves: pre-flower is between the windows and refused", Gn.leafWindow(lp, t0 + 60) == "gap"
+        and select(2, Rg.stripLeaves(lp, t0 + 60, 5)):find("early flower", 1, true))
+    lp.stage, lp.stageStartAt, lp.nextStageAt = Cf.STAGE.Flowering, t0 + 80, t0 + 120
+    check("leaves: the first 35% of flower is the second window", Gn.leafWindow(lp, t0 + 90) == "flower" and Gn.leafWindow(lp, t0 + 94) == "flower"
+        and Gn.leafWindow(lp, t0 + 95) == "late")
+    local stressBefore = lp.stress
+    local r2 = Rg.stripLeaves(lp, t0 + 90, 10)
+    check("leaves: an early-flower strip at Agriculture 10 adds 5 care", r2 and not r2.over and r2.gain == 5 and lp.leafBonus == 8
+        and lp.leafGood == 2 and lp.leafFlower and lp.stress == stressBefore + F.STRESS)
+
+    -- Quality: the strips lift care past 100, so the harvest is better.
+    local q0 = Gn.calcQuality({ genetics = 90, lightCap = 90, care = 100 }, 0, Cf.dryHours())
+    local q1 = Gn.calcQuality({ genetics = 90, lightCap = 90, care = 100, leafBonus = 8 }, 0, Cf.dryHours())
+    check("leaves: stripped twice raises harvest quality (" .. q0 .. " -> " .. q1 .. ")", q1 > q0 and q1 == math.floor(q0 * 1.08 + 0.5))
+
+    -- Too late, and a third time: stress and lost care, no gain, one straggler leaf.
+    local care0, stress0 = lp.care, lp.stress
+    check("leaves: after early flower is too late", Gn.leafWindow(lp, t0 + 110) == "late")
+    local r3 = Rg.stripLeaves(lp, t0 + 110, 10)
+    check("leaves: a late strip stresses the plant instead of helping", r3 and r3.over and r3.gain == 0 and lp.leafBonus == 8
+        and lp.care == care0 - F.OVER_CARE and lp.stress == stress0 + F.OVER_CARE + F.OVER_STRESS and lp.warnings.overStripped
+        and r3.leaves == F.OVER_LEAVES and lp.leafStrips == 3 and lp.leafOver == 1)
+    local third = { stage = Cf.STAGE.Vegetative, stageStartAt = t0, nextStageAt = t0 + 10, leafGood = 2, warnings = {} }
+    check("leaves: a third strip, even in a window, is an over-strip", Gn.leafWindow(third, t0 + 8) == "again")
+    check("leaves: a dead or rooting plant can't be stripped", Gn.leafWindow({ stage = 2, dead = true }, t0) == nil
+        and Gn.leafWindow({ stage = 2, rooting = { readyAt = 1 } }, t0) == nil)
+
+    -- Status window: strips show to anyone, the window from Agriculture 2.
+    local seen0, seen2 = In.buildVisible(lp, 0, t0 + 110), In.buildVisible(lp, 2, t0 + 130)
+    check("leaves: inspect shows the strips like Topped", seen0.fanLeaves and seen0.fanLeaves.good == 2 and seen0.fanLeaves.over == 1
+        and seen0.fanLeaves.bonus == 8 and seen0.leafWindow == nil)
+    check("leaves: inspect at Agriculture 2 shows the strip window", seen2.leafWindow and seen2.leafWindow.code == "late"
+        and seen2.leafWindow.text:find("stresses", 1, true))
+    check("leaves: an unstripped plant shows no fan leaf line", In.buildVisible({ stage = 2, warnings = {} }, 0, t0).fanLeaves == nil)
+
+    -- Leaf counts by container, and from the harvest trim.
+    local function range(bag)
+        local lo, hi = 99, 0
+        for _ = 1, 60 do local n = Gn.leafCount({ bag = bag }); lo = math.min(lo, n); hi = math.max(hi, n) end
+        return lo, hi
+    end
+    local sLo, sHi = range("small")
+    local lLo, lHi = range("large")
+    local xLo, xHi = range("xlbag")
+    local gLo, gHi = range(nil)
+    check("leaves: small bag 2, large bag 3, XL pot 4, ground 2-3", sLo == 2 and sHi == 2 and lLo == 3 and lHi == 3 and xLo == 4 and xHi == 4
+        and gLo == 2 and gHi == 3 and select(2, range("xldwc")) == 4)
+    check("leaves: an over-strip gives one", Gn.leafCount({ bag = "xlbag" }, true) == 1)
+    check("leaves: the harvest trim gives 2, +1 per 4 buds, up to 4", Gn.trimLeafCount(1) == 2 and Gn.trimLeafCount(4) == 3
+        and Gn.trimLeafCount(8) == 4 and Gn.trimLeafCount(30) == 4)
+
+    -- The command: needs a tool and to be near; gives the leaves as items carrying their data.
+    local xp = Rg.addPlant(5010, 5000, 0, Gn.newSeed(Cf.TYPES.INDICA))
+    xp.bag = "xlbag"; xp.stage, xp.stageStartAt, xp.nextStageAt, xp.stress = Cf.STAGE.Vegetative, t0 - 15, t0 + 5, 0
+    local stripper = newPlayer(5010, 5001, 6)
+    fire("OnClientCommand", "CannabisMod", "stripLeaves", stripper, { x = 5010, y = 5000, z = 0 })
+    check("leaves: stripping needs scissors or a knife", sent[#sent].data.text:find("scissors", 1, true) and stripper.inv:count(F.ITEM) == 0)
+    local snips = newItem("Base.Scissors"); snips.tags["base:scissors"] = true; stripper.inv:addExisting(snips)
+    fire("OnClientCommand", "CannabisMod", "stripLeaves", newPlayer(5100, 5100, 6), { x = 5010, y = 5000, z = 0 })
+    check("leaves: too far away does nothing", xp.leafStrips == nil)
+    fire("OnClientCommand", "CannabisMod", "stripLeaves", stripper, { x = 5010, y = 5000, z = 0 })
+    local leafItem = nil
+    for _, it in ipairs(stripper.inv.items) do if it.fullType == F.ITEM then leafItem = it end end
+    check("leaves: an XL pot's plant gives 4 fresh fan leaves", stripper.inv:count(F.ITEM) == 4 and leafItem:getModData().DDLeaf.moldy == false
+        and xp.leafGood == 1 and math.abs(xp.leafBonus - Gn.leafGain(6)) < 1e-9 and sent[#sent].data.text:find("4 fan leaves", 1, true))
+    fire("OnClientCommand", "CannabisMod", "stripLeaves", stripper, { x = 5010, y = 5000, z = 0 })
+    check("leaves: straight away again is refused while it regrows", stripper.inv:count(F.ITEM) == 4 and sent[#sent].data.text:find("grown back", 1, true))
+
+    -- The window rides on the plot object so the client menu can grey the option out.
+    local plotL = newPlot(5020, 5000, 0); local seedL = newItem(Cf.SEED_ITEM)
+    CannabisMod.Seeds.setData(seedL, { type = Cf.TYPES.SATIVA, sex = Cf.SEX.FEMALE, genetics = 90 })
+    ISSeedActionNew.complete({ typeOfSeed = "Cannabis", seed = seedL, plant = { x = 5020, y = 5000, z = 0 }, character = stripper })
+    local lpl = Rg.getPlant(5020, 5000, 0)
+    CannabisMod.Farming.syncLeafWindow(lpl, worldHours)
+    check("leaves: a seedling's plot says too young", plotL:getIsoObject().md.DDLeaf == "young")
+    local sentCount = plotL:getIsoObject().sent or 0
+    CannabisMod.Farming.syncLeafWindow(lpl, worldHours)
+    check("leaves: an unchanged window isn't sent again", (plotL:getIsoObject().sent or 0) == sentCount)
+    lpl.stage, lpl.stageStartAt, lpl.nextStageAt = Cf.STAGE.Vegetative, worldHours - 30, worldHours + 10
+    CannabisMod.Farming.syncLeafWindow(lpl, worldHours)
+    check("leaves: in late veg the plot says the window is open", plotL:getIsoObject().md.DDLeaf == "veg" and plotL:getIsoObject().sent == sentCount + 1)
+    check("leaves: refused codes grey the option, over-strips only warn", Gn.leafRefused("young") and Gn.leafRefused("gap")
+        and Gn.leafRefused("regrow") and not Gn.leafRefused("late") and not Gn.leafRefused("again") and not Gn.leafRefused(nil))
+    check("leaves: stage advance clears the over-strip warning", (function()
+        local w = { stage = Cf.STAGE.PreFlower, warnings = { overStripped = true }, x = 1, y = 1, z = 0 }
+        Rg.advanceStage(w)
+        return w.warnings.overStripped == nil and w.stageStartAt == worldHours
+    end)())
+    Rg.removePlant(5000, 5000, 0); Rg.removePlant(5010, 5000, 0)
+end)()
+
+-- ---- Fan leaves dry on a rack and cure in a jar, without touching buds ----
+;(function()
+    local Cf, Dr, Gn = CannabisMod.Config, CannabisMod.Drying, CannabisMod.Genetics
+    local F = Cf.FanLeaves
+    local A = DazedDankAccept
+    check("leaves: racks take fan leaves, jars take dried leaves but not fresh ones", A.Rack(nil, newItem(F.ITEM)) and A.Rack(nil, newItem(F.DRIED_ITEM))
+        and not A.Rack(nil, newItem(Cf.Drying.BUD_ITEM)) and A.Buds(nil, newItem(F.DRIED_ITEM)) and A.Buds(nil, newItem(Cf.Drying.BUD_ITEM))
+        and not A.Buds(nil, newItem(F.ITEM)))
+    check("leaves: leaves dry in half the plant time and cure in half the bud time", Cf.leafDryHours() == 24 and Cf.leafCureHours() == 72)
+    local oldGSP = getSpecificPlayer
+    SandboxVars = { CannabisMod = { MoldChance = 0 } }
+    local sq = FakeWorld.square(5200, 5200, 0, false, true)
+    local rack = newContainer()
+    sq.objs[#sq.objs + 1] = { sprite = "dazeddank_plants_01_206", container = rack }
+    local hanger = newPlayer(5200, 5200, 5)
+    getSpecificPlayer = function(i) if i == 0 then return hanger end end
+    local wet = rack:addExisting(newItem(Cf.WET_PLANT_ITEMS.Sativa))
+    wet:getModData().CannabisHarvest = { type = "Sativa", quality = 80, budYield = 3, genetics = 80 }
+    for _ = 1, 3 do rack:addExisting(newItem(F.ITEM)):getModData().DDLeaf = { moldy = false } end
+    local dd = Dr.data()
+    worldHours = 30000; fire("EveryTenMinutes")
+    check("leaves: fresh leaves on a rack get a drying record", dd.plants[rack.items[2]:getID()] and dd.plants[rack.items[2]:getID()].leaf)
+    worldHours = 30025; fire("EveryTenMinutes")
+    local dried, wetLeft = 0, 0
+    for _, it in ipairs(rack.items) do
+        if it.fullType == F.DRIED_ITEM then dried = dried + 1 end
+        if Cf.isWetPlant(it.fullType) then wetLeft = wetLeft + 1 end
+    end
+    check("leaves: after a day the leaves are dried, the plant is still wet", dried == 3 and wetLeft == 1
+        and math.abs(dd.plants[wet:getID()].hours - 25) < 0.01 and wet:getModData().CannabisHarvest.budYield == 3)
+    check("leaves: the rack's humidity counts only the wet plant", Dr.wetCountIn(rack) == 1)
+    fire("OnClientCommand", "CannabisMod", "checkRack", hanger, { x = 5200, y = 5200, z = 0 })
+    check("leaves: check rack sums up the leaves", sent[#sent].data.text:find("3 fan leaves dry", 1, true) and sent[#sent].data.text:find("% dry", 1, true))
+
+    -- Into a jar with two buds: the leaves cure in 3 days into hemp wraps; the buds cure as they would alone.
+    local jar = newItem(Cf.Drying.JAR_ITEM); local jinv = newContainer()
+    jinv.getContainingItem = function() return jar end
+    jar.getInventory = function() return jinv end
+    local jsq = FakeWorld.square(5210, 5200, 0, false, true); jsq.items[1] = jar
+    hanger = newPlayer(5210, 5200, 5)
+    local moved = {}
+    for _, it in ipairs(rack.items) do if it.fullType == F.DRIED_ITEM then moved[#moved + 1] = it end end
+    for _, it in ipairs(moved) do rack:Remove(it); jinv:addExisting(it) end
+    for _ = 1, 2 do
+        jinv:addExisting(newItem(Cf.Drying.BUD_ITEM)):getModData().DDBud =
+            { type = "Indica", quality = 80, cureHours = 0, moldy = false, moldBaked = false, moist = false }
+    end
+    worldHours = 31000; fire("EveryTenMinutes")
+    check("leaves: dried leaves in a jar get a cure record and drop their rack record", dd.leaves[moved[1]:getID()]
+        and dd.plants[moved[1]:getID()] == nil)
+    for _ = 1, 3 do
+        worldHours = worldHours + 24; fire("EveryTenMinutes")
+        fire("OnClientCommand", "CannabisMod", "burpJar", hanger, { id = jar:getID(), x = 5210, y = 5200, z = 0 })
+    end
+    local cured, buds = 0, 0
+    for _, it in ipairs(jinv.items) do
+        if it.fullType == F.CURED_ITEM then cured = cured + 1 end
+        if it.fullType == Cf.Drying.BUD_ITEM then buds = buds + 1 end
+    end
+    check("leaves: after 3 days the leaves are hemp wraps and their records are gone", cured == 3 and dd.leaves[moved[1]:getID()] == nil)
+    fire("OnClientCommand", "CannabisMod", "checkJar", hanger, { id = jar:getID(), x = 5210, y = 5200, z = 0 })
+    check("leaves: the jar counts only buds as buds", buds == 2 and sent[#sent].data.text:find("Jar: 2 buds", 1, true))
+    for _ = 1, 3 do
+        worldHours = worldHours + 24; fire("EveryTenMinutes")
+        fire("OnClientCommand", "CannabisMod", "burpJar", hanger, { id = jar:getID(), x = 5210, y = 5200, z = 0 })
+    end
+    local budQ = {}
+    for _, it in ipairs(jinv.items) do
+        if it.fullType == Cf.Drying.BUD_ITEM then
+            local d = it:getModData().DDBud
+            budQ[#budQ + 1] = Gn.curedQuality(d.quality, d.cureHours, d.moldy, d.moldBaked)
+        end
+    end
+    check("leaves: buds cured beside leaves reach the same quality as alone", #budQ == 2 and budQ[1] == 88 and budQ[2] == 88)
+
+    -- The harvest trim gives fan leaves too, fresh from a wet plant, and the bud count is unchanged.
+    local trimmer = newPlayer(0, 0, 8)
+    local sc = newItem("Base.Scissors"); sc.tags[ItemTag.SCISSORS] = true; trimmer.inv:addExisting(sc)
+    local plant = trimmer.inv:addExisting(newItem(Cf.WET_PLANT_ITEMS.Indica))
+    plant:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 5 }
+    fire("OnClientCommand", "CannabisMod", "trimPlant", trimmer, { id = plant:getID() })
+    check("leaves: trimming a wet plant gives 5 buds and 3 fresh fan leaves", trimmer.inv:count(Cf.Drying.BUD_ITEM) == 5
+        and trimmer.inv:count(F.ITEM) == 3 and sent[#sent].data.text:find("3 fan leaves", 1, true))
+    local dryPlant = trimmer.inv:addExisting(newItem(Cf.DRIED_PLANT_ITEMS.Indica))
+    dryPlant:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 2 }
+    fire("OnClientCommand", "CannabisMod", "trimPlant", trimmer, { id = dryPlant:getID() })
+    check("leaves: trimming a dried plant gives dried fan leaves", trimmer.inv:count(F.DRIED_ITEM) == 2 and trimmer.inv:count(Cf.Drying.BUD_ITEM) == 7)
+    getSpecificPlayer = oldGSP
+    SandboxVars = nil
+end)()
+
+-- ---- Blunts: rolling, potency, sessions, relighting and tobacco nicotine ----
+;(function()
+    local Cf, U, Sm = CannabisMod.Config, CannabisMod.Use, CannabisMod.Smoking
+    local S, F = Cf.Smoking, Cf.FanLeaves
+    local js, jh = U.dose(U.new(), 0, 1.0, "joint")
+    local bu = U.new()
+    local bs, bh = U.dose(bu, 0, 1.0, "blunt")
+    local ju = U.new(); U.dose(ju, 0, 1.0, "joint")
+    check("blunt: stronger and longer than a joint", bs > js and bh > jh and math.abs(bs - 1.35) < 1e-9 and math.abs(bh - 2.5 * 1.35 * 1.4) < 1e-9)
+    check("blunt: builds a little more tolerance than a joint", bu.tol > ju.tol and bu.tol < ju.tol * 1.4)
+
+    local function bud(p, quality, strainName)
+        local b = p.inv:addExisting(newItem(Cf.Drying.BUD_ITEM))
+        b:getModData().DDBud = { type = "Indica", quality = quality, cureHours = 0, moldy = false, moldBaked = false, moist = false,
+            strain = strainName and { name = strainName, ind = 80, pot = 50, yield = 50, flower = 50 } or nil }
+        return b
+    end
+    local roller = newPlayer(6000, 6000, 3)
+    local b1 = bud(roller, 80)
+    fire("OnClientCommand", "CannabisMod", "rollBlunt", roller, { id = b1:getID() })
+    check("blunt: needs two buds", sent[#sent].data.text:find("2 buds", 1, true) and roller.inv:count(Cf.Drying.BUD_ITEM) == 1)
+    bud(roller, 90)
+    fire("OnClientCommand", "CannabisMod", "rollBlunt", roller, { id = b1:getID() })
+    check("blunt: needs a wrap", sent[#sent].data.text:find("hemp wrap", 1, true) and roller.inv:count(Cf.Drying.BUD_ITEM) == 2)
+    roller.inv:addExisting(newItem(F.CURED_ITEM)):getModData().DDLeaf = { moldy = false }
+    fire("OnClientCommand", "CannabisMod", "rollBlunt", roller, { id = b1:getID(), wrap = "leaf" })
+    local blunt = nil
+    for _, it in ipairs(roller.inv.items) do if it.fullType == S.BLUNT_ITEM then blunt = it end end
+    local info = blunt and blunt:getModData().DDJoint
+    check("blunt: two buds and a hemp wrap roll a blunt", blunt and roller.inv:count(Cf.Drying.BUD_ITEM) == 0 and roller.inv:count(F.CURED_ITEM) == 0
+        and info.wrap == "leaf" and info.hits == S.BLUNT_HITS and info.quality == 85 and info.type == "Indica" and blunt.name == "Premium Indica Blunt")
+
+    local cigar = newPlayer(6000, 6000, 3)
+    local c1 = bud(cigar, 70, "Knox Kush"); bud(cigar, 60); bud(cigar, 50, "Knox Kush")
+    cigar.inv:addExisting(newItem(S.TOBACCO_WRAP))
+    fire("OnClientCommand", "CannabisMod", "rollBlunt", cigar, { id = c1:getID(), wrap = "tobacco" })
+    local cb = nil
+    for _, it in ipairs(cigar.inv.items) do if it.fullType == S.BLUNT_ITEM then cb = it end end
+    check("blunt: a dried tobacco leaf rolls a tobacco blunt, pairing buds of the same strain", cb and cb:getModData().DDJoint.wrap == "tobacco"
+        and cb:getModData().DDJoint.quality == 60 and cigar.inv:count(S.TOBACCO_WRAP) == 0 and cigar.inv:count(Cf.Drying.BUD_ITEM) == 1
+        and cb.name:find("Knox Kush Tobacco Blunt", 1, true))
+    local moldyRoller = newPlayer(6000, 6000, 3)
+    local m1 = bud(moldyRoller, 80); bud(moldyRoller, 80)
+    moldyRoller.inv:addExisting(newItem(F.CURED_ITEM)):getModData().DDLeaf = { moldy = true }
+    fire("OnClientCommand", "CannabisMod", "rollBlunt", moldyRoller, { id = m1:getID() })
+    local mb = nil
+    for _, it in ipairs(moldyRoller.inv.items) do if it.fullType == S.BLUNT_ITEM then mb = it end end
+    check("blunt: a moldy wrap makes a moldy blunt", mb and mb:getModData().DDJoint.moldy == true and mb.name:find("Moldy", 1, true))
+
+    -- Sessions: each smoke uses one and leaves a half-smoked blunt; relighting needs a lighter.
+    Sm.data().users["player"] = nil
+    worldHours = 40000
+    fire("OnClientCommand", "CannabisMod", "smoke", roller, { id = blunt:getID(), method = "blunt" })
+    check("blunt: lighting it needs a lighter", sent[#sent].data.text:find("lighter", 1, true) and roller.inv:count(S.BLUNT_ITEM) == 1)
+    local lighter = roller.inv:addExisting(newItem("Base.Lighter"))
+    fire("OnClientCommand", "CannabisMod", "smoke", roller, { id = blunt:getID(), method = "blunt" })
+    local rep = sent[#sent]
+    local half = nil
+    for _, it in ipairs(roller.inv.items) do if it.fullType == S.HALF_BLUNT_ITEM then half = it end end
+    local hd = half and half:getModData().DDJoint
+    check("blunt: a session sends a blunt high and leaves 2 hits", rep.cmd == "smoked" and rep.data.method == "blunt" and rep.data.hitsLeft == 2
+        and rep.data.nicotine == nil and roller.inv:count(S.BLUNT_ITEM) == 0 and hd and hd.hits == 2)
+    check("blunt: the half-smoked blunt keeps strain, quality, mold and wrap", hd.quality == 85 and hd.type == "Indica" and hd.moldy == false
+        and hd.wrap == "leaf" and half.name == "Half-smoked Premium Indica Blunt (2 hits left)")
+    roller.inv:Remove(lighter)
+    fire("OnClientCommand", "CannabisMod", "smoke", roller, { id = half:getID(), method = "blunt" })
+    check("blunt: relighting needs a lighter", sent[#sent].data.text:find("relight", 1, true) and roller.inv:count(S.HALF_BLUNT_ITEM) == 1)
+    roller.inv:addExisting(newItem("Base.Matches"))
+    Sm.data().users["player"] = nil
+    fire("OnClientCommand", "CannabisMod", "smoke", roller, { id = half:getID(), method = "blunt", portion = 0.5 })
+    local putOut = sent[#sent]
+    local half2 = nil
+    for _, it in ipairs(roller.inv.items) do if it.fullType == S.HALF_BLUNT_ITEM then half2 = it end end
+    check("blunt: relit with matches; put out halfway counts as a smaller session", putOut.cmd == "smoked" and putOut.data.hitsLeft == 1
+        and half2 and half2 ~= half and half2:getModData().DDJoint.hits == 1 and half2.name:find("(1 hit left)", 1, true)
+        and putOut.data.strength < rep.data.strength)
+    fire("OnClientCommand", "CannabisMod", "smoke", roller, { id = half2:getID(), method = "blunt", portion = 0.1 })
+    check("blunt: the last session finishes it", sent[#sent].cmd == "smoked" and sent[#sent].data.hitsLeft == 0
+        and roller.inv:count(S.HALF_BLUNT_ITEM) == 0 and roller.inv:count(S.BLUNT_ITEM) == 0)
+    -- An open flame next to the player counts as lit.
+    local flameP = newPlayer(6000, 6000, 3)
+    local fb = flameP.inv:addExisting(newItem(S.HALF_BLUNT_ITEM))
+    fb:getModData().DDJoint = { type = "Sativa", quality = 70, moldy = false, wrap = "leaf", hits = 2 }
+    fire("OnClientCommand", "CannabisMod", "smoke", flameP, { id = fb:getID(), method = "blunt", flame = true })
+    check("blunt: an open flame relights it", sent[#sent].cmd == "smoked" and sent[#sent].data.hitsLeft == 1)
+
+    -- Tobacco blunt: the reply asks for nicotine, and the client applies vanilla's cigarette effect.
+    cigar.inv:addExisting(newItem("Base.Lighter"))
+    fire("OnClientCommand", "CannabisMod", "smoke", cigar, { id = cb:getID(), method = "blunt" })
+    local tr = sent[#sent]
+    check("blunt: a tobacco blunt's session carries nicotine", tr.cmd == "smoked" and tr.data.nicotine == true)
+    local oldStat, oldTrait = CharacterStat, CharacterTrait
+    CharacterStat = { STRESS = "STRESS", FOOD_SICKNESS = "FOOD_SICKNESS", NICOTINE_WITHDRAWAL = "NICOTINE_WITHDRAWAL",
+        UNHAPPINESS = "UNHAPPINESS", BOREDOM = "BOREDOM", FATIGUE = "FATIGUE", HUNGER = "HUNGER", THIRST = "THIRST" }
+    CharacterTrait = { SMOKER = "smoker" }
+    local function client(smoker)
+        local stats = { v = { STRESS = 0.5, FOOD_SICKNESS = 0 }, resets = {} }
+        function stats:get(s) return self.v[s] or 0 end
+        function stats:add(s, d) self.v[s] = (self.v[s] or 0) + d end
+        function stats:remove(s, d) self.v[s] = (self.v[s] or 0) - d end
+        function stats:reset(s) self.resets[#self.resets + 1] = s end
+        local p = { md = {}, notes = {}, stats = stats, smoke = 99 }
+        p.getStats = function() return stats end
+        p.hasTrait = function(_, t) return smoker and t == "smoker" end
+        p.setTimeSinceLastSmoke = function(self, v) self.smoke = v end
+        p.getModData = function(self) return self.md end
+        p.setHaloNote = function(self, t) self.notes[#self.notes + 1] = t end
+        p.getPlayerNum = function() return 0 end
+        p.isDead = function() return false end
+        return p
+    end
+    local smokerP, plainP = client(true), client(false)
+    CannabisMod.Net.clientHandlers.smoked(tr.data, smokerP)
+    check("blunt: a smoker's craving is reset and stress eased", smokerP.smoke == 0 and math.abs(smokerP.stats.v.STRESS - (0.5 + S.NICOTINE.STRESS)) < 1e-9
+        and smokerP.stats.v.FOOD_SICKNESS == 0 and smokerP.stats.resets[1] == "NICOTINE_WITHDRAWAL")
+    CannabisMod.Net.clientHandlers.smoked(tr.data, plainP)
+    check("blunt: a non-smoker feels the tobacco", plainP.smoke == 99 and plainP.stats.v.FOOD_SICKNESS == S.NICOTINE.FOOD_SICKNESS
+        and plainP.notes[#plainP.notes]:find("put the blunt out for later", 1, true))
+    local leafReply = { type = "Indica", strength = 1, hours = 2, tolerance = 1, dependency = 1, method = "blunt", hitsLeft = 0 }
+    local leafP = client(true)
+    CannabisMod.Net.clientHandlers.smoked(leafReply, leafP)
+    check("blunt: a hemp-wrap blunt gives no nicotine", leafP.smoke == 99 and leafP.stats.v.STRESS == 0.5
+        and leafP.notes[1]:find("end of the blunt", 1, true))
+    CharacterStat, CharacterTrait = oldStat, oldTrait
+    CannabisMod.High.stateFor(0).high = nil
+end)()
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

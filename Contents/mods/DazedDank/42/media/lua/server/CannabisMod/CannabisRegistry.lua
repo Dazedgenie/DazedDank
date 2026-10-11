@@ -126,6 +126,7 @@ function Registry.addPlant(x, y, z, seed, opts)
         -- Growth.
         stage       = startStage,
         plantedAt   = now,
+        stageStartAt = now,  -- when the current stage began (fan leaf windows are measured from here)
         nextStageAt = now + rollStageHours(startStage),
 
         -- Condition. Care starts at 100 and only goes down (except small
@@ -239,6 +240,7 @@ function Registry.startRooting(plant, hours, success)
     plant.rooting = { readyAt = now + hours, success = success == true }
     -- The vegetative timer only starts once the roots are in.
     plant.nextStageAt = plant.rooting.readyAt + rollStageHours(plant.stage, plant)
+    plant.stageStartAt = plant.rooting.readyAt
 end
 
 --- Settle a soil cutting whose rooting time is up.
@@ -464,6 +466,32 @@ function Registry.top(plant, now)
     return nil
 end
 
+--- Strip a plant's fan leaves. `level` is the stripper's Agriculture level. Returns a result table
+--- { over = bool, gain = care points, leaves = count }, or nil and why it was refused (see Genetics.leafWindow).
+function Registry.stripLeaves(plant, now, level)
+    local code = Genetics.leafWindow(plant, now)
+    if not code then return nil, "There's nothing here to strip" end
+    if Genetics.leafRefused(code) then return nil, Genetics.LEAF_TEXT[code] end
+    local F = Config.FanLeaves
+    local over = code == "again" or code == "late"
+    local result = { over = over, gain = 0, code = code }
+    if over then
+        Registry.applyPenalty(plant, F.OVER_CARE, "overStripped")
+        plant.stress = Config.clamp(plant.stress + F.OVER_STRESS, 0, Config.Stress.MAX)
+        plant.leafOver = (plant.leafOver or 0) + 1
+    else
+        result.gain = Genetics.leafGain(level)
+        plant.leafBonus = (plant.leafBonus or 0) + result.gain
+        plant.leafGood = (plant.leafGood or 0) + 1
+        if code == "veg" then plant.leafVeg = true else plant.leafFlower = true end
+        plant.stress = Config.clamp(plant.stress + F.STRESS, 0, Config.Stress.MAX)
+    end
+    plant.leafStrips = (plant.leafStrips or 0) + 1
+    plant.leafStripAt = now
+    result.leaves = Genetics.leafCount(plant, over)
+    return result
+end
+
 --- Cutting past the pot's budget sets the plant back: pre-flower drops to veg, and the veg timer starts over.
 function Registry.setBack(plant, now)
     if plant.stage == Config.STAGE.PreFlower then
@@ -472,6 +500,7 @@ function Registry.setBack(plant, now)
         if CannabisMod.Farming then CannabisMod.Farming.onStageChanged(plant) end
     end
     plant.nextStageAt = now + rollStageHours(Config.STAGE.Vegetative, plant)
+    plant.stageStartAt = now
     plant.warnings.overcut = true
 end
 
@@ -486,13 +515,15 @@ function Registry.advanceStage(plant)
         plant.warnings.hungry = nil
     end
     plant.stage = plant.stage + 1
-    plant.nextStageAt = nowHours() + rollStageHours(plant.stage, plant)
+    plant.stageStartAt = nowHours()
+    plant.nextStageAt = plant.stageStartAt + rollStageHours(plant.stage, plant)
     -- Late flower (cold nights, purple) is measured from here.
     if plant.stage == Config.STAGE.Flowering then plant.flowerStartAt = nowHours() end
     plant.fedThisStage = 0
     plant.warnings.nutrientBurn = nil
     plant.warnings.overcut = nil
     plant.warnings.wrongNutrient = nil
+    plant.warnings.overStripped = nil
 
     -- Ripe: remember when the harvest window opened. The window closes at
     -- nextStageAt; harvesting after that is "late" and costs quality.
@@ -579,6 +610,8 @@ local function tickPlant(plant, now)
         end
         Registry.waterCheck(plant)
     end
+    -- Tell clients whether Strip Fan Leaves is open, so the menu can grey it out.
+    if CannabisMod.Farming and CannabisMod.Farming.syncLeafWindow then CannabisMod.Farming.syncLeafWindow(plant, now) end
 end
 
 -- Plant keys whose tick has already failed and been logged, so a broken record logs once instead of every tick.

@@ -11,5 +11,10 @@
     "Tooltip_DD_WallAC": "Mount on any wall inside a grow room. The panel runs it when the room is too hot: about 6 C (11 F) cooler per unit whatever the weather, never below 12 C (54 F), and a little drier. Needs panel power.",
     "Tooltip_DD_CirculationFan": "Mount on any wall inside a grow room. Keeps the air moving so lamp hot spots don't build up: about 1.5 C (3 F) cooler each, 3 C (5 F) at most. Needs panel power.",
     "Tooltip_DD_DripTank": "Holds every soil pot in its grow room (or within a few tiles outside one) at about 70 percent water with a slow drip. Fill its 50 L tank by hand or with a water line, which keeps it topped up. Add nutrients and it feeds the pots too. The pump needs power.",
-    "Tooltip_DD_PurplePrefix": "Purple"
+    "Tooltip_DD_PurplePrefix": "Purple",
+    "Tooltip_DD_FanLeaf": "A big fan leaf off a cannabis plant. Hang it on a drying rack: it dries in about a day.",
+    "Tooltip_DD_DriedFanLeaf": "A dried fan leaf. Cure it in a curing jar for about 3 days (burp it like buds) and it becomes a hemp wrap for blunts.",
+    "Tooltip_DD_CuredFanLeaf": "A cured fan leaf: a hemp wrap. Roll a blunt from it and two buds (right-click a bud).",
+    "Tooltip_DD_Blunt": "Two buds rolled in a wrap. Stronger and longer than a joint, smoked over 3 sessions; it's put out after each to relight later with a lighter. A tobacco-leaf blunt gives nicotine too.",
+    "Tooltip_DD_HalfSmokedBlunt": "A blunt put out for later. Relight it with a lighter or an open flame to smoke the next session."
 }

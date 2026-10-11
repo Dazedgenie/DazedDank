@@ -59,6 +59,22 @@ Bag** and **XL DWC Bucket** are mother pots: 8 cuttings, clone drift of 0-2
 instead of 1-5, feeding every 96 hours in held veg, and cut stress that fades.
 Numbers live in `Config.Topping`, `Config.Cuttings` and `Config.Mother`.
 
+**Strip Fan Leaves** (needs a cutting tool, a slow snip) is live defoliation, twice per
+plant: once in **late veg** (the second half of the Vegetative timer, or any time
+while lamps hold it in veg) and once in **early flower** (the first 35% of
+Flowering). A good strip adds 3 care at Agriculture 0 up to 5 at Agriculture 10
+(care can go that far past 100, so it lifts harvest quality by about 3-5% each)
+and 2 stress. Seedlings, the first half of veg, pre-flower (between the windows)
+and the 12 hours after a strip are refused; the option is greyed out with the
+reason. Stripping again in a window, a third time, or after early flower is an
+**over-strip**: allowed but warned in red, it costs 4 care (and 4 stress) plus 6
+more stress, gives no care and shows an "Over-stripped" warning until the next
+stage. Each strip gives fresh **Fan Leaves**: small bag and flood table 2,
+ground, DWC and RDWC 2-3, large bag 3, XL bag and XL DWC 4 (an over-strip 1).
+The Inspect window shows **Fan leaves** (to anyone, like Topped) and, from
+Agriculture 2, whether the strip window is open. Numbers live in
+`Config.FanLeaves`.
+
 ### Nutrients and grow lights
 
 15. Right-click the ground: **Dazed Dank debug > Give kit > Grow kit** (2 Veg, 2 Bloom, a
@@ -111,12 +127,26 @@ Numbers live in `Config.Topping`, `Config.Cuttings` and `Config.Mother`.
 ### Smoking, effects, tolerance and dependency (first iteration)
 
 29. Right-click the ground: **Dazed Dank debug > Give kit > Smoking kit** (papers, pipe,
-    lighter, 3 buds each of Indica, Sativa and Hybrid, quality 80).
+    lighter, 2 hemp wraps, a dried tobacco leaf, 3 buds each of Indica, Sativa and Hybrid, quality 80).
 30. Right-click a bud: **Roll Joint** (needs rolling papers) or **Smoke in
     Pipe** (needs the pipe and a lighter or open flame). Right-click a
     joint: **Smoke Joint**. A joint is gentler; a pipe hit is about 30%
     stronger and builds tolerance faster. Quality, strain and mold carry
     from the bud to the joint (it's named, e.g. "Good Indica Joint").
+30b. **Blunts.** Right-click a bud: **Roll Blunt (Hemp Wrap)** (a Cured Fan Leaf)
+    or **Roll Blunt (Tobacco Leaf)** (vanilla's dried tobacco) rolls it with a
+    second bud (one of the same strain when you carry one). Quality is the two
+    buds' average; mold in either bud or the wrap makes a moldy blunt. A blunt
+    holds **3 sessions**. Each session is 35% stronger than a joint, its high
+    lasts 40% longer on top of that (about 4.7 hours at full strength against
+    a joint's 2.5) and it builds 20% more tolerance. After each session the blunt is
+    put out and becomes a **Half-smoked Blunt** ("Half-smoked Good Indica Blunt
+    (2 hits left)") that keeps its strain, quality and mold; **Relight Blunt**
+    needs a lighter, matches or an open flame. While smoking, right-click the
+    blunt for **Put Out Blunt**: once at least half the session is smoked it
+    counts as a smaller session, before that nothing is used. A tobacco blunt
+    also gives vanilla's cigarette nicotine each session: stress down a little,
+    and a Smoker's craving reset; a non-smoker gets a bit queasy instead.
 31. The high lasts about 2.5 game hours at full strength and eases in and
     out. Indica: relaxes (stress, unhappiness down), tires, hungry, thirsty.
     Sativa: lifts boredom and unhappiness, a little wakeful; a very strong
@@ -169,6 +199,15 @@ offline: if nothing is tinted, tell me.
 28b. For bigger harvests, the **Curing Barrel** is floor furniture (place it
     like the rack) holding up to 300 buds. It cures exactly like a jar:
     right-click it for **Check Curing Barrel** and **Burp Barrel**.
+28c. **Fan leaves.** Trim Plant also gives fan leaves: 2, plus 1 for every 4
+    buds, up to 4 (fresh from a plant that hung under a day, dried from one
+    that hung longer). Strip Fan Leaves gives them from living plants. Hang
+    fresh leaves on the rack: they dry in half a plant's time (24 hours by
+    default) into **Dried Fan Leaves**; Check Drying Rack sums them up on one
+    line. Put dried leaves in a curing jar or barrel: in half the buds' cure
+    time (3 days by default), with the same burps and mold, they become
+    **Cured Fan Leaves**, hemp wraps for blunts. Leaves never count as buds
+    in a jar's count, yield or quality.
 
 ### Loot and recipes
 
@@ -382,6 +421,9 @@ To redraw and repack after changing the script:
 Keep `--no-style`: the packer's style pass is tuned for furniture and turns
 foliage brown. The sprite numbering lives in `Config.spriteName`
 (CannabisConfig.lua); change it together with `sprite_slot` in the script.
+
+The fan leaf (fresh, dried, cured) and blunt (whole, half-smoked) icons are procedural placeholders from
+`icon_fan_leaf` and `icon_blunt` in the same script, with no Blender render yet.
 
 Tile id **7420** must not clash with another installed mod's `tiledef=` line.
 

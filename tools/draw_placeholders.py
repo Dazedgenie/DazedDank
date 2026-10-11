@@ -1133,7 +1133,48 @@ def icon_bud():
     return img
 
 
+def icon_fan_leaf(fill=(70, 140, 50), edge=(30, 70, 24)):
+    """A seven-finger fan leaf on a short stem."""
+    img = icon_canvas(); d = ImageDraw.Draw(img)
+    d.line([Q(16, 30), Q(16, 21)], fill=mix(fill, (40, 40, 20), 0.3), width=S)
+    for ang, length in ((-90, 15), (-62, 13), (-118, 13), (-36, 10), (-144, 10), (-12, 7), (-168, 7)):
+        a = math.radians(ang)
+        ca, sa = math.cos(a), math.sin(a)
+        pts = []
+        for i in range(9):
+            t = i / 8
+            w = length * 0.17 * math.sin(math.pi * min(1, t * 1.1)) * (1 - t) ** 0.3
+            pts.append((16 + ca * length * t - sa * w, 21 + sa * length * t + ca * w))
+        for i in range(8, -1, -1):
+            t = i / 8
+            w = length * 0.17 * math.sin(math.pi * min(1, t * 1.1)) * (1 - t) ** 0.3
+            pts.append((16 + ca * length * t + sa * w, 21 + sa * length * t - ca * w))
+        d.polygon([Q(*pt) for pt in pts], fill=fill, outline=edge)
+    return img
+
+
+def icon_blunt(half=False):
+    """A fat brown blunt, a green flake at the lit end; the half-smoked one is shorter with an ashy tip."""
+    img = icon_canvas(); d = ImageDraw.Draw(img)
+    end = (20, 13) if half else (28, 8)
+    d.line([Q(5, 25), Q(*end)], fill=(92, 62, 34), width=4 * S)
+    d.line([Q(6, 23), Q(end[0] - 1, end[1] - 1)], fill=(130, 92, 52), width=S)      # highlight
+    for t in (0.3, 0.55, 0.8):                                                        # wrap seams
+        x, y = 5 + (end[0] - 5) * t, 25 + (end[1] - 25) * t
+        d.line([Q(x - 1, y - 1.5), Q(x + 1, y + 1.5)], fill=(70, 46, 24), width=S)
+    d.ellipse([Q(end[0] - 2, end[1] - 2), Q(end[0] + 2, end[1] + 2)],
+              fill=(150, 150, 146) if half else (110, 150, 70))
+    if half:
+        d.ellipse([Q(end[0] - 1, end[1] - 1), Q(end[0] + 1, end[1] + 1)], fill=(80, 76, 72))
+    return img
+
+
 ICONS = {
+    "FanLeaf": icon_fan_leaf,
+    "DriedFanLeaf": lambda: recolor(icon_fan_leaf(), (150, 130, 70), 0.5, 0.7, 0.95),
+    "CuredFanLeaf": lambda: icon_fan_leaf((112, 84, 44), (60, 42, 20)),
+    "Blunt": icon_blunt,
+    "HalfSmokedBlunt": lambda: icon_blunt(True),
     "DryingRack": icon_drying_rack,
     "CuringJar": icon_curing_jar,
     "DryingFan": icon_fan,

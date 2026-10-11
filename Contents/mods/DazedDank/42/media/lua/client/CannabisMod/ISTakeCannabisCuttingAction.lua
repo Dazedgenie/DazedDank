@@ -1,4 +1,4 @@
--- The short animation of a player snipping a plant: taking a cutting, or topping it.
+-- The short animation of a player snipping a plant: taking a cutting, topping it or stripping its fan leaves.
 
 require "TimedActions/ISBaseTimedAction"
 require "CannabisMod/CannabisConfig"
@@ -40,14 +40,15 @@ function ISTakeCannabisCuttingAction:perform()
     ISBaseTimedAction.perform(self)
 end
 
---- `command` is the server command to send when done: "takeCutting" (the default) or "topPlant".
+--- `command` is the server command to send when done: "takeCutting" (the default), "topPlant" or "stripLeaves".
 function ISTakeCannabisCuttingAction:new(character, plot, square, command)
     local o = ISBaseTimedAction.new(self, character)
     o.character = character
     o.plot = plot
     o.square = square
     o.command = command or "takeCutting"
-    o.maxTime = 80
+    -- Stripping a whole plant's fan leaves takes twice as long as one snip.
+    o.maxTime = (o.command == "stripLeaves") and 160 or 80
     if character:isTimedActionInstant() then o.maxTime = 1 end
     return o
 end

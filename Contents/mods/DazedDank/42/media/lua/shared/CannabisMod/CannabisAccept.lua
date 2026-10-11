@@ -14,14 +14,16 @@ local Accept = DazedDankAccept
 Accept.RACK = "DazedDankAccept.Rack"
 Accept.BUDS = "DazedDankAccept.Buds"
 
---- Racks hold whole plants only, wet or dried.
+--- Racks hold whole plants, wet or dried, and fan leaves, fresh or dried.
 function Accept.Rack(container, item)
-    return item ~= nil and Config.isHangingPlant(item:getFullType())
+    return item ~= nil and Config.isRackItem(item:getFullType())
 end
 
---- Jars and barrels hold buds only.
+--- Jars and barrels hold buds, and dried fan leaves curing into wraps (and the wraps they become).
 function Accept.Buds(container, item)
-    return item ~= nil and item:getFullType() == Config.Drying.BUD_ITEM
+    if item == nil then return false end
+    local t = item:getFullType()
+    return t == Config.Drying.BUD_ITEM or Config.isDriedLeaf(t) or Config.isCuredLeaf(t)
 end
 
 --- The accept function for a sprite name, or nil for anything that isn't a rack or barrel.

@@ -121,6 +121,22 @@ function Farming.onStageChanged(plant)
     end
 end
 
+--- Copy the plant's Strip Fan Leaves window (Genetics.leafWindow) onto its plot object as DDLeaf, so the client's
+--- right-click menu can grey the option out with the reason. Sent only when it changes.
+function Farming.syncLeafWindow(plant, now)
+    local code = Genetics.leafWindow(plant, now or Registry.nowHours())
+    if plant.leafSync == code then return end
+    local luaObject = Farming.getVanilla(plant.x, plant.y, plant.z)
+    if not (isOurLivePlant(luaObject) and luaObject.getIsoObject) then return end
+    local ok, obj = pcall(luaObject.getIsoObject, luaObject)
+    if not ok or not obj then return end
+    local sent = pcall(function()
+        obj:getModData().DDLeaf = code
+        obj:transmitModData()
+    end)
+    if sent then plant.leafSync = code end
+end
+
 --- Mark a bag's plot as plowed today, so vanilla doesn't let an empty one fade away.
 local function freshenPlot(luaObject, today)
     local square = luaObject:getSquare()
