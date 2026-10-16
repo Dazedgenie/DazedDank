@@ -90,15 +90,10 @@ end
 -- The client only SHOWS these options in debug mode, but the server checks
 -- again, because a client could send them anyway.
 
-local function isDebugAllowed(player)
-    return isDebugEnabled()
-        or (player.getAccessLevel and player:getAccessLevel() ~= "None")
-end
-
 --- Give the player a test set of seeds with KNOWN data: one female of each
 --- type, plus one male of each type for breeding tests.
 commands.debugGiveSeeds = function(player, args)
-    if not isDebugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     -- Two females and a male of every starter strain, so each can be grown out or bred.
     local SEX, set = Config.SEX, {}
     for _, strain in ipairs(CannabisMod.Strains.STARTERS) do
@@ -114,7 +109,7 @@ end
 
 --- Skip the plant on a tile straight to its next stage.
 commands.debugNextStage = function(player, args)
-    if not isDebugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
     if not (x and y and z) then return end
     local plant = Registry.getPlant(x, y, z)
@@ -128,7 +123,7 @@ end
 
 --- Raise the plant's quality factors (genetics, light score, care) by args.amount, or to the top with "max"; stress is cleared.
 commands.debugBoostQuality = function(player, args)
-    if not isDebugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
     local plant = x and y and z and Registry.getPlant(x, y, z)
     if not plant then

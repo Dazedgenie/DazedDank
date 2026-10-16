@@ -1,4 +1,6 @@
--- The timed action for smoking a joint or a bud in a pipe; it uses up a little of the lighter and then asks the server for the dose.
+-- The timed action for smoking a joint, a bud in a pipe or one session of a blunt; it uses up a little of the lighter
+-- and then asks the server for the dose. A blunt put out partway (Put Out Blunt, or the action cancelled) counts as a
+-- smaller session once at least Config.Smoking.PUT_OUT_COUNTS of it was smoked; before that nothing is used.
 
 require "TimedActions/ISBaseTimedAction"
 require "CannabisMod/CannabisConfig"
@@ -28,12 +30,39 @@ function ISCannabisSmokeAction:start()
     end
 end
 
+--- Ask the server for the dose. `portion` (blunts only) is how much of the session was smoked.
+function ISCannabisSmokeAction:sendSmoke(portion)
+    if self.sent then return end
+    self.sent = true
+    local args = { id = self.item:getID(), method = self.method }
+    if self.method == "blunt" then
+        args.portion = portion or 1
+        -- No lighter means the menu found an open flame next to the player; the server takes that as lit.
+        if not self.lighter then args.flame = true end
+    end
+    sendClientCommand(self.character, Config.COMMAND_MODULE, "smoke", args)
+end
+
 function ISCannabisSmokeAction:perform()
-    sendClientCommand(self.character, Config.COMMAND_MODULE, "smoke", { id = self.item:getID(), method = self.method })
+    self:sendSmoke(1)
     ISBaseTimedAction.perform(self)
 end
 
---- @param method "joint" or "pipe"; lighter: the lighter item to drain, or nil when an open flame is used
+--- Stopped partway: a blunt smoked far enough counts as a smaller session; otherwise it is just put out.
+function ISCannabisSmokeAction:stop()
+    if self.method == "blunt" and not self.sent then
+        local done = 0
+        pcall(function() done = self:getJobDelta() end)
+        if done >= Config.Smoking.PUT_OUT_COUNTS then
+            self:sendSmoke(done)
+        else
+            pcall(function() self.character:setHaloNote("You put the blunt out before it really got going") end)
+        end
+    end
+    ISBaseTimedAction.stop(self)
+end
+
+--- @param method "joint", "pipe" or "blunt"; lighter: the lighter item to drain, or nil when an open flame is used
 function ISCannabisSmokeAction:new(character, item, method, lighter)
     local o = ISBaseTimedAction.new(self, character)
     o.character = character

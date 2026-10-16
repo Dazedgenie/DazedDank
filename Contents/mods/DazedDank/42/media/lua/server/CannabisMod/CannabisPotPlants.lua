@@ -1,5 +1,6 @@
 -- Every cannabis plant is a separate object drawn over its plot (a furrow, bag, bucket or flood table), raised onto
--- the soil, so one set of plant sprites serves the ground and every container.
+-- the soil, so one set of plant sprites serves the ground and every container. Vanilla crops in a container get the
+-- same layer, using the soil-free plants of the Garden Crops add-on.
 
 if isClient() then return end
 
@@ -24,8 +25,15 @@ end
 
 --- The plant sprite a plot should show and its container kind (nil on the ground), or nil when there is no plant to draw.
 function PotPlants.wanted(luaObject)
-    if not luaObject or luaObject.state == "plow" or luaObject.typeOfSeed ~= CROP then return nil end
+    if not luaObject or luaObject.state == "plow" then return nil end
     local bag = Registry.getBag(luaObject.x, luaObject.y, luaObject.z)
+    if luaObject.typeOfSeed ~= CROP then
+        -- A vanilla crop: only in a container, as the plant vanilla would show (its stage and health) minus the soil.
+        if not bag then return nil end
+        local sprite = Config.gardenPlantSprite(CannabisMod.vanillaSpriteName(luaObject))
+        if not sprite then return nil end
+        return sprite, bag
+    end
     local shape, colour, stage, condition, male = CannabisMod.plantLook(luaObject)
     return Config.overlaySprite(shape, colour, stage, condition, bag, male), bag
 end
@@ -58,8 +66,8 @@ end
 local originalSetSpriteName = SPlantGlobalObject.setSpriteName
 function SPlantGlobalObject:setSpriteName(spriteName)
     originalSetSpriteName(self, spriteName)
-    -- Other crops only matter when a plant layer is still on their square (a replanted cannabis plot).
-    if self.typeOfSeed ~= CROP then
+    -- Other crops matter in a container, or when a plant layer is still on their square (a replanted cannabis plot).
+    if self.typeOfSeed ~= CROP and not Registry.getBag(self.x, self.y, self.z) then
         local square = self.getSquare and self:getSquare()
         if not (square and Config.overlayOn(square)) then return end
     end
@@ -87,7 +95,8 @@ local function checkOrphan(e, system)
     if not square then return end
     local current = Config.overlayOn(square)
     local plot = system and system.getLuaObjectOnSquare and system:getLuaObjectOnSquare(square)
-    if current and system and not (plot and plot.typeOfSeed == CROP and plot.state ~= "plow") then
+    local planted = plot and plot.state ~= "plow" and (plot.typeOfSeed == CROP or Registry.getBag(e.x, e.y, e.z) ~= nil)
+    if current and system and not planted then
         print("[DazedDank] removed a plant layer with no plant under it at " .. e.x .. "," .. e.y)
         lift(square, current)
     end

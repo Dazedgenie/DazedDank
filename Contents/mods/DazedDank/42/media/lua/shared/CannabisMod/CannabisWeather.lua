@@ -41,6 +41,36 @@ function Weather.tempAt(square, fallback)
     return fallback
 end
 
+--- A temperature in C in the player's unit: the number and "C" or "F". Dazed Core's Temperatures option (Core 1.6.0+)
+--  decides when Core is loaded, else the game's own Display > Temperature display option.
+function Weather.display(t)
+    local core = Weather.core()
+    if core and core.display then
+        local ok, v, unit = pcall(core.display, t)
+        if ok and type(v) == "number" and unit then return v, unit end
+    end
+    local ok, celsius = pcall(function() return getCore():getOptionDisplayAsCelsius() end)
+    if ok and celsius == false then return t * 9 / 5 + 32, "F" end
+    return t, "C"
+end
+
+--- A temperature in C as text in the player's unit, with `decimals` places (default none): "23 C" or "73 F".
+function Weather.tempText(t, decimals)
+    local v, unit = Weather.display(t)
+    if decimals and decimals > 0 then return string.format("%." .. decimals .. "f %s", v, unit) end
+    return string.format("%d %s", math.floor(v + 0.5), unit)
+end
+
+--- A temperature the server writes into a room log line, kept in C so each player reads it in their own unit.
+function Weather.logTemp(t)
+    return string.format("{temp:%.1f}", t)
+end
+
+--- Log text with every temperature written by logTemp shown in the player's unit.
+function Weather.localize(text)
+    return (tostring(text):gsub("{temp:(%-?[%d%.]+)}", function(v) return Weather.tempText(tonumber(v) or 0) end))
+end
+
 --- True between NIGHT_FROM and NIGHT_TO game hours.
 function Weather.isNight(hour)
     return hour >= W.NIGHT_FROM or hour < W.NIGHT_TO

@@ -1,4 +1,4 @@
--- Stops a sow action from starting on a pot that is unfilled, not for cannabis, or already has a plant in it (the server checks too).
+-- Stops a sow action from starting on a pot that is unfilled, not for this crop, or already has a plant in it (the server checks too).
 
 require "CannabisMod/CannabisConfig"
 require "Farming/TimedActions/ISSeedActionNew"
@@ -39,12 +39,13 @@ if ISSeedActionNew and ISSeedActionNew.isValid then
             self.ddUnfilled = ok and unfilled
         end
         if self.ddUnfilled then return false end
-        -- Containers only take cannabis.
+        -- Containers take cannabis, and the vanilla crops Garden Crops allows there.
         if self.ddNotCannabis == nil then
             local p = self.plant
             local sq = p and getCell():getGridSquare(p.x, p.y, p.z)
             local plot = sq and CFarmingSystem.instance:getLuaObjectOnSquare(sq)
-            self.ddNotCannabis = self.typeOfSeed ~= Config.CROP_TYPE and plot ~= nil and Config.bagFromSprite(plot.spriteName) ~= nil
+            local kind = plot and Config.bagFromSprite(plot.spriteName)
+            self.ddNotCannabis = self.typeOfSeed ~= Config.CROP_TYPE and kind ~= nil and not Config.canSowVanilla(self.typeOfSeed, kind)
         end
         if self.ddNotCannabis then return false end
         -- Never sow over a plant that is already there.

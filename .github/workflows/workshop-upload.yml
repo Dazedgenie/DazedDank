@@ -1,0 +1,147 @@
+# Uploads the mod to its existing Steam Workshop item (id= in workshop.txt).
+# Runs from the Actions tab ("Run workflow") or when a GitHub release is published.
+# Needs repo secrets: STEAM_USERNAME plus either STEAM_CONFIG_VDF (base64 of a logged-in
+# SteamCMD config.vdf) or STEAM_PASSWORD with STEAM_SHARED_SECRET (authenticator secret).
+name: Workshop upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      change_note:
+        description: "Change note shown on the Workshop page"
+        required: false
+        default: ""
+      update_description:
+        description: "Also update title and description from workshop.txt"
+        type: boolean
+        default: true
+      set_visibility:
+        description: "Also set the item's visibility from workshop.txt (unlisted lets dedicated servers download it)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Build the upload file and stop (no Steam login)"
+        type: boolean
+        default: false
+  release:
+    types: [published]
+
+env:
+  # Whether a release also replaces the Workshop title and description with workshop.txt.
+  SYNC_TEXT_ON_RELEASE: "true"
+  # Whether to upload preview.png (off when the repo only has a placeholder).
+  UPLOAD_PREVIEW: "true"
+
+concurrency:
+  group: workshop-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write change note
+        env:
+          INPUT_NOTE: ${{ github.event.inputs.change_note }}
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            { echo "${RELEASE_NAME:-$RELEASE_TAG}"; echo; echo "$RELEASE_BODY"; } > "$RUNNER_TEMP/note.txt"
+          elif [ -n "$INPUT_NOTE" ]; then
+            echo "$INPUT_NOTE" > "$RUNNER_TEMP/note.txt"
+          else
+            git log -1 --format=%s > "$RUNNER_TEMP/note.txt"
+          fi
+
+      - name: Build upload file
+        run: |
+          flag=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.update_description }}" != "true" ]; then
+            flag="--no-description"
+          elif [ "${{ github.event_name }}" = "release" ] && [ "$SYNC_TEXT_ON_RELEASE" != "true" ]; then
+            flag="--no-description"
+          fi
+          if [ "$UPLOAD_PREVIEW" != "true" ]; then flag="$flag --no-preview"; fi
+          if [ "${{ github.event.inputs.set_visibility }}" = "true" ]; then flag="$flag --set-visibility"; fi
+          python3 tools/workshop/steam_upload.py vdf "$GITHUB_WORKSPACE" "$RUNNER_TEMP/item.vdf" "$RUNNER_TEMP/note.txt" $flag
+          grep -v '"description"' "$RUNNER_TEMP/item.vdf"
+
+      - name: Install SteamCMD
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lib32gcc-s1
+          mkdir -p "$HOME/steamcmd"
+          curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C "$HOME/steamcmd"
+          "$HOME/steamcmd/steamcmd.sh" +quit || true
+
+      - name: Upload to Steam Workshop
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+          STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+          STEAM_SHARED_SECRET: ${{ secrets.STEAM_SHARED_SECRET }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+        run: |
+          # Secrets pasted or piped in from Windows can carry newlines, a BOM or UTF-16 zero bytes,
+          # so keep only the characters each one can contain.
+          STEAM_USERNAME=$(printf '%s' "$STEAM_USERNAME" | tr -cd '[:alnum:]_')
+          STEAM_PASSWORD=$(printf '%s' "$STEAM_PASSWORD" | tr -d '\r\n')
+          STEAM_SHARED_SECRET=$(printf '%s' "$STEAM_SHARED_SECRET" | tr -d '\r\n ')
+          STEAM_CONFIG_VDF=$(printf '%s' "$STEAM_CONFIG_VDF" | tr -cd 'A-Za-z0-9+/=')
+          export STEAM_SHARED_SECRET
+          echo "::add-mask::$STEAM_USERNAME"
+          if [ -z "$STEAM_USERNAME" ]; then echo "::error::STEAM_USERNAME secret is not set"; exit 1; fi
+          login=(+login "$STEAM_USERNAME")
+          if [ -n "$STEAM_SHARED_SECRET" ]; then
+            code=$(python3 tools/workshop/steam_upload.py code)
+            echo "::add-mask::$code"
+            login=(+login "$STEAM_USERNAME" "$STEAM_PASSWORD" "$code")
+          elif [ -n "$STEAM_CONFIG_VDF" ]; then
+            # Cached login from a machine that already passed Steam Guard.
+            for dir in "$HOME/steamcmd/config" "$HOME/Steam/config"; do
+              mkdir -p "$dir"
+              echo "$STEAM_CONFIG_VDF" | base64 -d > "$dir/config.vdf"
+            done
+          elif [ -n "$STEAM_PASSWORD" ]; then
+            login=(+login "$STEAM_USERNAME" "$STEAM_PASSWORD")
+          fi
+          set +e
+          "$HOME/steamcmd/steamcmd.sh" "${login[@]}" +workshop_build_item "$RUNNER_TEMP/item.vdf" +quit < /dev/null 2>&1 | tee "$RUNNER_TEMP/steam.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ] || grep -q 'ERROR!' "$RUNNER_TEMP/steam.log" \
+             || ! grep -qi 'Success' "$RUNNER_TEMP/steam.log"; then
+            if grep -q 'Cached credentials not found' "$RUNNER_TEMP/steam.log"; then
+              echo "::error::The saved login in STEAM_CONFIG_VDF wasn't accepted. Check STEAM_USERNAME matches the account you logged in with in SteamCMD, or make a fresh config.vdf."
+            fi
+            echo "::error::SteamCMD did not report a successful upload (exit $status). See the log above."
+            exit 1
+          fi
+          echo "Uploaded. https://steamcommunity.com/sharedfiles/filedetails/?id=$(grep -oP '^(workshop)?id=\K\d+' workshop.txt | head -1)"
+
+      - name: Post change note to Discord
+        # Skipped (without failing) when the DISCORD_WEBHOOK_URL secret is not set.
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then echo "No DISCORD_WEBHOOK_URL secret; skipping Discord post."; exit 0; fi
+          name=$(grep -m1 '^title=' workshop.txt | cut -d= -f2-)
+          item=$(grep -oP '^(workshop)?id=\K\d+' workshop.txt | head -1)
+          python3 - "$name" "$item" "$RUNNER_TEMP/note.txt" > "$RUNNER_TEMP/discord.json" <<'PY'
+          import json, sys
+          name, item, note_file = sys.argv[1:4]
+          note = open(note_file, encoding="utf-8").read().strip()
+          embed = {"title": name, "description": note[:4000], "color": 0x9B5CF6}
+          if item and item != "0":
+              embed["url"] = "https://steamcommunity.com/sharedfiles/filedetails/?id=" + item
+          print(json.dumps({"username": "Dazed Workshop", "embeds": [embed]}))
+          PY
+          curl -sS -f -H "Content-Type: application/json" -d @"$RUNNER_TEMP/discord.json" "$DISCORD_WEBHOOK_URL" > /dev/null \
+            || echo "::warning::Discord post failed; the Steam upload itself succeeded."

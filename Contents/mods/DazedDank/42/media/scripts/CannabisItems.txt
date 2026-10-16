@@ -642,4 +642,64 @@ module CannabisMod
         StaticModel     = Cigarette_Lit,
         WorldStaticModel = Cigarette2,
     }
+
+    /* Fan leaves stripped from a living plant (Strip Fan Leaves) or cut away when trimming the harvest.
+       They hang on a drying rack (about a day), then cure in a curing jar (about 3 days) into a hemp wrap.
+       They never count as buds. */
+    item FanLeaf
+    {
+        DisplayName     = Fresh Fan Leaf,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.02,
+        Icon            = FanLeaf,
+        Tooltip         = Tooltip_DD_FanLeaf,
+    }
+
+    item DriedFanLeaf
+    {
+        DisplayName     = Dried Fan Leaf,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.01,
+        Icon            = DriedFanLeaf,
+        Tooltip         = Tooltip_DD_DriedFanLeaf,
+    }
+
+    item CuredFanLeaf
+    {
+        DisplayName     = Cured Fan Leaf,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.01,
+        Icon            = CuredFanLeaf,
+        Tooltip         = Tooltip_DD_CuredFanLeaf,
+    }
+
+    /* A blunt: two buds rolled in a hemp wrap or a dried tobacco leaf. Smoked over several sessions;
+       after each it is put out and becomes a half-smoked blunt. Strain, quality, mold, wrap and the
+       sessions left ride in its ModData. */
+    item Blunt
+    {
+        DisplayName     = Blunt,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.08,
+        Icon            = Blunt,
+        Tooltip         = Tooltip_DD_Blunt,
+        StaticModel     = CigaretteRolled_Lit,
+        WorldStaticModel = CigaretteRolled,
+    }
+
+    item HalfSmokedBlunt
+    {
+        DisplayName     = Half-smoked Blunt,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.05,
+        Icon            = HalfSmokedBlunt,
+        Tooltip         = Tooltip_DD_HalfSmokedBlunt,
+        StaticModel     = CigaretteRolled_Lit,
+        WorldStaticModel = CigaretteRolled,
+    }
 }

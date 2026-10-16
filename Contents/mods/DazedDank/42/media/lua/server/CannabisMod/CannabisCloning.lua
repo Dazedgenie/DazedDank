@@ -125,6 +125,43 @@ commands.topPlant = function(player, args)
 end
 
 -- --------------------------------------------------------------------------
+-- Strip Fan Leaves
+-- --------------------------------------------------------------------------
+
+commands.stripLeaves = function(player, args)
+    local x, y, z = tonumber(args.x), tonumber(args.y), tonumber(args.z)
+    if not (x and y and z) or not SC.isNear(player, x, y, z) then return end
+    local plant = Registry.getPlant(x, y, z)
+    if not plant or plant.dead or plant.rooting then
+        Net.notify(player, "There's nothing here to strip")
+        return
+    end
+    if not Seeds.findCuttingTool(player) then
+        Net.notify(player, "You need scissors or a sharp knife")
+        return
+    end
+    local result, why = Registry.stripLeaves(plant, Registry.nowHours(), SC.agricultureLevel(player))
+    if not result then
+        Net.notify(player, why)
+        return
+    end
+    local F = Config.FanLeaves
+    Farming.giveItems(player, F.ITEM, result.leaves, function(item)
+        item:getModData()[F.DATA] = { moldy = false }
+    end)
+    Farming.syncLeafWindow(plant, Registry.nowHours())
+    local got = result.leaves .. " fan lea" .. (result.leaves == 1 and "f" or "ves")
+    if result.over then
+        Net.notify(player, "Stripped " .. got .. ", but the plant didn't need it. It's stressed")
+    else
+        Net.notify(player, "Stripped " .. got .. ". More light reaches the bud sites")
+    end
+    if CannabisMod.Rooms then
+        CannabisMod.Rooms.logTile(Config.tileKey(x, y, z), result.over and "Over-stripped a plant's fan leaves" or "Stripped a plant's fan leaves")
+    end
+end
+
+-- --------------------------------------------------------------------------
 -- Rooting gel
 -- --------------------------------------------------------------------------
 
@@ -387,15 +424,10 @@ end
 -- Debug helpers (debug mode or admins only, re-checked here)
 -- --------------------------------------------------------------------------
 
-local function isDebugAllowed(player)
-    return isDebugEnabled()
-        or (player.getAccessLevel and player:getAccessLevel() ~= "None")
-end
-
 --- A kit for testing: a dome, rooting gel and three fresh cuttings (one of
 --- each type).
 commands.debugCloningKit = function(player, args)
-    if not isDebugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     Farming.giveItems(player, Config.DOME_ITEM, 1)
     Farming.giveItems(player, Config.GEL_ITEM, 1)
     for _, t in ipairs({ Config.TYPES.INDICA, Config.TYPES.SATIVA, Config.TYPES.HYBRID }) do
@@ -408,7 +440,7 @@ end
 
 --- Finish rooting right now, in a dome or in soil cuttings nearby.
 commands.debugFinishRooting = function(player, args)
-    if not isDebugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     local now = Registry.nowHours()
     if args.domeId then
         local dome = findDome(player, args)

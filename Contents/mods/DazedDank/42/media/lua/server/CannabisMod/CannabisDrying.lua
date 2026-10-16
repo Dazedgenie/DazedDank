@@ -34,6 +34,8 @@ local Drying = {}
 CannabisMod.Drying = Drying
 
 -- db.plants[itemId] = { harvest, hours, moldy, sunLoss, at, seen, touched }   plants that have been on a rack
+--                     fan leaves on a rack share this table with leaf = true (and no harvest)
+-- db.leaves[itemId]  = { leaf = true, cureHours, moldy, at, seen, touched }   dried fan leaves curing into wraps in a jar
 -- db.buds[itemId]   = { type, quality, cureHours, moldy, moldBaked, moist, at, seen, touched, fromItem }   buds part-way through a cure
 -- db.jars[jarId or "barrel_x_y_z"] = { lastBurp, touched }      db.stations["x_y_z"] = { lastTick }
 -- A bud item carries { type, quality, cureHours, moldy, moldBaked, moist, seeded, genetics, purple } under Config.Drying.BUD_DATA.
@@ -45,6 +47,7 @@ local function onInitGlobalModData()
     db.buds = db.buds or {}
     db.jars = db.jars or {}
     db.stations = db.stations or {}
+    db.leaves = db.leaves or {}
 end
 Events.OnInitGlobalModData.Add(onInitGlobalModData)
 
@@ -95,12 +98,31 @@ local function cureDone(rec)
     return (rec.cureHours or 0) >= Config.cureDays() * 24
 end
 
---- A plant's drying record, or what an untracked plant counts as: a wet one fresh, a dried one just dry.
+--- The data a fan leaf item carries ({ moldy }), or an empty table.
+local function leafData(item)
+    local data = item:getModData()[Config.FanLeaves.DATA]
+    return type(data) == "table" and data or {}
+end
+Drying.leafData = leafData
+
+local function isLeaf(fullType) return Config.isFreshLeaf(fullType) or Config.isDriedLeaf(fullType) end
+
+--- A plant's (or fan leaf's) drying record, or what an untracked one counts as: wet fresh, dried just dry.
 local function plantRecord(item)
     local rec = db.plants[item:getID()]
     if rec then return rec end
-    local dried = Config.isDriedPlant(item:getFullType())
+    local fullType = item:getFullType()
+    if isLeaf(fullType) then
+        local dried = Config.isDriedLeaf(fullType)
+        return { leaf = true, hours = dried and Config.leafDryHours() or 0, moldy = leafData(item).moldy == true, sunLoss = 0 }
+    end
+    local dried = Config.isDriedPlant(fullType)
     return { hours = dried and Config.dryHours() or 0, moldy = false, sunLoss = 0 }
+end
+
+--- Hours a rack record needs to be dry: a whole plant's DryingHours, or a fan leaf's share of it.
+local function fullDryHours(rec)
+    return rec.leaf and Config.leafDryHours() or Config.dryHours()
 end
 
 -- --------------------------------------------------------------------------
@@ -255,9 +277,9 @@ end
 -- Drying racks
 -- --------------------------------------------------------------------------
 
---- One plant's drying progress over `elapsed` hours.
+--- One plant's (or fan leaf's) drying progress over `elapsed` hours.
 function Drying.advancePlant(rec, env, elapsed)
-    local wetness = 1 - Config.clamp(rec.hours / Config.dryHours(), 0, 1)
+    local wetness = 1 - Config.clamp(rec.hours / fullDryHours(rec), 0, 1)
     rec.hours = rec.hours + elapsed * Drying.dryRate(env)
     if not rec.moldy and Config.rollPercent(chanceOver(Drying.moldPerHour(env, wetness), elapsed) * 100) then
         rec.moldy = true
@@ -282,6 +304,11 @@ end
 --- Every whole plant hanging directly in a container, wet or dried.
 local function hangingPlantsIn(container)
     return directItems(container, Config.isHangingPlant)
+end
+
+--- Everything a rack dries, hanging directly in it: whole plants and fan leaves.
+local function rackItemsIn(container)
+    return directItems(container, Config.isRackItem)
 end
 
 --- How many wet plants hang directly in a container; dried ones give off no water, so the room's humidity skips them.
@@ -315,6 +342,20 @@ local function convertToDried(container, item, rec)
     db.plants[dried:getID()] = rec
 end
 
+--- Swap a fresh fan leaf that has dried for a dried one, carrying its record and mold across.
+local function convertLeaf(container, item, rec)
+    local added = container:AddItems(Config.FanLeaves.DRIED_ITEM, 1)
+    local dried = added and added:size() > 0 and added:get(0)
+    if not dried then return end
+    dried:getModData()[Config.FanLeaves.DATA] = { moldy = rec.moldy == true }
+    if rec.moldy then dried:setName("Moldy Dried Fan Leaf") end
+    container:Remove(item)
+    sendRemoveItemFromContainer(container, item)
+    sendAddItemsToContainer(container, added)
+    db.plants[item:getID()] = nil
+    db.plants[dried:getID()] = rec
+end
+
 local function isBud(fullType) return fullType == D.BUD_ITEM end
 
 local function budsIn(container)
@@ -328,10 +369,14 @@ local function settleRack(container, key, square, now)
     local elapsed = Config.clamp(now - prev, 0, D.MAX_CATCHUP_HOURS)
     -- The environment (a fan search among other things) is only worked out if a plant actually moves on.
     local env = nil
-    for _, item in ipairs(hangingPlantsIn(container)) do
+    for _, item in ipairs(rackItemsIn(container)) do
         local id = item:getID()
         local rec = db.plants[id]
-        if not rec then
+        local leaf = isLeaf(item:getFullType())
+        if not rec and leaf then
+            rec = plantRecord(item)
+            db.plants[id] = rec
+        elseif not rec then
             rec = { harvest = item:getModData().CannabisHarvest, hours = 0, moldy = false, sunLoss = 0 }
             db.plants[id] = rec
             -- Plants harvested before they were named by strain pick their name up the first time they hang.
@@ -342,11 +387,15 @@ local function settleRack(container, key, square, now)
             env = env or Drying.environment(square)
             local wasMoldy = rec.moldy
             Drying.advancePlant(rec, env, elapsed)
-            if rec.moldy and not wasMoldy and CannabisMod.Rooms then CannabisMod.Rooms.logTile(key, "Mold on a drying plant", now) end
+            if rec.moldy and not wasMoldy and CannabisMod.Rooms then
+                CannabisMod.Rooms.logTile(key, leaf and "Mold on drying fan leaves" or "Mold on a drying plant", now)
+            end
         end
         rec.at, rec.seen, rec.touched = key, now, now
         if Config.isWetPlant(item:getFullType()) and rec.hours >= Config.dryHours() then
             convertToDried(container, item, rec)
+        elseif Config.isFreshLeaf(item:getFullType()) and rec.hours >= Config.leafDryHours() then
+            convertLeaf(container, item, rec)
         end
     end
 end
@@ -374,7 +423,9 @@ function Drying.advanceJar(jar, buds, elapsed, now, tempC)
     local curing, moist = false, false
     for _, rec in ipairs(buds) do
         rec.cureHours = (rec.cureHours or 0) + elapsed * speed
-        if rec.cureHours < Config.cureDays() * 24 then curing = true end
+        -- Fan leaves (rec.leaf) cure in their own, shorter time.
+        local full = rec.leaf and Config.leafCureHours() or Config.cureDays() * 24
+        if rec.cureHours < full then curing = true end
         if rec.moist then moist = true end
     end
     if not curing then return false end
@@ -428,6 +479,30 @@ local function finishBud(container, item, rec)
     db.buds[item:getID()] = nil
 end
 
+--- The curing record for a dried fan leaf in a cure container, made the first time it goes in. Its rack record goes.
+local function leafCureRecord(item)
+    local id = item:getID()
+    local rec = db.leaves[id]
+    if rec then return rec end
+    rec = { leaf = true, cureHours = 0, moldy = leafData(item).moldy == true }
+    db.leaves[id] = rec
+    db.plants[id] = nil
+    return rec
+end
+
+--- Swap a dried fan leaf that has cured for a hemp wrap (Cured Fan Leaf), carrying its mold, and drop its record.
+local function finishLeaf(container, item, rec)
+    local added = container:AddItems(Config.FanLeaves.CURED_ITEM, 1)
+    local fresh = added and added:size() > 0 and added:get(0)
+    if not fresh then return end
+    fresh:getModData()[Config.FanLeaves.DATA] = { moldy = rec.moldy == true }
+    if rec.moldy then fresh:setName("Moldy Cured Fan Leaf") end
+    container:Remove(item)
+    sendRemoveItemFromContainer(container, item)
+    sendAddItemsToContainer(container, added)
+    db.leaves[item:getID()] = nil
+end
+
 --- Settle any curing container (a jar's inventory or a barrel's) whose burp record lives under `cureKey`.
 local function settleCure(container, cureKey, key, now)
     local station = db.stations[key]
@@ -452,6 +527,17 @@ local function settleCure(container, cureKey, key, now)
             finished[#finished + 1] = item
         end
     end
+    -- Dried fan leaves cure alongside, in the same jar air and burp clock; they never count as buds.
+    local leafRecs, leafItems = {}, {}
+    for _, item in ipairs(directItems(container, Config.isDriedLeaf)) do
+        local rec = leafCureRecord(item)
+        if rec.at == key and rec.seen == prev then
+            leafRecs[#leafRecs + 1] = rec
+            leafItems[#leafRecs] = item
+            present[#present + 1] = rec
+        end
+        rec.at, rec.seen, rec.touched = key, now, now
+    end
     if elapsed <= 0 then return end
     -- These records now hold cure progress the items don't have, so pruning must leave them.
     for _, rec in ipairs(present) do rec.changed = true end
@@ -469,7 +555,10 @@ local function settleCure(container, cureKey, key, now)
     end
     -- A bud whose cure is over now carries its final state itself, so the save can forget it.
     for i, rec in ipairs(present) do
-        if cureDone(rec) then finishBud(container, presentItems[i], rec) end
+        if presentItems[i] and cureDone(rec) then finishBud(container, presentItems[i], rec) end
+    end
+    for i, rec in ipairs(leafRecs) do
+        if rec.cureHours >= Config.leafCureHours() then finishLeaf(container, leafItems[i], rec) end
     end
 end
 
@@ -597,6 +686,9 @@ function Drying.prune(now)
     -- A record whose rack or jar is still known is kept, since that station may just be out of loaded range.
     local function away(rec) return not (rec.at and db.stations[rec.at]) end
     sweep(db.buds, function(rec) return rec.fromItem == true and not rec.changed and away(rec) end)
+    -- Fan leaves are cheap: a leaf record whose rack or jar is gone is dropped after the keep time.
+    sweep(db.leaves, function(rec) return away(rec) end)
+    sweep(db.plants, function(rec) return rec.leaf == true and away(rec) end)
     sweep(db.jars, function(_, id)
         local isBarrel = type(id) == "string" and id:sub(1, 7) == "barrel_"
         return not (isBarrel and db.stations[id:sub(8)])
@@ -645,7 +737,7 @@ commands.checkRack = function(player, args)
     for _, square in ipairs(rackSquares(getCell():getGridSquare(x, y, z))) do
         settleNow(square)
         for _, container in ipairs(racksAt(square)) do
-            for _, item in ipairs(hangingPlantsIn(container)) do items[#items + 1] = item end
+            for _, item in ipairs(rackItemsIn(container)) do items[#items + 1] = item end
         end
     end
     if #items == 0 then
@@ -653,12 +745,25 @@ commands.checkRack = function(player, args)
         return
     end
     local lines = {}
+    -- Fan leaves are summed up in one line: how many, the least dry of them, and any mold.
+    local leaves, leafLeast, leafMold = 0, 100, false
     for _, item in ipairs(items) do
         local rec = plantRecord(item)
-        local pct = math.floor(Config.clamp(rec.hours / Config.dryHours(), 0, 1) * 100)
-        local note = pct >= 100 and "dry" or (pct .. "% dry")
-        if rec.moldy then note = note .. ", MOLD" end
-        if rec.hours > D.OVERDRY_AFTER then note = note .. ", over-dried" end
+        local pct = math.floor(Config.clamp(rec.hours / fullDryHours(rec), 0, 1) * 100)
+        if rec.leaf then
+            leaves = leaves + 1
+            leafLeast = math.min(leafLeast, pct)
+            if rec.moldy then leafMold = true end
+        else
+            local note = pct >= 100 and "dry" or (pct .. "% dry")
+            if rec.moldy then note = note .. ", MOLD" end
+            if rec.hours > D.OVERDRY_AFTER then note = note .. ", over-dried" end
+            lines[#lines + 1] = note
+        end
+    end
+    if leaves > 0 then
+        local note = leaves .. " fan lea" .. (leaves == 1 and "f" or "ves") .. " " .. (leafLeast >= 100 and "dry" or (leafLeast .. "% dry"))
+        if leafMold then note = note .. ", MOLD" end
         lines[#lines + 1] = note
     end
     Net.notify(player, "Rack: " .. table.concat(lines, "; "))
@@ -667,10 +772,32 @@ end
 --- Tell the player how a curing container is doing: bud count, curing days, time since the last burp and mold.
 local function reportCure(player, container, cureKey, label)
     local items = budsIn(container)
-    if #items == 0 then
+    local leaves = directItems(container, Config.isDriedLeaf)
+    if #items == 0 and #leaves == 0 then
         Net.notify(player, "The " .. label:lower() .. " is empty")
         return
     end
+    -- Fan leaves curing into wraps get their own note, and never count as buds.
+    local leafNote = ""
+    if #leaves > 0 then
+        local leafDays, leafMold = 0, false
+        for _, item in ipairs(leaves) do
+            local rec = db.leaves[item:getID()]
+            if rec then
+                leafDays = math.max(leafDays, (rec.cureHours or 0) / 24)
+                if rec.moldy then leafMold = true end
+            end
+        end
+        leafNote = string.format("%d fan lea%s curing %.0f of %.0f days%s", #leaves, #leaves == 1 and "f" or "ves",
+            leafDays, Config.leafCureHours() / 24, leafMold and " (MOLD)" or "")
+    end
+    if #items == 0 then
+        local info = db.jars[cureKey]
+        local sinceBurp = info and (Registry.nowHours() - info.lastBurp) or 0
+        Net.notify(player, string.format("%s: %s, burped %.0fh ago", label, leafNote, sinceBurp))
+        return
+    end
+    if leafNote ~= "" then leafNote = ". Also " .. leafNote end
     local days, moldy = 0, false
     for _, item in ipairs(items) do
         local rec = Drying.budRecord(item)
@@ -683,7 +810,7 @@ local function reportCure(player, container, cureKey, label)
     local sinceBurp = info and (Registry.nowHours() - info.lastBurp) or 0
     local msg = string.format("%s: %d buds, curing %.0f of %d days, burped %.0fh ago", label, #items, days, Config.cureDays(), sinceBurp)
     if moldy then msg = msg .. ". It smells musty: MOLD" end
-    Net.notify(player, msg)
+    Net.notify(player, msg .. leafNote)
 end
 
 --- Burp a curing container: resets its mold clock and lets moist buds finish drying.
@@ -791,19 +918,25 @@ commands.trimPlant = function(player, args)
         }
     end)
 
-    local msg = "Trimmed " .. count .. " " .. name .. (count == 1 and "" or "s")
+    -- The trim also strips the big fan leaves: fresh off a wet plant, already dry off one that hung long enough.
+    -- They are their own items and never add to the bud count or quality.
+    local F = Config.FanLeaves
+    local leafCount = Genetics.trimLeafCount(count)
+    local leafType = rec.hours >= Config.leafDryHours() and F.DRIED_ITEM or F.ITEM
+    Farming.giveItems(player, leafType, leafCount, function(item)
+        item:getModData()[F.DATA] = { moldy = rec.moldy == true }
+        if rec.moldy then item:setName(leafType == F.ITEM and "Moldy Fan Leaf" or "Moldy Dried Fan Leaf") end
+    end)
+
+    local msg = "Trimmed " .. count .. " " .. name .. (count == 1 and "" or "s") .. " and " .. leafCount .. " fan leaves"
     if rec.moldy then msg = msg .. ". They're covered in mold" end
     Net.notify(player, msg)
 end
 
 -- Debug helpers (debug mode or admins only)
 
-local function debugAllowed(player)
-    return isDebugEnabled() or (player.getAccessLevel and player:getAccessLevel() ~= "None")
-end
-
 commands.debugDryingKit = function(player, args)
-    if not debugAllowed(player) then return end
+    if not Config.debugAllowed(player) then return end
     Farming.giveItems(player, D.RACK_ITEM, 1)
     Farming.giveItems(player, D.JAR_ITEM, 1)
     Farming.giveItems(player, D.BARREL_ITEM, 1)
@@ -826,7 +959,7 @@ end
 
 --- Pretend `hours` hours have passed at every station (applied at the next settle).
 commands.debugAdvanceStations = function(player, args)
-    if not debugAllowed(player) or not db then return end
+    if not Config.debugAllowed(player) or not db then return end
     local h = tonumber(args.hours) or 24
     for key, station in pairs(db.stations) do
         if station.lastTick then station.lastTick = station.lastTick - h end

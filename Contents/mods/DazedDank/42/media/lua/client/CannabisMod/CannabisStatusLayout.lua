@@ -48,6 +48,7 @@ local WARNINGS = {
     nutrientBurn = { "Nutrient burn", "bad" }, wrongNutrient = { "Wrong nutrient", "bad" }, overwatered = { "Overwatered", "bad" },
     underwatered = { "Underwatered", "warn" }, noLight = { "No light", "bad" }, lightInterrupted = { "Light interrupted", "warn" },
     lightLeak = { "Light leak", "bad" }, hungry = { "Hungry", "warn" }, overcut = { "Cut too hard", "bad" },
+    overStripped = { "Over-stripped", "bad" },
     roomTemp = { "Room temperature", "warn" }, roomHumid = { "Humid room", "warn" }, outdoorTemp = { "Outdoor temperature", "warn" },
     reservoirDry = { "Reservoir dry", "bad" }, staleReservoir = { "Stale reservoir", "warn" },
     pumpOff = { "Pumps off", "bad" }, rootRot = { "Root rot", "bad" }, noControl = { "No control bucket", "bad" },
@@ -272,6 +273,19 @@ function Layout.build(data, fontH, measure)
     if data.light then fact("Light", data.light, data.light == "None" and COLORS.bad) end
     if data.lightCycle then fact("Light cycle", data.lightCycle, data.lightCycle == "Light leak" and COLORS.bad) end
     if data.topped then fact("Topped", "Yes  (+" .. math.floor(Config.Topping.YIELD_BONUS * 100 + 0.5) .. "% yield)", COLORS.good) end
+    if data.fanLeaves then
+        local f = data.fanLeaves
+        local text = (f.good == 1 and "Once" or (f.good .. "x")) .. "  (+" .. f.bonus .. " care)"
+        if f.good == 0 then text = "Over-stripped" end
+        if f.good > 0 and f.over > 0 then text = text .. ", over-stripped" end
+        fact("Fan leaves", text, f.over > 0 and COLORS.warn or COLORS.good)
+    end
+    if data.leafWindow then
+        local w = data.leafWindow
+        local open = w.code == "veg" or w.code == "flower"
+        fact("Strip leaves", open and "Now" or (w.code == "regrow" and "Regrowing" or ((w.code == "young" or w.code == "gap") and "Not yet" or "Done")),
+            open and COLORS.good or COLORS.text)
+    end
     if data.extraVeg then fact("Extra veg", Layout.formatHours(data.extraVeg.hours) .. "  (+" .. data.extraVeg.bonus .. "% yield)", COLORS.good) end
     if data.cuttings then
         local c = data.cuttings

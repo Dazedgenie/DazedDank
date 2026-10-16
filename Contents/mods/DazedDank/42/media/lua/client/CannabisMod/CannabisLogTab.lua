@@ -1,6 +1,9 @@
 -- The Log tab of the grow room panel: what happened in the room, newest first (power cuts, leaks, bad air, hydro jobs).
 
 require "CannabisMod/CannabisRowsTab"
+require "CannabisMod/CannabisWeather"
+
+local Weather = CannabisMod.Weather
 
 local LogTab = CannabisMod.RowsTab:derive("CannabisLogTab")
 CannabisMod.LogTab = LogTab
@@ -43,7 +46,7 @@ function LogTab:render()
     for _, entry in ipairs(self:visibleRows()) do
         local e, y = entry.row, entry.y + 4
         self:drawText(LogTab.ago(math.max(0, now - (e.t or now))), 12, y, 0.7, 0.7, 0.75, 1, font)
-        self:drawText(tostring(e.text), 100, y, 1, 1, 1, 1, font)
+        self:drawText(Weather.localize(e.text), 100, y, 1, 1, 1, 1, font)
     end
     self:drawScrollNote()
 end

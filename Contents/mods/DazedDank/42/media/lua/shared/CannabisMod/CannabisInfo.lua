@@ -104,6 +104,20 @@ builders.topped = function(plant)
     return plant.topped == true or nil
 end
 
+-- Stripped fan leaves are plain to see too: how many strips, the care they added, and any over-strips.
+builders.fanLeaves = function(plant)
+    if (plant.leafStrips or 0) <= 0 then return nil end
+    return { strips = plant.leafStrips, good = plant.leafGood or 0, over = plant.leafOver or 0,
+             bonus = math.floor((plant.leafBonus or 0) * 10 + 0.5) / 10 }
+end
+
+-- Whether Strip Fan Leaves would help right now, and why not.
+builders.leafWindow = function(plant, now)
+    local code = Genetics.leafWindow(plant, now)
+    if not code then return nil end
+    return { code = code, text = Genetics.LEAF_TEXT[code] }
+end
+
 -- Cuttings she can give before being set back, while cuttings can be taken at all.
 builders.cuttings = function(plant, now)
     if not Genetics.canClone(plant) then return nil end

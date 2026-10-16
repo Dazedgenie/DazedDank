@@ -148,6 +148,96 @@ function Genetics.spendCut(plant, now)
     return false
 end
 
+-- ==========================================================================
+-- Fan leaves (live defoliation)
+-- ==========================================================================
+
+--- How far a plant is through its current stage: 0 at the start, 1 when its timer runs out (held in veg counts as 1).
+--- Plants from before stage starts were saved get an estimate from the stage's usual length.
+function Genetics.stageProgress(plant, now)
+    if plant.vegHeld and plant.stage == Config.STAGE.Vegetative then return 1 end
+    local finish = plant.nextStageAt or now
+    local start = plant.stageStartAt
+    if not start and plant.stage == Config.STAGE.Flowering then start = plant.flowerStartAt end
+    if not start then
+        local name = Config.STAGES[plant.stage]
+        local range = Config.STAGE_HOURS[name]
+        if not range then return 1 end
+        local hours = (range.min + range.max) / 2
+        if name == "PreFlower" or name == "Flowering" then hours = hours * Strains.flowerMult(Strains.of(plant)) end
+        hours = hours / math.max(0.1, math.min(10, Config.sandbox("GrowthSpeed") or 1))
+        start = finish - hours
+    end
+    local span = finish - start
+    if span <= 0 then return 1 end
+    return Config.clamp((now - start) / span, 0, 1)
+end
+
+--- Where a plant stands for Strip Fan Leaves right now:
+---   "young"  too early (seedling or the first half of veg): refused
+---   "gap"    pre-flower, between the two windows: refused
+---   "regrow" stripped less than REGROW_HOURS ago: refused
+---   "veg" / "flower"  inside a window that hasn't been used: a good strip
+---   "again"  this window was already used, or both good strips are spent: an over-strip
+---   "late"   past early flower (or ripe): an over-strip
+--- Returns nil for a plant that can't be stripped at all (dead, still rooting).
+function Genetics.leafWindow(plant, now)
+    if not plant or plant.dead or plant.rooting then return nil end
+    local F, S = Config.FanLeaves, Config.STAGE
+    if plant.leafStripAt and now - plant.leafStripAt < F.REGROW_HOURS then return "regrow" end
+    local stage = plant.stage
+    if stage == S.Seedling then return "young" end
+    local spent = (plant.leafGood or 0) >= F.MAX_GOOD
+    if stage == S.Vegetative then
+        if Genetics.stageProgress(plant, now) < F.VEG_FROM then return "young" end
+        if spent or plant.leafVeg then return "again" end
+        return "veg"
+    end
+    if stage == S.PreFlower then return "gap" end
+    if stage == S.Flowering and Genetics.stageProgress(plant, now) <= F.FLOWER_UNTIL then
+        if spent or plant.leafFlower then return "again" end
+        return "flower"
+    end
+    return "late"
+end
+
+--- Why a strip is refused, or what it will do, for each window code.
+Genetics.LEAF_TEXT = {
+    young  = "Too young: strip fan leaves in the second half of veg",
+    gap    = "Between windows: wait for early flower",
+    regrow = "The fan leaves haven't grown back yet",
+    veg    = "Late veg: a good time to strip fan leaves",
+    flower = "Early flower: a good time to strip fan leaves",
+    again  = "Already stripped in this window: stripping again stresses the plant",
+    late   = "Too late in flower: stripping now stresses the plant",
+}
+
+--- True for window codes where Strip Fan Leaves is refused.
+function Genetics.leafRefused(code)
+    return code == "young" or code == "gap" or code == "regrow"
+end
+
+--- Care points a good strip adds, by the player's Agriculture level: 3 at 0 up to 5 at 10.
+function Genetics.leafGain(level)
+    local F = Config.FanLeaves
+    local l = Config.clamp(tonumber(level) or 0, 0, 10)
+    return F.GAIN_MIN + (F.GAIN_MAX - F.GAIN_MIN) * l / 10
+end
+
+--- Fresh fan leaves a strip gives: by the plant's container, or just a straggler from an over-strip.
+function Genetics.leafCount(plant, over)
+    local F = Config.FanLeaves
+    if over then return F.OVER_LEAVES end
+    local range = F.LEAVES[plant.bag or "ground"] or F.LEAVES.ground
+    return Config.randInt(range[1], range[2])
+end
+
+--- Fan leaves the harvest trim gives from a whole plant with `buds` buds: 2, plus 1 per 4 buds, up to 4.
+function Genetics.trimLeafCount(buds)
+    local F = Config.FanLeaves
+    return math.min(F.TRIM_MAX, F.TRIM_MIN + math.floor((tonumber(buds) or 0) / F.TRIM_BUDS_PER_LEAF))
+end
+
 --- Build the genetics for a new cutting: it copies the mother, then drifts (less from a mother in an XL pot).
 function Genetics.cloneFrom(mother)
     local g = Config.Genetics
@@ -299,7 +389,9 @@ function Genetics.calcQuality(plant, hoursOutsideWindow, hoursDried)
     local def = plant.bag and Config.GrowBag[plant.bag]
     local topShelf = def ~= nil and def.topShelf == true
     if topShelf then cap = cap * (1 + math.max(0, Config.sandbox("HydroQualityBonus") or 0)) end
-    local care = Config.clamp(plant.care or Config.Care.START, 0, 100) / 100
+    -- Well-timed fan leaf strips lift care past 100 (see Config.FanLeaves).
+    local care = Config.clamp(plant.care or Config.Care.START, 0, 100)
+    care = (care + math.max(0, plant.leafBonus or 0)) / 100
     local seeded = plant.seeded and Config.Quality.SEEDED_MULT or 1.0
     local dry = Genetics.dryMultiplier(hoursDried or Config.dryHours())
     local q = cap * care * Genetics.harvestMultiplier(hoursOutsideWindow) * seeded * dry

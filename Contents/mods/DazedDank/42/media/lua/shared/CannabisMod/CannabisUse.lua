@@ -40,7 +40,7 @@ function Use.dose(user, now, potency, method, opts)
     local m = Config.Smoking.METHODS[method] or Config.Smoking.METHODS.joint
     local reduction = U.TOL_MAX_REDUCTION * user.tol / 100
     local strength = potency * m.potency * (1 - reduction) * mult
-    local hours = Config.Smoking.BASE_HOURS * Config.clamp(strength, 0.3, 1.5)
+    local hours = Config.Smoking.BASE_HOURS * Config.clamp(strength, 0.3, 1.5) * (m.duration or 1)
 
     local regular = user.lastUse and (now - user.lastUse) <= U.DEP_REGULAR_HOURS
     if Config.sandbox("DependencyEnabled") then

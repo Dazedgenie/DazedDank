@@ -1,5 +1,12 @@
 # Vanilla crops in Dazed Dank containers: design
 
+**Status (2026-10-10):** built in dd56. The rules live in Dazed Dank (`server/CannabisMod/CannabisVanillaCrops.lua` and
+the sow, sprite and harvest hooks) and switch on only when the separate **Dazed Dank: Garden Crops** add-on is enabled
+(repo DazedDank-GardenCrops). The add-on supplies the crop list, the soil-only list and a soil-free plant for every
+vanilla crop sprite, cut automatically from the game's own art by its `tools/make_crop_sprites.py`. The plant is drawn
+as a raised layer on the container, the same way as cannabis (no lift on the plot itself). Not built yet: the grow
+panel's "Other crops" list.
+
 Agreed 2026-10-04. Vanilla crops (tomatoes, lettuce, potatoes and the rest) can be sown into grow bags and hydro containers and grow on vanilla's own rules. No quality, light schedule, nutrients, root rot or room-climate stress for them; vanilla handles growth, watering by hand, pests and harvest.
 
 ## Where each crop can go

@@ -157,6 +157,31 @@ Events.OnCreatePlayer.Add(function(index, player)
     requestState(player)
 end)
 
+--- True if the player has vanilla's Smoker trait (B42's CharacterTrait, or the older string check).
+local function isSmoker(player)
+    local ok, yes = pcall(function()
+        if CharacterTrait and CharacterTrait.SMOKER then return player:hasTrait(CharacterTrait.SMOKER) end
+        return player:HasTrait("Smoker")
+    end)
+    return ok and yes == true
+end
+High.isSmoker = isSmoker
+
+--- A tobacco-leaf blunt's nicotine, as vanilla's rolled cigarette gives it: a little less stress for everyone; a smoker's
+--- craving is reset (the smoker timer), anyone else feels a bit queasy. Every game call is guarded.
+function High.applyNicotine(player)
+    local N = Config.Smoking.NICOTINE
+    applyStat(player, "STRESS", N.STRESS)
+    if isSmoker(player) then
+        pcall(function() player:setTimeSinceLastSmoke(0) end)
+        pcall(function() player:getStats():setStressFromCigarettes(0) end)
+        pcall(function() player:getStats():reset(CharacterStat.NICOTINE_WITHDRAWAL) end)
+        return "smoker"
+    end
+    applyStat(player, "FOOD_SICKNESS", N.FOOD_SICKNESS)
+    return "nonsmoker"
+end
+
 local FEELINGS = {
     Indica = "A heavy calm settles over you",
     Sativa = "Bright and buzzing",
@@ -184,6 +209,14 @@ Net.clientHandlers.smoked = function(args, target)
         msg = "You barely feel it. Your tolerance is high"
     else
         msg = FEELINGS[args.type] or FEELINGS.Hybrid
+    end
+    if args.nicotine then High.applyNicotine(player) end
+    if args.method == "blunt" and args.hitsLeft then
+        if args.hitsLeft > 0 then
+            msg = msg .. ". You put the blunt out for later (" .. args.hitsLeft .. " left)"
+        else
+            msg = msg .. ". That's the end of the blunt"
+        end
     end
     player:setHaloNote(msg)
 end

@@ -17,14 +17,19 @@ Mods menu.
 
 ## In-game test (launch with -debug)
 
-1. Right-click the ground: **[Debug] Give cannabis test seeds**. You get 18
+Every debug helper sits under one right-click row, **Dazed Dank debug** (debug mode, or admins and moderators on a
+server): **Showcase setup** (seedlings, veg, flower, ready to harvest, a hydro bench, drying and curing, each spawned
+whole around the clicked spot for screenshots; lamps only light where the building has power), **Give kit**,
+**This plant** (on a plant), **Skip time**, water fill and **Smoker state**.
+
+1. Right-click the ground: **Dazed Dank debug > Give kit > Test seeds**. You get 18
    seeds: 2 female and 1 male of each of the six starter strains.
 2. Right-click a seed in your inventory: **Inspect Seed**. Below
    Agriculture 3 it says "Unknown cannabis seed"; at 3+ it shows type and sex.
 3. Plow a plot, then use the vanilla **Sow Seed** menu. Cannabis is listed there.
 4. Right-click the plant: **Inspect Cannabis Plant** shows what your
    Agriculture level allows in a status window: strain tag, a five-step growth track, a water bar with the healthy zone marked, Health, Stress, Genetics and quality meters, and coloured warning chips. The footer says what level unlocks more detail. The same info is printed to console.txt.
-5. Right-click the plant: **[Debug] Cannabis: next stage** to skip ahead.
+5. Right-click the plant: **Dazed Dank debug > This plant > Next stage** to skip ahead.
    The sprite should change at each stage, and a vanilla Harvest option
    should appear at Ripe.
 6. Harvest a female: you get a **Wet Whole Plant (Indica / Sativa / Hybrid)**,
@@ -54,9 +59,25 @@ Bag** and **XL DWC Bucket** are mother pots: 8 cuttings, clone drift of 0-2
 instead of 1-5, feeding every 96 hours in held veg, and cut stress that fades.
 Numbers live in `Config.Topping`, `Config.Cuttings` and `Config.Mother`.
 
+**Strip Fan Leaves** (needs a cutting tool, a slow snip) is live defoliation, twice per
+plant: once in **late veg** (the second half of the Vegetative timer, or any time
+while lamps hold it in veg) and once in **early flower** (the first 35% of
+Flowering). A good strip adds 3 care at Agriculture 0 up to 5 at Agriculture 10
+(care can go that far past 100, so it lifts harvest quality by about 3-5% each)
+and 2 stress. Seedlings, the first half of veg, pre-flower (between the windows)
+and the 12 hours after a strip are refused; the option is greyed out with the
+reason. Stripping again in a window, a third time, or after early flower is an
+**over-strip**: allowed but warned in red, it costs 4 care (and 4 stress) plus 6
+more stress, gives no care and shows an "Over-stripped" warning until the next
+stage. Each strip gives fresh **Fan Leaves**: small bag and flood table 2,
+ground, DWC and RDWC 2-3, large bag 3, XL bag and XL DWC 4 (an over-strip 1).
+The Inspect window shows **Fan leaves** (to anyone, like Topped) and, from
+Agriculture 2, whether the strip window is open. Numbers live in
+`Config.FanLeaves`.
+
 ### Nutrients and grow lights
 
-15. Right-click the ground: **[Debug] Give grow kit** (2 Veg, 2 Bloom, a
+15. Right-click the ground: **Dazed Dank debug > Give kit > Grow kit** (2 Veg, 2 Bloom, a
     six grow lamps, 2 light timers, bags).
 16. Right-click a plant in veg: **Feed Veg Nutrients** uses one bottle and
     gives a small care bonus. Feeding twice in one stage burns the plant.
@@ -105,13 +126,27 @@ Numbers live in `Config.Topping`, `Config.Cuttings` and `Config.Mother`.
 
 ### Smoking, effects, tolerance and dependency (first iteration)
 
-29. Right-click the ground: **[Debug] Give smoking kit** (papers, pipe,
-    lighter, 3 buds each of Indica, Sativa and Hybrid, quality 80).
+29. Right-click the ground: **Dazed Dank debug > Give kit > Smoking kit** (papers, pipe,
+    lighter, 2 hemp wraps, a dried tobacco leaf, 3 buds each of Indica, Sativa and Hybrid, quality 80).
 30. Right-click a bud: **Roll Joint** (needs rolling papers) or **Smoke in
     Pipe** (needs the pipe and a lighter or open flame). Right-click a
     joint: **Smoke Joint**. A joint is gentler; a pipe hit is about 30%
     stronger and builds tolerance faster. Quality, strain and mold carry
     from the bud to the joint (it's named, e.g. "Good Indica Joint").
+30b. **Blunts.** Right-click a bud: **Roll Blunt (Hemp Wrap)** (a Cured Fan Leaf)
+    or **Roll Blunt (Tobacco Leaf)** (vanilla's dried tobacco) rolls it with a
+    second bud (one of the same strain when you carry one). Quality is the two
+    buds' average; mold in either bud or the wrap makes a moldy blunt. A blunt
+    holds **3 sessions**. Each session is 35% stronger than a joint, its high
+    lasts 40% longer on top of that (about 4.7 hours at full strength against
+    a joint's 2.5) and it builds 20% more tolerance. After each session the blunt is
+    put out and becomes a **Half-smoked Blunt** ("Half-smoked Good Indica Blunt
+    (2 hits left)") that keeps its strain, quality and mold; **Relight Blunt**
+    needs a lighter, matches or an open flame. While smoking, right-click the
+    blunt for **Put Out Blunt**: once at least half the session is smoked it
+    counts as a smaller session, before that nothing is used. A tobacco blunt
+    also gives vanilla's cigarette nicotine each session: stress down a little,
+    and a Smoker's craving reset; a non-smoker gets a bit queasy instead.
 31. The high lasts about 2.5 game hours at full strength and eases in and
     out. Indica: relaxes (stress, unhappiness down), tires, hungry, thirsty.
     Sativa: lifts boredom and unhappiness, a little wakeful; a very strong
@@ -138,7 +173,7 @@ offline: if nothing is tinted, tell me.
 
 ### Drying, trimming and curing
 
-24. Right-click the ground: **[Debug] Give drying kit** (rack, jar, fan,
+24. Right-click the ground: **Dazed Dank debug > Give kit > Drying kit** (rack, jar, fan,
     scissors, 2 wet plants). The **Drying Rack** (two tiles, rotates with R; each tile holds 8 plants) and the **Large lamps** (Large Basic 1x2, Large Pro 1x3)
     and **Drying Fan** are furniture: place them with the move-furniture
     tool on free floor. The jar is set down in the world. They're found
@@ -146,7 +181,7 @@ offline: if nothing is tinted, tell me.
 25. Drag wet plants into the rack (it refuses anything else, max 8). Plants
     dry in 48 hours at a normal pace: warmth speeds it up, a powered
     **Drying Fan** within 3 tiles speeds it a little and cuts mold risk.
-    Once a plant has fully dried (48 hours at a normal pace) it turns into a **Dried Whole Plant** in the rack, which can still be trimmed; leaving it there too long over-dries it. **[Debug] Racks and jars: +24 hours** skips time. **Check Drying Rack**
+    Once a plant has fully dried (48 hours at a normal pace) it turns into a **Dried Whole Plant** in the rack, which can still be trimmed; leaving it there too long over-dries it. **Dazed Dank debug > Skip time > Racks and jars: +24 hours** skips time. **Check Drying Rack**
     reports each plant's progress.
 26. Mold chance is highest while a plant is wet, and rises outdoors, in rain
     and in warm air (the Mold Chance sandbox option scales it). Direct sun
@@ -164,6 +199,15 @@ offline: if nothing is tinted, tell me.
 28b. For bigger harvests, the **Curing Barrel** is floor furniture (place it
     like the rack) holding up to 300 buds. It cures exactly like a jar:
     right-click it for **Check Curing Barrel** and **Burp Barrel**.
+28c. **Fan leaves.** Trim Plant also gives fan leaves: 2, plus 1 for every 4
+    buds, up to 4 (fresh from a plant that hung under a day, dried from one
+    that hung longer). Strip Fan Leaves gives them from living plants. Hang
+    fresh leaves on the rack: they dry in half a plant's time (24 hours by
+    default) into **Dried Fan Leaves**; Check Drying Rack sums them up on one
+    line. Put dried leaves in a curing jar or barrel: in half the buds' cure
+    time (3 days by default), with the same burps and mold, they become
+    **Cured Fan Leaves**, hemp wraps for blunts. Leaves never count as buds
+    in a jar's count, yield or quality.
 
 ### Loot and recipes
 
@@ -288,7 +332,7 @@ All under the **Dazed Dank** page of the sandbox settings:
 
 ### Cloning
 
-8. Right-click the ground: **[Debug] Give cloning kit** (a Cloning Dome
+8. Right-click the ground: **Dazed Dank debug > Give kit > Cloning kit** (a Cloning Dome
    container, rooting gel, 3 fresh cuttings). Get scissors or a kitchen knife too.
 9. With a plant in Vegetative or Pre-flower, right-click it: **Take Cutting**.
    The option is greyed out without a cutting tool.
@@ -298,13 +342,13 @@ All under the **Dazed Dank** page of the sandbox settings:
 11. Drag cuttings into the dome like a bag (it refuses anything that isn't
     a cutting, and a 13th cutting). Drop the dome or place it on a table: it
     shows as a container in the loot window, and right-clicking it gives
-    **Check Cuttings** / **Take Rooted Cuttings**. **[Debug] Finish rooting
-    now** skips the wait. A cutting that is rooting in the dome doesn't go stale;
+    **Check Cuttings** / **Take Rooted Cuttings**. **Debug: finish rooting
+    in this dome** skips the wait. A cutting that is rooting in the dome doesn't go stale;
     one that won't root still wilts on the normal timer.
 12. Plant a rooted cutting with **Sow Seed**. It starts in Vegetative.
 13. Or sow a fresh cutting straight into a plot. Inspect shows "Still
-    rooting" until it roots or dies. **[Debug] Cannabis: finish rooting**
-    on the plant settles it on the next 10-minute tick.
+    rooting" until it roots or dies. **Dazed Dank debug > Skip time > Finish rooting**
+    settles it on the next 10-minute tick.
 14. Leave a cutting in your inventory for a day or two: it goes stale and
     disappears from the Sow menu (fridges slow this down).
 
@@ -349,6 +393,7 @@ type changes on a fresh save.
 | server/CannabisMod/CannabisDrying.lua | server | Drying racks, trimming into buds, curing jars, mold |
 | server/CannabisMod/CannabisLight.lua | server | Sun and grow-lamp light, stalling, light interruptions |
 | server/CannabisMod/CannabisGrowBags.lua | server | Placing (furniture or menu), picking up and emptying grow bags |
+| server/CannabisMod/CannabisVanillaCrops.lua | server | Vanilla crops in containers (Garden Crops add-on): hydro water, growth speed, indoor survival |
 | server/CannabisMod/CannabisGrowing.lua | server | Feeding nutrients, debug grow kit |
 | server/CannabisMod/CannabisRegistry.lua | server | Plant records, growth clock, water, feeding, pollination |
 | server/CannabisMod/CannabisServerCommands.lua | server | Validates and answers client requests |
@@ -377,6 +422,9 @@ Keep `--no-style`: the packer's style pass is tuned for furniture and turns
 foliage brown. The sprite numbering lives in `Config.spriteName`
 (CannabisConfig.lua); change it together with `sprite_slot` in the script.
 
+The fan leaf (fresh, dried, cured) and blunt (whole, half-smoked) icons are procedural placeholders from
+`icon_fan_leaf` and `icon_blunt` in the same script, with no Blender render yet.
+
 Tile id **7420** must not clash with another installed mod's `tiledef=` line.
 
 ## Offline tests
@@ -389,3 +437,49 @@ farming files) and runs 191 checks. From the repo root:
 ## Art pipeline
 
 Plants, furniture and item icons are rendered in Blender by `tools/blender/render_plants.py`, `render_furniture.py` and `render_icons.py`. The renders in `tools/blender/{plants,furniture,icons}` feed `tools/draw_placeholders.py`, which falls back to its procedural drawings for any missing render.
+
+### Plant layers (dazeddank_overlay_01 / overlay_02)
+
+The plant layers drawn over pots, bags, buckets and furrows are rendered by `tools/blender/render_plants_v2.py` in
+the "in-between" style: real plant structure (serrated 3-9 finger fan leaves, decussate then alternate nodes, a branch
+in each leaf axil, colas of calyx clusters with pistils turning orange and frosty sugar leaves, late-flower fade on old
+fan leaves) with bold, full, green foliage that reads at 1x. Camera and stem anchor are the old `render_plants.py`'s
+(stem base at 1x row 226 of the 128x256 cell), lighting is DazedPower's rig and the renders get DazedPower's grade, so
+the layers sit with the rest of the art. The 7 body plans (landrace, haze, hybrid, kush, afghan, auto, tree), the 4
+colour phenotypes (purple, frosty, gold, dark) and the males (pale pollen-sac clusters) are built from the same
+parameters as `render_shapes.py`; each strain (shape + colour) has its own seed and its stages grow from the same
+plant. 106 renders: seedling, 7 shapes x 4 stages, 7 x 3 males, 4 colours x 7 shapes x flowering/ripe. A quick wide probe
+render squeezes any plant whose foliage would reach past the cell edge (with room for the 10% bigger XL sheet).
+
+    python3 tools/blender/plant_textures.py tools/blender/shapes/tex          # procedural leaf textures (~40 s)
+    blender -b --factory-startup -P tools/blender/render_plants_v2.py -- tools/blender/shapes/tex build/plants all
+        # or: python tools/blender/render_plants_v2.py -- ...  with the pip bpy module (~45 s a render on 4 CPU cores)
+    python3 tools/blender/plants_v2_post.py build/plants                       # grade into tools/blender/shapes/
+    python3 tools/make_overlay_sprites.py                                       # rebuild both overlay sheets
+
+`make_overlay_sprites.py` makes the unhealthy, dying, dead and trampled versions by recolouring, the XL sheet
+(overlay_02) by scaling 10% about the stem base, and shrinks with premultiplied alpha. Frame names, counts and
+anchors are unchanged, so no Lua changes are needed. `tools/blender/shapes/` is git-ignored (renders and textures).
+
+### Grow-room equipment (dazeddank_rooms_01)
+
+All 40 sprites of the rooms sheet (grow panel, blackout curtains, exhaust/intake fans, the old floor heater,
+dehumidifier and humidifier, the wall heater, dehumidifier, humidifier, through-wall AC, circulation fan and drip
+tank) and the item icons of the room gear (Flood and Light Timers, Grow Room Panel, Heater, Humidifier,
+Dehumidifier, Exhaust and Intake Fans, Wall AC, Circulation Fan, Drip Tank, Blackout Curtain) are modelled and rendered in
+DazedPower's style by `tools/blender/room_render.py`. It loads `tools/blender/dz_render.py`, a copy of
+DazedPower's rig (2:1 ortho tile camera, sky fill + key and rim suns, worn materials, bevelled geometry, no
+outlines), so keep that copy in step with DazedPower's. Wall units are built facing S on the north wall and turned
+for E, N and W; the N and W cells show the unit's back, as the game draws a unit hung on a wall in front of the
+camera. Then `tools/blender/room_post.py` grades and shrinks the renders exactly like DazedPower
+(`grade_all.py` + `import_art.py`: 256x512 to 128x256 premultiplied LANCZOS + unsharp mask, icons trimmed to
+30x30 on 32x32), lays a contact-shadow pass under the floor units, and with `--install` replaces those frames in
+the pack (the `.tiles` file and every index stay as they are), copies the icons into `42/media/textures` and
+rebuilds the depth map with `tools/make_room_depth.py`:
+
+    blender -b --factory-startup -P tools/blender/room_render.py -- build/rooms all   # or: python ... with pip bpy
+    python3 tools/blender/room_post.py build/rooms build/rooms_final --install
+
+Jobs are `all`, `cells`, `icons`, `icon:<Name>[,<Name>]` or one set name (`panel`, `exhaust`, `wall_ac`, ...).
+The older `room_art_blender.py`, `draw_room_art.py`, `add_wall_climate.py` and `add_room_cooling.py` made the
+previous art and still define the sheet's tile properties; don't re-run them over the new art.

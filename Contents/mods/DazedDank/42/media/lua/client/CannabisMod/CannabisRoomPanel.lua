@@ -220,9 +220,9 @@ local function onFillWorldObjectContextMenu(playerNum, context, worldObjects, te
                 end
             end)
             -- Debug: cut the room's power at the panel to test an outage; the server re-checks debug or admin.
-            if isDebugEnabled() then
+            if Config.debugAllowed(player) then
                 local cut = obj:getModData().DDPowerCut == true
-                context:addOption(cut and "[Debug] Restore grow room power" or "[Debug] Cut grow room power", player, function()
+                context:addOption(cut and "Debug: restore grow room power" or "Debug: cut grow room power", player, function()
                     sendClientCommand(player, Config.COMMAND_MODULE, "debugRoomPower",
                         { x = square:getX(), y = square:getY(), z = square:getZ(), cut = not cut })
                 end)

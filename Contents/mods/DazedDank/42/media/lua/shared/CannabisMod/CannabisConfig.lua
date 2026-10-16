@@ -111,6 +111,10 @@ end
 function Config.isHangingPlant(fullType)
     return Config.WET_SET[fullType] == true or Config.DRIED_SET[fullType] == true
 end
+--- Anything a drying rack holds: whole plants, and fan leaves (fresh or dried).
+function Config.isRackItem(fullType)
+    return Config.isHangingPlant(fullType) or Config.isFreshLeaf(fullType) or Config.isDriedLeaf(fullType)
+end
 -- Item type sets for the checks above, built once (the item tables never change while playing).
 Config.WET_SET, Config.DRIED_SET = {}, {}
 for _, t in pairs(Config.WET_PLANT_ITEMS) do Config.WET_SET[t] = true end
@@ -207,6 +211,34 @@ function Config.hydroOf(bag)
     return def and def.hydro or nil
 end
 
+-- --------------------------------------------------------------------------
+-- Vanilla crops in our containers (needs the Dazed Dank: Garden Crops add-on)
+-- --------------------------------------------------------------------------
+-- The add-on draws each vanilla crop without its furrow, so it can stand in a bag, bucket or table. Without it,
+-- containers take cannabis only.
+Config.GARDEN_PREFIX = "dazeddank_gardencrops_"
+
+--- The Garden Crops add-on's table when it is enabled, else nil.
+function Config.gardenCrops()
+    local gc = DazedGardenCrops
+    return (gc ~= nil and gc.SPRITES ~= nil) and gc or nil
+end
+
+--- Whether a vanilla crop can be sown in a container kind. Returns true, or false and why: "needsSoil" (a root,
+--- sprawling or grain crop in hydro) or "notSupported" (Garden Crops is off, or has no plant for this crop).
+function Config.canSowVanilla(crop, bag)
+    local gc = Config.gardenCrops()
+    if not gc or not crop or crop == Config.CROP_TYPE or not (gc.hasCrop and gc.hasCrop(crop)) then return false, "notSupported" end
+    if Config.isHydro(bag) and gc.SOIL_ONLY and gc.SOIL_ONLY[crop] then return false, "needsSoil" end
+    return true
+end
+
+--- The soil-free plant Garden Crops draws for a vanilla crop sprite, or nil.
+function Config.gardenPlantSprite(vanillaSprite)
+    local gc = Config.gardenCrops()
+    return gc and vanillaSprite and gc.SPRITES[vanillaSprite] or nil
+end
+
 --- True for the XL pots that suit a mother plant.
 function Config.isMotherPot(bag)
     local def = bag and Config.GrowBag[bag]
@@ -219,6 +251,43 @@ Config.Topping = {
     STRESS      = 10,
     PAUSE_HOURS = 12,    -- growth stops this long while it recovers (before GrowthSpeed)
 }
+
+-- Strip Fan Leaves: live defoliation, twice per plant. Once in late veg (the second half of the Vegetative timer,
+-- or any time while lamps hold it in veg) and once in early flower (the first 35% of Flowering). A good strip lifts
+-- the plant's care by 3 points at Agriculture 0 up to 5 at Agriculture 10; care can go that far past 100. Stripping
+-- again in the same window, a third time, or after early flower is an over-strip: it stresses the plant and costs care.
+-- Too early (seedling, early veg) or between the windows (pre-flower) is refused.
+Config.FanLeaves = {
+    ITEM = "CannabisMod.FanLeaf", DRIED_ITEM = "CannabisMod.DriedFanLeaf", CURED_ITEM = "CannabisMod.CuredFanLeaf",
+    DATA = "DDLeaf",          -- ModData key a leaf item keeps { moldy } under
+    VEG_FROM = 0.5,           -- late veg starts this far through the Vegetative timer
+    FLOWER_UNTIL = 0.35,      -- early flower ends this far through the Flowering timer
+    GAIN_MIN = 3, GAIN_MAX = 5,  -- care points per good strip, by Agriculture level 0-10
+    STRESS = 2,               -- a good strip still stresses the plant a little
+    OVER_CARE = 4,            -- an over-strip costs this much care (and the same stress, as every care penalty does)
+    OVER_STRESS = 6,          -- plus this much extra stress
+    REGROW_HOURS = 12,        -- after any strip the plant needs this long before it can be stripped again
+    MAX_GOOD = 2,             -- good strips per plant (one per window)
+    -- Fresh fan leaves per strip, by container: bigger pots grow bigger plants with more leaves.
+    LEAVES = {
+        ground = { 2, 3 }, small = { 2, 2 }, large = { 3, 3 }, xlbag = { 4, 4 },
+        dwc = { 2, 3 }, xldwc = { 4, 4 }, rdwc = { 2, 3 }, ebb = { 2, 2 },
+    },
+    OVER_LEAVES = 1,          -- an over-strip finds only a straggler or two
+    -- The harvest trim (Trim Plant) also gives fan leaves: 2, plus 1 for every 4 buds, up to 4.
+    TRIM_MIN = 2, TRIM_MAX = 4, TRIM_BUDS_PER_LEAF = 4,
+    -- Leaves are thin: they dry and cure in a share of the time buds take (sandbox DryingHours and CuringDays).
+    DRY_SHARE = 0.5,          -- 24 hours on a rack by default
+    CURE_SHARE = 0.5,         -- 3 days in a jar by default
+}
+
+--- Hours a fresh fan leaf takes to dry on a rack.
+function Config.leafDryHours() return Config.sandbox("DryingHours") * Config.FanLeaves.DRY_SHARE end
+--- Hours a dried fan leaf takes to cure into a hemp wrap.
+function Config.leafCureHours() return Config.sandbox("CuringDays") * 24 * Config.FanLeaves.CURE_SHARE end
+function Config.isFreshLeaf(fullType) return fullType == Config.FanLeaves.ITEM end
+function Config.isDriedLeaf(fullType) return fullType == Config.FanLeaves.DRIED_ITEM end
+function Config.isCuredLeaf(fullType) return fullType == Config.FanLeaves.CURED_ITEM end
 
 -- Cuttings: each pot holds a budget of cuttings that regrows; cutting past it sets the plant back.
 Config.Cuttings = {
@@ -271,10 +340,11 @@ function Config.splitSprite(spriteName)
     return hit[1], hit[2]
 end
 
---- True if a sprite name is a plant layer from either overlay sheet.
+--- True if a sprite name is a plant layer: from either overlay sheet, or a vanilla crop's plant from Garden Crops.
 function Config.isOverlaySprite(spriteName)
     local sheet = Config.splitSprite(spriteName)
-    return sheet == Config.OVERLAY_SHEET or sheet == Config.OVERLAY_SHEET_XL
+    if sheet == Config.OVERLAY_SHEET or sheet == Config.OVERLAY_SHEET_XL then return true end
+    return type(spriteName) == "string" and spriteName:sub(1, #Config.GARDEN_PREFIX) == Config.GARDEN_PREFIX
 end
 
 -- Furniture sprite name -> bag kind, built on first use (the bag table never changes while playing).
@@ -389,6 +459,7 @@ end
 Config.bagIsUnfilled = memoBySprite(Config.bagIsUnfilled, false)
 Config.bagFromSprite = memoBySprite(Config.bagFromSprite, nil)
 Config.isMaleSprite = memoBySprite(Config.isMaleSprite, false)
+Config.isOverlaySprite = memoBySprite(Config.isOverlaySprite, false)
 
 --- True if a container kind is a hydro system rather than a soil pot.
 function Config.isHydro(bag)
@@ -825,8 +896,8 @@ end
 -- above the player's level are never sent, so they can't be read by
 -- inspecting network traffic or client memory.
 Config.InfoTiers = {
-    { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container", "topped" } },
-    { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir", "cuttings" } },
+    { level = 0,  fields = { "name", "stageRough", "waterRough", "rooting", "container", "topped", "fanLeaves" } },
+    { level = 2,  fields = { "stage", "hoursLeft", "water", "lastNutrient", "vegHeld", "reservoir", "cuttings", "leafWindow" } },
     { level = 3,  fields = { "type", "strain", "looks", "sex", "light", "lightCycle", "roots", "rootRot" } },
     { level = 5,  fields = { "healthBand", "stressBand", "warnings", "extraVeg", "rootRotTrend" } },
     { level = 7,  fields = { "harvestWindow", "pollinated", "hermieSigns" } },
@@ -968,6 +1039,26 @@ function Config.debugOn()
     return isDebugEnabled ~= nil and isDebugEnabled() == true
 end
 
+--- May this player use the debug helpers? The game in debug mode, or staff. B42 roles call an ordinary player "user",
+--  so an access level other than "None" lets everyone through; staff are told by capability, as Dazed Core does.
+function Config.debugAllowed(player)
+    if Config.debugOn() then return true end
+    if not player then return false end
+    local S = DazedCore and DazedCore.DebugSpawn
+    if S and S.isStaff then return S.isStaff(player) == true end
+    local okRole, role = pcall(function() return player:getRole() end)
+    if okRole and role and Capability then
+        for _, cap in ipairs({ Capability.UseMovablesCheat, Capability.BanUnbanUser }) do
+            local ok, has = pcall(function() return role:hasCapability(cap) end)
+            if cap ~= nil and ok and has == true then return true end
+        end
+        return false
+    end
+    local ok, lvl = pcall(function() return player:getAccessLevel() end)
+    lvl = ok and type(lvl) == "string" and string.lower(lvl) or ""
+    return lvl == "admin" or lvl == "moderator"
+end
+
 --- Write a [DazedDank] tracing line to console.txt, in debug mode only, so normal play keeps the log quiet.
 function Config.debugLog(text)
     if Config.debugOn() then print("[DazedDank] " .. text) end
@@ -984,12 +1075,25 @@ Config.Smoking = {
     PIPE_ITEM  = "CannabisMod.SmokingPipe",
     -- Anything in the bag that can light it (vanilla item types).
     LIGHTERS = { "Base.Lighter", "Base.LighterDisposable", "Base.Matches", "Base.MatchesBox" },
-    -- A joint is a gentle smoke; a pipe hit is stronger and builds tolerance faster.
+    -- A joint is a gentle smoke; a pipe hit is stronger and builds tolerance faster. A blunt session is stronger and
+    -- longer than a joint (duration scales how long the high lasts) and builds a little more tolerance.
     METHODS = {
         joint = { potency = 1.0, tolerance = 1.0, ticks = 420, name = "Joint" },
         pipe  = { potency = 1.3, tolerance = 1.4, ticks = 240, name = "Pipe" },
+        blunt = { potency = 1.35, tolerance = 1.2, duration = 1.4, ticks = 480, name = "Blunt" },
     },
     BASE_HOURS = 2.5,   -- how long a full-strength high lasts
+    -- Blunts: one wrap and two buds, smoked over several sessions. After each session it is put out and becomes a
+    -- half-smoked blunt that keeps its strain, quality and mold, and is relit later with a lighter.
+    BLUNT_ITEM = "CannabisMod.Blunt",
+    HALF_BLUNT_ITEM = "CannabisMod.HalfSmokedBlunt",
+    BLUNT_BUDS = 2,
+    BLUNT_HITS = 3,          -- sessions in one blunt
+    PUT_OUT_COUNTS = 0.5,    -- put out partway: at least this much of a session smoked counts as a (smaller) session
+    TOBACCO_WRAP = "Base.TobaccoDried",
+    -- A tobacco-leaf blunt also gives nicotine, with vanilla's rolled cigarette numbers (CigaretteRolled:
+    -- StressChange -4, FoodSicknessChange 14). Smokers get the craving reset instead of the sickness.
+    NICOTINE = { STRESS = -0.04, FOOD_SICKNESS = 14 },
 }
 
 Config.Use = {
