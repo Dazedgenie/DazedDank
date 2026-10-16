@@ -13,6 +13,7 @@ require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisInfo"
 require "CannabisMod/CannabisClimate"
 require "CannabisMod/CannabisWeather"
+require "CannabisMod/CannabisPlantTemp"
 require "CannabisMod/CannabisDrying"
 require "CannabisMod/CannabisWorld"
 require "Moveables/ISMoveableSpriteProps"
@@ -803,6 +804,16 @@ function Rooms.info(panelKey, player)
         return a.y < b.y
     end)
     local panelSquare = cell:getGridSquare(room.x, room.y, room.z)
+    -- Cold nights is worked out fresh, so the panel is right even straight after a mode or setting change.
+    local now = getGameTime():getWorldAgeHours()
+    local coldArmed = Rooms.coldNightsArmed(room, Rooms.plantsIn(panelKey), now)
+    local coldActive = coldArmed and Rooms.isNight(room, hour)
+    local coldNights = nil
+    if Rooms.coldNightsAvailable(room) then
+        local K = Config.Climate
+        coldNights = { state = Rooms.coldNightsState(room), armed = coldArmed, active = coldActive,
+            nightLo = K.COLD_NIGHT.tLo, nightHi = K.COLD_NIGHT.tHi }
+    end
     return {
         x = room.x, y = room.y, z = room.z, name = room.name, schedule = room.schedule, mode = room.mode,
         tiles = count, lamps = lamps, hour = hour, openings = Rooms.openingsOf(panelKey),
@@ -813,9 +824,9 @@ function Rooms.info(panelKey, player)
         climate = {
             enabled = Config.sandbox("RoomClimate") == true,
             temp = room.temp, hum = room.hum, outT = room.outT, outH = room.outH,
-            targets = CannabisMod.Climate.targets(room.mode, room.young == true),
+            targets = CannabisMod.Climate.targetsFor(room.mode, room.young == true, coldActive),
             present = room.present or {}, running = room.running or {},
-            override = room.override or {}, notes = room.notes or {},
+            override = room.override or {}, notes = room.notes or {}, coldNights = coldNights,
         },
     }
 end
@@ -950,12 +961,20 @@ function Rooms.plantRows(panelKey, level, reading)
             local d = Info.buildVisible(plant, level, now, reading)
             local water = d.water
             if type(water) == "number" then water = string.format("%d%%", water) end
+            -- Cold nights slowing a plant is chosen, not a fault, so it isn't counted as a warning on the card.
+            local warnings = 0
+            for _, w in ipairs(d.warnings or {}) do if w ~= "coldNight" then warnings = warnings + 1 end end
             rows[#rows + 1] = {
                 x = plant.x, y = plant.y, z = plant.z, name = d.name or "Cannabis Plant",
                 stage = d.stage or d.stageRough or "?", water = water or d.waterRough or "?",
-                health = d.healthBand, type = d.type, warnings = d.warnings and #d.warnings or 0,
+                health = d.healthBand, type = d.type, warnings = warnings,
                 strain = d.strain, sex = d.sex, looks = d.looks, stageKey = d.stage,
             }
+            -- Cold night hours toward purple, for flowering and ripe females, read at the same level as the strain.
+            if d.strain and plant.sex == Config.SEX.FEMALE and plant.stage >= Config.STAGE.Flowering then
+                rows[#rows].cold = { hours = plant.coldNightHours or 0, need = Config.Weather.PURPLE_HOURS,
+                    rolled = plant.purpleRolled == true, purple = plant.purple == true }
+            end
             -- The plant's sprites, so the dashboard card can show it as it stands.
             pcall(function()
                 local plot = SFarmingSystem.instance:getLuaObjectAt(plant.x, plant.y, plant.z)
@@ -1141,6 +1160,70 @@ function Rooms.plantsIn(panelKey)
     return list
 end
 
+-- Cold nights: a Flower room setting that holds the lights-off hours cool in late flower to bring out purple.
+-- The room record keeps coldNights ("off", "auto" or "on"; missing is off) and coldArmed for the arming log line.
+Rooms.COLD_NIGHTS = { off = "Off", auto = "Late flower", on = "On" }
+
+--- True when a room can run Cold nights: Flower mode, with purple buds and room climate switched on.
+function Rooms.coldNightsAvailable(room)
+    return room ~= nil and room.mode == "Flower" and Config.sandbox("PurpleBuds") == true and Config.sandbox("RoomClimate") == true
+end
+
+--- The stored Cold nights setting, "off" when it is missing or unknown (old saves).
+function Rooms.coldNightsState(room)
+    local s = room and room.coldNights
+    if s == "auto" or s == "on" then return s end
+    return "off"
+end
+
+--- True when a plant counts for the Late flower setting: living, rooted, female and in late flower.
+local function coldNightPlant(plant, now)
+    local PT = CannabisMod.PlantTemp
+    return PT ~= nil and not plant.dead and not plant.rooting and plant.sex == Config.SEX.FEMALE and PT.lateFlower(plant, now)
+end
+
+--- True when Cold nights is armed: always on "on", and on "auto" while a plant in the room is in late flower.
+--- A room that can't run it (not Flower mode, or the sandbox options off) is never armed, whatever is stored.
+function Rooms.coldNightsArmed(room, plants, now)
+    if not Rooms.coldNightsAvailable(room) then return false end
+    local s = Rooms.coldNightsState(room)
+    if s == "on" then return true end
+    if s ~= "auto" then return false end
+    now = now or getGameTime():getWorldAgeHours()
+    for _, p in ipairs(plants or {}) do
+        if coldNightPlant(p, now) then return true end
+    end
+    return false
+end
+
+--- True in a room's lights-off hours: its timer's dark hours, or the clock's night when its lamps run 24/0 (as PlantTemp.isNight).
+function Rooms.isNight(room, hour)
+    local schedule = room and room.schedule
+    if schedule and Config.Timer.SCHEDULES[schedule] then return not Config.Timer.isOn(schedule, hour) end
+    return CannabisMod.Weather.isNight(hour)
+end
+
+--- Rooms.isNight for the room covering a tile; nil when no room covers it.
+function Rooms.isNightAt(x, y, z, hour)
+    local room = Rooms.roomAt(x, y, z)
+    if not room then return nil end
+    return Rooms.isNight(room, hour)
+end
+
+--- One ten-minute step of the Cold nights cost: while `active`, flowering females ripen COLD_NIGHT_SLOW slower and carry a warning.
+--- Ripe plants, males, rooting cuttings and plants whose clock a light stall already holds are left alone.
+function Rooms.coldNightCost(plants, active)
+    local slow = Config.Weather.COLD_NIGHT_SLOW / 6
+    for _, p in ipairs(plants or {}) do
+        local hit = active and p.stage == Config.STAGE.Flowering and p.sex == Config.SEX.FEMALE and not p.rooting and not p.lightStalled
+        if hit and p.nextStageAt then p.nextStageAt = p.nextStageAt + slow end
+        if hit or (p.warnings and p.warnings.coldNight) then
+            p.warnings = p.warnings or {}
+            p.warnings.coldNight = hit or nil
+        end
+    end
+end
+
 --- Work out a room's air and equipment. With `advance` the air moves a step and the plants feel it; without, only the equipment states are refreshed (after a manual override).
 function Rooms.updateClimate(panelKey, plants, outdoor, advance, now)
     local room = panels[panelKey]
@@ -1154,11 +1237,17 @@ function Rooms.updateClimate(panelKey, plants, outdoor, advance, now)
     end
     local young = seedlings > 0 and room.mode ~= "Drying"
     room.young = young or nil
-    local targets = Climate.targets(room.mode, young)
+    now = now or getGameTime():getWorldAgeHours()
+    -- While Cold nights is armed, the lights-off hours work to the cold band instead of the Flower range.
+    local coldArmed = Rooms.coldNightsArmed(room, plants, now)
+    local coldNight = coldArmed and Rooms.isNight(room, getGameTime():getHour())
+    room.coldActive = coldNight or nil
+    local targets = Climate.targetsFor(room.mode, young, coldNight)
     room.notes = {}
     if not Config.sandbox("RoomClimate") then
         room.temp, room.hum = (targets.tLo + targets.tHi) / 2, (targets.hLo + targets.hHi) / 2
         room.running, room.present = {}, {}
+        if advance then Rooms.coldNightCost(plants, false) end
         return
     end
     outdoor = outdoor or Rooms.outdoor()
@@ -1176,7 +1265,12 @@ function Rooms.updateClimate(panelKey, plants, outdoor, advance, now)
     if room.mode ~= "Drying" and scan.wet > 0 then room.notes[#room.notes + 1] = "Wet plants are drying in a " .. room.mode .. " room: set Drying mode" end
     if room.mode == "Flower" and seedlings > 0 then room.notes[#room.notes + 1] = "Seedlings are in a Flower room: set Veg mode" end
     if not advance then return end
-    now = now or getGameTime():getWorldAgeHours()
+    -- Note the Late flower setting arming once, when the first plant reaches late flower.
+    if coldArmed and not room.coldArmed and Rooms.coldNightsState(room) == "auto" then
+        Rooms.log(room, "Cold nights armed: plants in late flower", now)
+    end
+    room.coldArmed = coldArmed or nil
+    Rooms.coldNightCost(plants, coldNight)
     Climate.step(room, {
         outT = outdoor.t, outH = outdoor.h, lampHeat = scan.lampHeat,
         moisture = growing * K.PLANT_HUMIDITY.veg + flowering * K.PLANT_HUMIDITY.flower
@@ -1218,6 +1312,18 @@ commands.roomOverride = function(player, args)
     local key = Config.tileKey(room.x, room.y, room.z)
     Rooms.updateClimate(key, Rooms.plantsIn(key), nil, false)
     Rooms.log(room, Config.Rooms.EQUIPMENT_NAMES[kind] .. " set to " .. state)
+    commands.requestRoom(player, args)
+end
+
+commands.roomColdNights = function(player, args)
+    local room = panelFor(player, args)
+    local state = args.state
+    if not room or type(state) ~= "string" or not Rooms.COLD_NIGHTS[state] then return end
+    -- Kept in every mode; outside a Flower room it simply does nothing until the room flowers again.
+    room.coldNights = state
+    local key = Config.tileKey(room.x, room.y, room.z)
+    Rooms.updateClimate(key, Rooms.plantsIn(key), nil, false)
+    Rooms.log(room, "Cold nights set to " .. Rooms.COLD_NIGHTS[state])
     commands.requestRoom(player, args)
 end
 

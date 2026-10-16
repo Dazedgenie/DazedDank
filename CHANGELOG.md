@@ -1,5 +1,14 @@
 # Dazed Dank patch notes
 
+## dd56.2 (Cold nights, in testing)
+- Added: **Cold nights** on the grow room panel. Flower rooms get a strip under the temperature and humidity meters with three pills: Off, Late flower and On (Off by default, and for rooms from older saves).
+- Added: while Cold nights is armed, the room's lights-off hours work to a 6-13 C night band instead of the Flower range: ACs run above 13 C and rest at 11 C, inside the 5-15 C purple window, and a heater still guards 6 C so the under-5 C yield loss only bites rooms without one. Lit hours keep the normal 20-26 C. Humidity targets don't change and no new equipment is needed, so a warm night outdoors may need more than one AC (an AC still can't pull a room below 12 C).
+- Added: Late flower arms itself once a living, rooted female in the room reaches the second half of flower (or is ripe), and disarms after harvest. On is always armed. In Veg and Drying rooms, or with Room Climate switched off, the control is hidden and does nothing (the setting is kept).
+- Added: the cost: while the night band runs, flowering females in the room ripen 15% slower (ripe plants are unaffected). The plant window shows "Ripening slowed by cold nights"; it isn't counted as a warning on the dashboard's plant cards.
+- Added: the strip says what Cold nights is doing ("Armed | tonight 6 to 13 C", "Waiting for late flower", "On | room 11 C"), and the temperature meter shows the night band while it runs.
+- Added: plant cards in flowering rooms show cold night progress ("7/12 h cold"), then a purple "Purple" pill or "stayed green" once the plant has rolled. Shown at Agriculture 3, like the strain.
+- Added: the room log notes "Cold nights set to ...", "Cold nights armed: plants in late flower" and "<strain> turned purple".
+
 ## dd56.1 (art update)
 - Art: every piece of grow gear is re-rendered in Dazed Power's style with more detail: hanging lamps (the basic ones are now finned UFO LEDs with a purple face, the pro ones hammered reflectors with a ballast and a warm bulb), the large basic and pro bar lamps, both flood stands, grow bags and XL bags, DWC, RDWC and XL DWC buckets, the RDWC control bucket, flood tables and the flood reservoir, the drying rack (the hanging buds look as before), the drying fan, the curing barrel and the ground plot.
 - Art: the grow-room panel, fans, heaters, dehumidifiers, humidifiers, wall AC, circulation fan, curtains and drip tank get more parts (screws, labels, vents, cable glands, a fan speed controller, a green panel display) and a detailed back for the north- and west-facing walls.

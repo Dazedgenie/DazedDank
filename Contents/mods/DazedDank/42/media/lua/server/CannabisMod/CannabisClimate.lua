@@ -17,6 +17,14 @@ function Climate.targets(mode, young)
     return { tLo = t.tLo, tHi = t.tHi, hLo = hLo, hHi = hHi }
 end
 
+--- The ranges the equipment works to right now: the mode's, with the Cold nights temperatures when `coldNight` is set.
+--- Humidity stays the mode's either way.
+function Climate.targetsFor(mode, young, coldNight)
+    local t = Climate.targets(mode, young)
+    if coldNight then t.tLo, t.tHi = K.COLD_NIGHT.tLo, K.COLD_NIGHT.tHi end
+    return t
+end
+
 --- A machine count: `true` means one running, a number means that many, anything else none.
 local function count(v)
     if v == true then return 1 end
