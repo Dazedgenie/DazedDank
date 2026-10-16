@@ -33,7 +33,7 @@ function LampHeat.isLit(obj)
         local x, y, z = square:getX(), square:getY(), square:getZ()
         local Rooms = CannabisMod.Rooms
         if Config.sandbox("LampsNeedPower") then
-            if not CannabisMod.Light.isPowered(square) then return false end
+            if not CannabisMod.PowerLink.powered(obj, square) then return false end
             if Rooms and Rooms.poweredAt(x, y, z) == false then return false end
         end
         local Timers = CannabisMod.Timers

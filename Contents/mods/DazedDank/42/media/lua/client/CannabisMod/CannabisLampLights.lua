@@ -4,6 +4,7 @@
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisWorld"
+require "CannabisMod/CannabisPowerLink"
 
 local Config = CannabisMod.Config
 
@@ -103,7 +104,11 @@ local function checkLamp(cell, key, k, needPower, hour)
     local md = obj:getModData()
     local schedule = md.DDTimer
     -- DDRoomOff is set by the server while the lamp's grow room panel has no power.
-    local on = (not needPower or powered(square)) and not md.DDRoomOff and Config.Timer.isOn(schedule, hour)
+    -- DDWire is set by the server for a lamp cabled to a Dazed Power controller: "on" or "off" decides, the square is not asked.
+    local wire = CannabisMod.PowerLink.on and md.DDWire or nil
+    local sqPower
+    if wire == "on" then sqPower = true elseif wire == "off" then sqPower = false else sqPower = powered(square) end
+    local on = (not needPower or sqPower) and not md.DDRoomOff and Config.Timer.isOn(schedule, hour)
     local entry = active[key]
     if on and not entry then addLight(key, k.x, k.y, k.z, def) end
     if on and entry then entry.pass = pass end

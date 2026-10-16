@@ -6068,5 +6068,189 @@ end)()
     CannabisMod.High.stateFor(0).high = nil
 end)()
 
+
+-- ---- Dazed Power link: grow gear as loads through Core's power registry -----
+do
+    local Link, L, C = CannabisMod.PowerLink, CannabisMod.Light, CannabisMod.Config
+    local World = CannabisMod.World
+    local wire = {}                      -- "x_y" -> true (fed) | false (cabled, cut); missing = not cabled
+    local loads, order = {}, {}
+    local function posKey(obj) local sq = obj:getSquare(); return sq:getX() .. "_" .. sq:getY() end
+    local function loadOf(obj)
+        local name = obj:getSprite():getName()
+        for _, id in ipairs(order) do
+            local l = loads[id]
+            if (not l.prefix or name:sub(1, #l.prefix) == l.prefix) and (not l.matchName or l.matchName(name)) and l.match(obj) then return l end
+        end
+        return nil
+    end
+    local function stubCore(active, withFeeds)
+        loads, order = {}, {}
+        DazedCore = { Power = { registerLoad = function(l) loads[l.id] = l; order[#order + 1] = l.id; return l end },
+                      Detect = { isActive = function(id) return active and id == "DazedPower" end } }
+        if withFeeds then
+            DazedCore.Power.feeds = function(obj)
+                if not loadOf(obj) then return nil end
+                return wire[posKey(obj)]
+            end
+        end
+    end
+    local function nloads() local n = 0 for _ in pairs(loads) do n = n + 1 end return n end
+    -- A square holding one placed object whose ModData counts how often DDWire is written.
+    local writes = 0
+    local function placed(x, y, power, sprite)
+        local sq = fakeSquare(x, y, 0, false, power)
+        local store = {}
+        local md = setmetatable({}, { __index = store, __newindex = function(_, k, v) if k == "DDWire" then writes = writes + 1 end store[k] = v end })
+        sq.objs[1] = { sprite = sprite, md = md }
+        fire("LoadGridsquare", sq)
+        return sq, sq:getObjects():get(0)
+    end
+    local function plantNear(x, y)
+        fakeSquare(x + 1, y, 0, false, true)
+        return { x = x + 1, y = y, z = 0, warnings = {}, stage = 2 }
+    end
+    local Dro, Hy = CannabisMod.Drying, CannabisMod.Hydro
+
+    -- (a) no Core at all: square power decides, exactly as before
+    DazedCore = nil
+    check("power link: off without Core", Link.init() == false and Link.on == false)
+    local sqA, objA = placed(7800, 7800, false, "dazeddank_plants_01_197")
+    wire["7800_7800"] = true
+    check("power link: without Core an unpowered square is dark even if a wire were set", select(1, L.measure(plantNear(7800, 7800))) == 0)
+    sqA.power = true
+    worldHours = worldHours + 1
+    check("power link: without Core a powered square lights the lamp", select(1, L.measure(plantNear(7800, 7800))) == 85)
+    check("power link: nothing is stamped when the link is off", objA:getModData().DDWire == nil and Link.feeds(objA) == nil)
+    wire["7800_7800"] = nil
+
+    -- (b) Core without the pieces, or Dazed Power not active: nothing registers
+    DazedCore = { Power = { registerLoad = function() error("must not register") end } }
+    check("power link: Core without feeds() leaves it off", Link.init() == false and not Link.on)
+    stubCore(false, true)
+    check("power link: Dazed Power not active leaves it off and registers nothing", Link.init() == false and nloads() == 0)
+
+    -- (c) on: the four loads register, slotless, with the planned kinds
+    stubCore(true, true)
+    check("power link: switches on with Core feeds() and Dazed Power", Link.init() == true and Link.on == true and nloads() == 4)
+    check("power link: kinds are growlight, dryfan, dankclimate and dankpump, all slotless",
+        loads.dazeddank_light.kind == "growlight" and loads.dazeddank_fan.kind == "dryfan" and loads.dazeddank_climate.kind == "dankclimate"
+        and loads.dazeddank_pump.kind == "dankpump" and loads.dazeddank_light.slotless and loads.dazeddank_fan.slotless
+        and loads.dazeddank_climate.slotless and loads.dazeddank_pump.slotless)
+
+    -- a cabled lamp on a square with no power is lit by its wire
+    local sqC, objC = placed(7801 + 100, 7800, false, "dazeddank_plants_01_198")
+    wire["7901_7800"] = true
+    worldHours = worldHours + 1
+    check("power link: a fed lamp lights on an unpowered square", select(1, L.measure(plantNear(7901, 7800))) == 100)
+    check("power link: the lamp is stamped on", objC:getModData().DDWire == "on" and Link.feeds(objC) == true)
+    check("power link: the lamp bills its rated watts while lit", loads.dazeddank_light.watts(objC) == 400 and loads.dazeddank_light.working(objC) == true)
+
+    -- (d) cut: dark on a powered square, stamped off, billed nothing
+    sqC.power = true
+    wire["7901_7800"] = false
+    worldHours = worldHours + 1
+    check("power link: a cut lamp is dark on a powered square", select(1, L.measure(plantNear(7901, 7800))) == 0)
+    check("power link: the cut lamp is stamped off and does not work", objC:getModData().DDWire == "off" and loads.dazeddank_light.working(objC) == false)
+    -- (f) the stamp is written only on a change
+    local before = writes
+    worldHours = worldHours + 1
+    L.measure(plantNear(7901, 7800))
+    worldHours = worldHours + 1
+    L.measure(plantNear(7901, 7800))
+    check("power link: the DDWire stamp is written only when the verdict changes", writes == before)
+    wire["7901_7800"] = nil
+    worldHours = worldHours + 1
+    check("power link: a lamp that is not cabled goes back to its square", select(1, L.measure(plantNear(7901, 7800))) == 100 and objC:getModData().DDWire == nil)
+    wire["7901_7800"] = true
+    sqC.power = false
+
+    -- LampsNeedPower off: the wire is not billed
+    SandboxVars = { CannabisMod = { LampsNeedPower = false } }
+    worldHours = worldHours + 1
+    check("power link: lamps that need no power are not billed", loads.dazeddank_light.working(objC) == false)
+    SandboxVars = nil
+
+    -- (e) a bar lamp is one load: only its anchor tile matches, and the other tiles take the anchor's verdict
+    local bars = {}
+    for i = 0, 2 do bars[i] = { placed(7950 + i, 7800, false, "dazeddank_plants_01_" .. (222 + i)) } end
+    local barSquares = { bars[2][1], bars[1][1], bars[0][1] }
+    local lampSquares0 = World.lampSquares
+    World.lampSquares = function() return barSquares end
+    wire["7950_7800"] = false
+    worldHours = worldHours + 1
+    check("power link: a bar lamp matches only on its anchor tile", loadOf(bars[0][2]) ~= nil and loadOf(bars[1][2]) == nil and loadOf(bars[2][2]) == nil)
+    check("power link: every tile of a bar lamp takes the anchor's verdict", Link.feeds(bars[0][2]) == false and Link.feeds(bars[1][2]) == false
+        and Link.feeds(bars[2][2]) == false and bars[2][2]:getModData().DDWire == "off")
+    check("power link: a bar lamp bills its rated watts once", loads.dazeddank_light.watts(bars[0][2]) == 600)
+    World.lampSquares = lampSquares0
+
+    -- pumps follow their own wire
+    local Pump = nil
+    local sqP, objP = placed(7960, 7800, false, C.Hydro.FLOOD_SPRITE)
+    wire["7960_7800"] = true
+    worldHours = worldHours + 1
+    check("power link: a fed pump runs on an unpowered square", Hy.pumpsOn(7960, 7800, 0) == true and loads.dazeddank_pump.working(objP) == true
+        and loads.dazeddank_pump.watts(objP) == 60)
+    sqP.power = true
+    wire["7960_7800"] = false
+    worldHours = worldHours + 1
+    check("power link: a cut pump stops on a powered square", Hy.pumpsOn(7960, 7800, 0) == false and loads.dazeddank_pump.working(objP) == false)
+    wire["7960_7800"] = nil
+    worldHours = worldHours + 1
+    check("power link: a pump that is not cabled keeps its square", Hy.pumpsOn(7960, 7800, 0) == true)
+    local _, objD = placed(7962, 7800, false, C.Drip.SPRITE)
+    check("power link: the drip tank is a hydro pump (25 W), not climate gear", loadOf(objD) == loads.dazeddank_pump
+        and loads.dazeddank_pump.watts(objD) == 25)
+
+    -- the drying fan counts only while it is fed
+    local sqF, objF = placed(7970, 7800, false, C.Drying.FAN_SPRITE)
+    local rack = fakeSquare(7971, 7800, 0, false, false)
+    wire["7970_7800"] = false
+    worldHours = worldHours + 1
+    local okEnv, envCut = pcall(Dro.environment, rack)
+    wire["7970_7800"] = true
+    worldHours = worldHours + 1
+    local okEnv2, envFed = pcall(Dro.environment, rack)
+    check("power link: a cut drying fan does not count and a fed one does", okEnv and okEnv2 and envCut.fan == false and envFed.fan == true)
+
+    -- a grow room: cut gear drops out of the scan, and a room cabled from afar reads powered
+    local roomSqs = {}
+    for i = 0, 2 do roomSqs[i] = fakeSquare(8000 + i, 8000, 0, false, false) end
+    table.insert(roomSqs[0].objs, { sprite = "dazeddank_rooms_01_0", md = {} })
+    table.insert(roomSqs[1].objs, { sprite = "dazeddank_rooms_01_8", md = {} })
+    table.insert(roomSqs[2].objs, { sprite = "dazeddank_rooms_01_20", md = {} })
+    local Rooms = CannabisMod.Rooms
+    worldHours = worldHours + 1
+    check("power link: the test room registers", Rooms.register(roomSqs[0], newPlayer(8000, 8000, 5), function() return false end))
+    local pk = "8000_8000_0"
+    wire["8001_8000"], wire["8002_8000"] = false, false
+    worldHours = worldHours + 1
+    local scan = Rooms.scan(pk)
+    check("power link: gear that is cabled and cut gives no heat or air", (scan.count.exhaust or 0) == 0 and (scan.count.heater or 0) == 0 and scan.vent.exhaust == 0)
+    check("power link: a room whose cabled gear is all cut and whose panel square is dark reads unpowered", Rooms.poweredAt(8000, 8000, 0) == false)
+    wire["8001_8000"] = true
+    worldHours = worldHours + 1
+    scan = Rooms.scan(pk)
+    check("power link: a fed fan counts again and the cabled room reads powered", scan.count.exhaust == 1 and (scan.count.heater or 0) == 0
+        and Rooms.poweredAt(8000, 8000, 0) == true)
+    wire["8002_8000"] = nil
+    worldHours = worldHours + 1
+    scan = Rooms.scan(pk)
+    check("power link: a room fed only by cable does not carry gear that is not cabled on a dark square",
+        scan.count.exhaust == 1 and (scan.count.heater or 0) == 0)
+    wire["8001_8000"], wire["8002_8000"] = nil, nil
+    worldHours = worldHours + 1
+    scan = Rooms.scan(pk)
+    check("power link: gear that is not cabled still counts, as before", scan.count.exhaust == 1 and scan.count.heater == 1)
+    Rooms.remove(pk)
+
+    -- back to no link: everything returns to the square
+    DazedCore = nil
+    Link.init()
+    check("power link: switching the link off restores square power", Link.on == false and Link.feeds(objC) == nil and Link.powered(objC, sqC) == false)
+    Link.reset()
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

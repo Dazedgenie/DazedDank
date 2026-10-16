@@ -7,6 +7,7 @@ if isClient() then return end
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisWorld"
+require "CannabisMod/CannabisPowerLink"
 
 local Config   = CannabisMod.Config
 local Registry = CannabisMod.Registry
@@ -97,12 +98,13 @@ local function readSquare(square, x, y, z)
         local any = false
         local objects = square:getObjects()
         for i = 0, objects:size() - 1 do
-            local sprite = objects:get(i):getSprite()
+            local obj = objects:get(i)
+            local sprite = obj:getSprite()
             local def = sprite and sprites[sprite:getName()]
             if def then
                 any = true
                 found = found or {}
-                found[#found + 1] = { def = def, schedule = scheduleAt(x, y, z), powered = isPowered(square) and roomPowered(x, y, z) }
+                found[#found + 1] = { def = def, schedule = scheduleAt(x, y, z), powered = CannabisMod.PowerLink.powered(obj, square) and roomPowered(x, y, z) }
             end
         end
         if not any and known then forget(x, y, z) end

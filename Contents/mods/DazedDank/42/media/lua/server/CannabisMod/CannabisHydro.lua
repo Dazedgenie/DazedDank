@@ -13,6 +13,7 @@ require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisServerCommands"
 require "CannabisMod/CannabisPlumbing"
 require "CannabisMod/CannabisWorld"
+require "CannabisMod/CannabisPowerLink"
 
 local Config   = CannabisMod.Config
 local World    = CannabisMod.World
@@ -87,6 +88,11 @@ end)
 function Hydro._reset(tbl)
     res = tbl or {}
     indexAll()
+end
+
+--- The record for a tile if there is one; unlike Hydro.get it never makes one.
+function Hydro.peek(x, y, z)
+    return res and res[Config.tileKey(x, y, z)] or nil
 end
 
 --- The record for a tile, made on first use as an empty, fresh reservoir.
@@ -457,8 +463,17 @@ function Hydro.pumpsOn(x, y, z)
     if not Config.sandbox("PumpsNeedPower") then return true end
     local square = getCell():getGridSquare(x, y, z)
     if not square then return nil end
+    -- A pump cabled to a Dazed Power controller follows its wire alone (nil when it is not cabled or the link is off).
+    local Link = CannabisMod.PowerLink
+    local wired = nil
+    if Link and Link.on then
+        local pump = Link.pumpAt(square)
+        if pump then wired = Link.feeds(pump) end
+        if wired == false then return false end
+    end
     -- A grow room panel without power takes every pump in its room down with it.
     if CannabisMod.Rooms and CannabisMod.Rooms.poweredAt(x, y, z) == false then return false end
+    if wired == true then return true end
     return World.isPoweredSafe(square)
 end
 

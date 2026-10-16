@@ -366,6 +366,16 @@ Rooting chance = 35% + 4% per Agriculture level, +15% gel, +15% dome,
 the first 6. Capped between 5% and 95%. Conditions are measured where you
 stand when the cuttings go in.
 
+## With Dazed Power (optional)
+
+Dazed Power 0.8.5 or later with Dazed Core 1.8.4 or later turns the grow gear into Power loads. Dank has no hard dependency: `shared/CannabisMod/CannabisPowerLink.lua` checks on `OnGameBoot` that `DazedCore.Power.registerLoad` and `DazedCore.Power.feeds` exist and that `DazedCore.Detect.isActive("DazedPower")` is true, and only then registers four loads, all `slotless` (no controller slot): `growlight` (placed lamps, one load per lamp, the anchor tile of a bar lamp), `dryfan` (room fans and the drying fan), `dankclimate` (heater, AC, humidifier, dehumidifier) and `dankpump` (RDWC control bucket, flood reservoir, drip tank). Rated watts are in `Link.LAMP_WATTS`, `Link.GEAR_WATTS` and `Link.PUMP_WATTS`.
+
+- `Link.feeds(obj)` is `DazedCore.Power.feeds` remembered per object for one game moment: true (fed), false (cabled but cut) or nil (not cabled, or the link is off). `Link.powered(obj, square)` is the wire when cabled and the square otherwise, so with the link off every check is the old square check.
+- Used by `Light.readSquare`, `LampHeat.isLit`, `Rooms` (panel power, panel lamp and equipment rows, `Rooms.scan`), `Hydro.pumpsOn` and the drying fan. A cut piece of gear is skipped in `Rooms.scan`.
+- The server stamps `md.DDWire` ("on" or "off", only on a change) on cabled gear for the client lamp glow; the client reads it only while the link is on.
+- Not cabled means not billed: uncabled gear keeps running off any powered square.
+- Tests: the "Dazed Power link" block at the end of `tests/run_tests.lua` stubs `DazedCore.Power` and `Detect`.
+
 ## Save compatibility (read before changing items)
 
 Never change the `ItemType` of an item that may already exist in a save

@@ -16,6 +16,7 @@ require "CannabisMod/CannabisWeather"
 require "CannabisMod/CannabisPlantTemp"
 require "CannabisMod/CannabisDrying"
 require "CannabisMod/CannabisWorld"
+require "CannabisMod/CannabisPowerLink"
 require "Moveables/ISMoveableSpriteProps"
 
 local Config = CannabisMod.Config
@@ -512,7 +513,9 @@ end
 --- Whether a room's panel has power on its square; a debug power cut counts as none.
 function Rooms.panelPowered(room, square)
     if room.debugCut then return false end
-    return square ~= nil and CannabisMod.Light.isPowered(square) == true
+    if square ~= nil and CannabisMod.Light.isPowered(square) == true then return true end
+    -- A room cabled to a Dazed Power controller is also powered while any cabled load in it is fed.
+    return CannabisMod.PowerLink.on and CannabisMod.PowerLink.roomFed(Config.tileKey(room.x, room.y, room.z)) == true
 end
 
 --- Whether the room covering a tile has power at its panel: nil when no room covers it, false during an outage.
@@ -730,12 +733,12 @@ function Rooms.contents(panelKey, fresh)
     local c = contents[panelKey]
     local now = getGameTime():getWorldAgeHours()
     if c and not fresh and c.at == now and c.version == contentsVersion then return c end
-    c = { at = now, version = contentsVersion, lamps = {}, lampTiles = {}, gear = {}, racks = {}, special = {} }
+    c = { at = now, version = contentsVersion, lamps = {}, lampTiles = {}, gear = {}, racks = {}, special = {}, pumps = {} }
     contents[panelKey] = c
     local list = tileList[panelKey]
     if not list then return c end
     local cell, info = getCell(), World.info
-    local lamps, lampTilesOut, gear, racks, special = c.lamps, c.lampTiles, c.gear, c.racks, c.special
+    local lamps, lampTilesOut, gear, racks, special, pumps = c.lamps, c.lampTiles, c.gear, c.racks, c.special, c.pumps
     for _, t in ipairs(list) do
         local square = cell:getGridSquare(t.x, t.y, t.z)
         if square then
@@ -755,13 +758,14 @@ function Rooms.contents(panelKey, fresh)
                     end
                     local g = what.gear
                     if g then
-                        gear[#gear + 1] = { square = square, gear = g, t = t, factor = g.facing and Rooms.wallFactor(square, g.facing) or nil }
+                        gear[#gear + 1] = { square = square, obj = obj, gear = g, t = t, factor = g.facing and Rooms.wallFactor(square, g.facing) or nil }
                     end
                     if what.rack then
                         local container = obj:getContainer()
                         if container then racks[#racks + 1] = container end
                     end
                     if what.control or what.flood or what.drip then
+                        pumps[#pumps + 1] = { obj = obj }
                         local sp = special[t.key]
                         if not sp then sp = {} special[t.key] = sp end
                         sp.control = sp.control or what.control
@@ -833,7 +837,7 @@ function Rooms.info(panelKey, player)
             for _, member in ipairs(lampTiles(square, l.obj)) do
                 counted[Config.tileKey(member:getX(), member:getY(), member:getZ())] = true
             end
-            local powered = CannabisMod.Light.isPowered(square) and not room.debugCut
+            local powered = CannabisMod.PowerLink.powered(l.obj, square) and not room.debugCut
             lamps[#lamps + 1] = {
                 name = l.def.name, x = t.x, y = t.y, z = t.z,
                 powered = powered, lit = powered and Config.Timer.isOn(schedule, hour),
@@ -975,7 +979,7 @@ function Rooms.equipmentRows(panelKey)
     for _, g in ipairs(Rooms.contents(panelKey).gear) do
         local gear, t = g.gear, g.t
         local side = gear.facing or gear.wall
-        local powered = panelPowered and Light.isPowered(g.square)
+        local powered = panelPowered and CannabisMod.PowerLink.powered(g.obj, g.square)
         rows[#rows + 1] = {
             x = t.x, y = t.y, z = t.z, kind = gear.kind, name = gear.name,
             mount = side and WALLS[side] or "floor", powered = powered,
@@ -1174,15 +1178,27 @@ function Rooms.scan(panelKey)
     local c = Rooms.contents(panelKey)
     for _, l in ipairs(c.lamps) do
         local lamp = l.def
-        if panelPowered and Light.isPowered(l.square) and Config.Timer.isOn(schedule, hour) then
+        if panelPowered and CannabisMod.PowerLink.powered(l.obj, l.square) and Config.Timer.isOn(schedule, hour) then
             -- A bar lamp is one lamp over several tiles, so each tile gives its share.
             out.lampHeat = out.lampHeat + lamp.radius * K.LAMP_HEAT_PER_RADIUS / (lamp.tiles or 1)
         end
     end
+    -- A room powered only through its cabled gear (panel square dark) does not carry gear that is not cabled:
+    -- that gear keeps its own square's power, as the equipment rows show it.
+    local Link = CannabisMod.PowerLink
+    local cableOnly = false
+    if Link.on then
+        local psq = getCell():getGridSquare(room.x, room.y, room.z)
+        cableOnly = not (psq and Light.isPowered(psq) == true) and Link.roomFed(panelKey, c) == true
+    end
     for _, g in ipairs(c.gear) do
         local gear = g.gear
-        out.count[gear.kind] = (out.count[gear.kind] or 0) + 1
-        if gear.facing then out.vent[gear.kind] = out.vent[gear.kind] + g.factor * K.VENT[gear.kind] end
+        -- Gear cabled to a Dazed Power controller and cut off gives no heat, humidity or air.
+        local f = Link.feeds(g.obj)
+        if f == true or (f == nil and not (cableOnly and Light.isPowered(g.square) ~= true)) then
+            out.count[gear.kind] = (out.count[gear.kind] or 0) + 1
+            if gear.facing then out.vent[gear.kind] = out.vent[gear.kind] + g.factor * K.VENT[gear.kind] end
+        end
     end
     if Drying then
         for _, rack in ipairs(c.racks) do out.wet = out.wet + Drying.wetCountIn(rack) end

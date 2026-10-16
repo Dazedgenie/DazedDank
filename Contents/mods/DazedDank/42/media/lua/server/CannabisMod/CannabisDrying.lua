@@ -7,6 +7,7 @@ if isClient() then return end
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisSchedule"
 require "CannabisMod/CannabisWorld"
+require "CannabisMod/CannabisPowerLink"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisStrains"
 require "CannabisMod/CannabisSeeds"
@@ -197,14 +198,15 @@ end
 
 local isPowered = CannabisMod.World.isPoweredSafe
 
---- True if a fan stands on this square (one pass over its objects, no lists built).
+--- The fan standing on this square, or nil (one pass over its objects, no lists built).
 local function fanOn(square)
     local objects = square:getObjects()
     for i = 0, objects:size() - 1 do
-        local sprite = objects:get(i):getSprite()
-        if sprite and sprite:getName() == D.FAN_SPRITE then return true end
+        local obj = objects:get(i)
+        local sprite = obj:getSprite()
+        if sprite and sprite:getName() == D.FAN_SPRITE then return obj end
     end
-    return false
+    return nil
 end
 
 --- Is a powered fan standing within FAN_RADIUS of this square? Stops at the first one found.
@@ -215,7 +217,10 @@ local function hasFan(square)
         for dx = -r, r do
             for dy = -r, r do
                 local sq = cell:getGridSquare(x + dx, y + dy, z)
-                if sq and fanOn(sq) and isPowered(sq) then return true end
+                local fan = sq and fanOn(sq)
+                -- A fan cabled to a Dazed Power controller follows its wire; any other fan uses its square.
+                local wire = fan and CannabisMod.PowerLink.feeds(fan)
+                if fan and (wire == true or (wire == nil and isPowered(sq))) then return true end
             end
         end
         return false

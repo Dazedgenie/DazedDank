@@ -1,5 +1,11 @@
 # Dazed Dank patch notes
 
+## dd57 (Grow gear as Dazed Power loads, in testing)
+- Added: with Dazed Core 1.8.4 and Dazed Power 0.8.5 both active, grow gear registers as Dazed Power loads (optional: Dank requires neither and behaves exactly as before without them). Grow lights are GROW LIGHTS (150 W basic, 400 W pro, 300 W large basic, 600 W large pro, 300 W flood, 600 W pro flood), exhaust, intake and circulation fans and the drying fan are FANS (120, 120, 50 and 60 W), hydro and drip pumps are HYDRO PUMPS (RDWC control 40 W, flood reservoir 60 W, drip tank 25 W), and the heater (1200 W), AC (700 W), humidifier (50 W) and dehumidifier (250 W) are GROW CLIMATE. Dank gear takes no controller slot.
+- Added: cable a piece of gear to a controller or transformer with Power's wiring menu. It is billed while it really runs (a lamp only while its timer is on, a fan or climate unit only while the room runs it, a drip tank only while it drips), shows in Load Priority (Grow lights Normal, Fans Low, Hydro pumps Essential, Grow climate Normal) and is cut by priority, low voltage, trip or an offline controller.
+- Changed: cabled gear follows only its wire, so a controller's generator range does not keep cut gear running. A cut lamp gives no light, no room heat and its glow goes out (within ten game minutes); cut fans, heaters, ACs and humidifiers give no air, heat or cooling; a cut pump stops (air, flood, drip). A room whose cabled gear is all cut and whose panel square has no power logs "Power lost" and "Power restored" as for an outage. A room cabled from far away reads powered while any cabled piece of gear in it is fed.
+- Unchanged: gear that is not cabled keeps today's square power and is not billed. Loose lamp items on the ground cannot be cabled.
+
 ## dd56.4 (Other crops in the grow panel, in testing)
 - Added: with the Dazed Dank: Garden Crops add-on, the grow room panel now counts vanilla crops growing in the room's containers ("N other crops" in the header) and the View all button opens them in a new "Other crops" section of the All plants window: name, stage ("Growing 3/7", "Ready" or "Dead"), water, and a Thirsty or Dead flag. Dead crops list first, then thirsty ones. The section shows up to 40 crops and says "+N more" past that. Crop rows are display only.
 - Without Garden Crops nothing changes.
