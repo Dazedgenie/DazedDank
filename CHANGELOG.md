@@ -8,6 +8,7 @@
 - Added: the strip says what Cold nights is doing ("Armed | tonight 6 to 13 C", "Waiting for late flower", "On | room 11 C"), and the temperature meter shows the night band while it runs.
 - Added: plant cards in flowering rooms show cold night progress ("7/12 h cold"), then a purple "Purple" pill or "stayed green" once the plant has rolled. Shown at Agriculture 3, like the strain.
 - Added: the room log notes "Cold nights set to ...", "Cold nights armed: plants in late flower" and "<strain> turned purple".
+- Fixed: in a Flower room the Cold nights strip makes the panel taller; the window now slides up so its bottom stays on screen on small displays.
 
 ## dd56.1 (art update)
 - Art: every piece of grow gear is re-rendered in Dazed Power's style with more detail: hanging lamps (the basic ones are now finned UFO LEDs with a purple face, the pro ones hammered reflectors with a ballast and a warm bulb), the large basic and pro bar lamps, both flood stands, grow bags and XL bags, DWC, RDWC and XL DWC buckets, the RDWC control bucket, flood tables and the flood reservoir, the drying rack (the hanging buds look as before), the drying fan, the curing barrel and the ground plot.

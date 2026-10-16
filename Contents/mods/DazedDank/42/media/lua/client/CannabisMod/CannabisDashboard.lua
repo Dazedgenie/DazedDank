@@ -51,7 +51,12 @@ function DashPanel:setInfo(info)
     self.sealScroll = math.max(0, math.min(self.sealScroll or 0, Dash.maxSealScroll(info, fontHeight)))
     self.model = Dash.build(info, self.scroll, fontHeight, measure, self.sealScroll)
     -- A Flower room's Cold nights strip makes the dashboard taller, so the window follows the layout's height.
-    if self.model.height and self.model.height ~= self.height then self:setHeight(self.model.height) end
+    if self.model.height and self.model.height ~= self.height then
+        self:setHeight(self.model.height)
+        -- Taller than the height the window was placed with: pull it up so the bottom stays on screen.
+        local over = self:getY() + self.model.height - getCore():getScreenHeight()
+        if over > 0 then self:setY(math.max(0, self:getY() - over)) end
+    end
     -- An open All plants window shows the same fresh reply.
     if self.listWindow then self.listWindow:setInfo(info) end
 end
