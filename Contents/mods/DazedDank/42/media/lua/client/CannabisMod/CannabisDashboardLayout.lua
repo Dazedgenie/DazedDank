@@ -37,7 +37,6 @@ function Dash.coldNightsText(cn, temp)
     return "Waiting for late flower", C.muted
 end
 
---- A plant card's cold night tag as { text, pill or color } (`pill` draws a purple pill), or nil when there is nothing to show.
 --- A crop key as words: "SweetPotato" is "Sweet Potato". Pure, for crops with no translation.
 function Dash.cropLabel(crop)
     local s = tostring(crop or "")
@@ -45,6 +44,12 @@ function Dash.cropLabel(crop)
     return s
 end
 
+--- "1 other crop", "3 other crops".
+function Dash.otherCropsText(n)
+    return n .. (n == 1 and " other crop" or " other crops")
+end
+
+--- A plant card's cold night tag as { text, pill or color } (`pill` draws a purple pill), or nil when there is nothing to show.
 function Dash.coldTag(cold)
     if not cold then return nil end
     if cold.rolled then
@@ -140,11 +145,13 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     local mw = measure("Small", mode) + 20
     button(nx + 10, (HEAD_H - small - 6) / 2, mw, small + 6, mode, "mode", true)
     local counts = (info.tiles or 0) .. " tiles  |  " .. #(info.lamps or {}) .. " lamps  |  " .. #(info.plants or {}) .. " plants"
-    if (info.othersTotal or 0) > 0 then counts = counts .. "  |  " .. info.othersTotal .. " other crops" end
-    text(counts, nx + mw + 20, (HEAD_H - small) / 2, { 0.79, 0.75, 0.88 })
+    if (info.othersTotal or 0) > 0 then counts = counts .. "  |  " .. Dash.otherCropsText(info.othersTotal) end
     -- Refresh asks the server for the room again; the close button sits to its right as a child of the window.
     -- The label shows the last refresh's outcome for a moment ("Updated", "No reply"); the width fits the longest.
     local rw = math.max(measure("Small", "Refresh"), measure("Small", "No reply"), measure("Small", "Updated")) + 20
+    -- The counts stop short of the clock, so a long room name or many crops can't run under it.
+    local countsW = W - 44 - rw - 20 - measure("Small", "00:00") - (nx + mw + 20)
+    text(fit(counts, "Small", countsW), nx + mw + 20, (HEAD_H - small) / 2, { 0.79, 0.75, 0.88 })
     button(W - 44 - rw, (HEAD_H - small - 6) / 2, rw, small + 6, info.refreshLabel or "Refresh", "refresh", true)
     text(string.format("%02d:00", info.hour or 0), W - 44 - rw - 10, (HEAD_H - small) / 2, C.white, "Small", "right")
 
@@ -264,7 +271,7 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     if #plants == 0 then
         card(A.x, A.y, A.w, A.h)
         local empty = "No plants in this room yet."
-        if otherN > 0 then empty = "No cannabis plants. " .. (info.othersTotal or otherN) .. " other crops: View all" end
+        if otherN > 0 then empty = "No cannabis plants. " .. Dash.otherCropsText(info.othersTotal or otherN) .. ": View all" end
         text(empty, A.x + A.w / 2, A.y + A.h / 2 - small / 2, C.muted, "Small", "center")
     else
         ops[#ops + 1] = { kind = "clip", x = A.x, y = A.y, w = A.w, h = A.h }

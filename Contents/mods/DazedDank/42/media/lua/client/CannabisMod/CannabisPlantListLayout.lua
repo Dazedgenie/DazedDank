@@ -115,7 +115,7 @@ function PL.build(info, sort, scroll, fontH, measure)
     -- Title bar with the count; the close button sits on it as a child of the window.
     ops[#ops + 1] = { kind = "rect", x = 0, y = 0, w = W, h = HEAD_H, color = C.head, a = 1 }
     local title = "All plants (" .. #plants .. ")"
-    if total > 0 then title = title .. " + " .. total .. " other crops" end
+    if total > 0 then title = title .. " + " .. total .. (total == 1 and " other crop" or " other crops") end
     text(title, M, (HEAD_H - medium) / 2, C.white, "Medium")
 
     local cardY = HEAD_H + M

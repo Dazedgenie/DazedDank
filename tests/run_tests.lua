@@ -5107,10 +5107,13 @@ do
         local tomato = cropAt(5601, 5603, "Tomato", { waterLvl = 80.7 })
         cropAt(5602, 5603, "Cannabis")
         local gone = cropAt(5603, 5603, "Potato", { state = "harvested" })
+        do local bare = newPlot(5600, 5603, 0); bare.state, bare.typeOfSeed, bare.nbOfGrow = "seeded", "Lettuce", 2 end
         local rows, total = Rm.otherCropRows(key)
         check("dd56.4: the tomato is listed with crop, stage and water", total == 1 and #rows == 1 and rows[1].crop == "Tomato"
             and rows[1].nb == 3 and rows[1].full == 7 and rows[1].water == 80 and not rows[1].dead and not rows[1].thirsty)
-        check("dd56.4: cannabis and harvested plots are not listed", total == 1)
+        check("dd56.4: cannabis, harvested and bagless plots are not listed", total == 1 and (function()
+            for _, t in ipairs(Rm.tileListOf(key) or {}) do if t.x == 5600 and t.y == 5603 then return true end end
+        end)())
         local dry = cropAt(5604, 5603, "Cabbage", { waterLvl = 10 })
         local dead = cropAt(5604, 5602, "Carrots", { state = "dead", waterLvl = 90 })
         rows, total = Rm.otherCropRows(key)
@@ -5259,7 +5262,16 @@ do
         local noCannabis = room("Veg", nil); noCannabis.plants = {}; noCannabis.others, noCannabis.othersTotal = { others[3] }, 1
         local nm = Dash.build(noCannabis, 0, fh, ms)
         check("dd56.4: View all shows with no cannabis but one crop", hitIds(nm).allPlants ~= nil)
-        check("dd56.4: the empty state names the crops", textOp(nm, "No cannabis plants. 1 other crops: View all") ~= nil)
+        check("dd56.4: the empty state names the crops", textOp(nm, "No cannabis plants. 1 other crop: View all") ~= nil)
+        check("dd56.4: one crop is singular", Dash.otherCropsText(1) == "1 other crop" and Dash.otherCropsText(2) == "2 other crops")
+        do
+            local long = room("Veg", nil); long.name = string.rep("W", 40); long.tiles = 400; long.others, long.othersTotal = others, 40
+            local lmw = Dash.build(long, 0, fh, ms)
+            local clock = textOp(lmw, string.format("%02d:00", long.hour or 0))
+            local countOp = textHas(lmw, " tiles  |  ")
+            check("dd56.4: the header counts stop short of the clock", countOp ~= nil and clock ~= nil
+                and countOp.x + ms("Small", countOp.text) <= clock.x - ms("Small", clock.text))
+        end
         local empty = room("Veg", nil); empty.plants = {}
         check("dd56.4: nothing at all keeps the old empty state", hitIds(Dash.build(empty, 0, fh, ms)).allPlants == nil
             and textOp(Dash.build(empty, 0, fh, ms), "No plants in this room yet.") ~= nil)
