@@ -142,8 +142,39 @@ def dial(c, r, m_face="#e9e4d4", m_knob="#2a2b2d", pointer=30):
         mat("#e6e6e2", 0.4, dirt=0, wear=False), rot=(0, math.degrees(a), 0), bevel=0)
 
 
-def label(c, size, col="#d9d2bd", axis="Y"):
-    box(size, c, mat(col, 0.7, var=0.05, dirt=0.25), bevel=0.0)
+def label(c, size, col="#d9d2bd", axis="Y", rot=(0, 0, 0)):
+    box(size, c, mat(col, 0.7, var=0.05, dirt=0.25), rot=rot, bevel=0.0)
+
+
+def print_rows(xr, y, z, n, gap=0.01, col="#3a3a3a"):
+    """Little printed text lines on a face facing -Y, from x0 to x1, the first at height z."""
+    for i in range(n):
+        w = (xr[1] - xr[0]) * (1.0 if i == 0 else 0.55 + 0.35 * ((i * 37) % 7) / 7)
+        box((w, 0.0015, 0.003), (xr[0] + w / 2, y, z - i * gap), mat(col, 0.6, dirt=0, wear=False), bevel=0)
+
+
+def back_panel(w, h, z, col="#9a9fa3", fins=False):
+    """What the N and W cells show of a wall unit: its back on the wall plane, with two keyhole mounting rails,
+    their screws, a rating plate, vent slots and the cable entry. `fins`: a condenser coil instead of the vents."""
+    y = B + 0.003
+    steel = mat("#8d9196", 0.42, 0.6, dirt=0.25)
+    for zz in (z + h * 0.32, z - h * 0.32):
+        box((w * 0.86, 0.006, 0.026), (0, y, zz), steel, bevel=0.002)
+        for x in (-w * 0.36, w * 0.36): screw((x, y + 0.004, zz), r=0.006)
+    plate = Vector((w * 0.2, y + 0.001, z + h * 0.08))
+    box((0.09, 0.003, 0.055), plate, mat("#c9cccf", 0.35, 0.6, dirt=0.15), bevel=0)
+    for i in range(4):
+        box((0.06 - (i % 2) * 0.02, 0.002, 0.004), plate + Vector((-0.008, 0.002, 0.018 - i * 0.011)), mat("#3a3a3a", 0.6, dirt=0, wear=False), bevel=0)
+    if fins:
+        for i in range(int(w / 0.014)):
+            box((0.003, 0.012, h * 0.5), (-w / 2 + 0.03 + i * 0.014, y + 0.004, z - h * 0.05), mat("#a8a69c", 0.4, 0.6, dirt=0.3), bevel=0)
+        box((w * 0.9, 0.006, 0.012), (0, y + 0.006, z + h * 0.2), steel, bevel=0.002)
+        box((w * 0.9, 0.006, 0.012), (0, y + 0.006, z - h * 0.3), steel, bevel=0.002)
+    else:
+        for i in range(6):
+            for j in range(3):
+                box((0.03, 0.003, 0.008), (-w * 0.28 + i * 0.038, y + 0.001, z - h * 0.06 - j * 0.022), mat("#232425", 0.7, dirt=0), bevel=0)
+    cyl(0.016, 0.01, (-w * 0.35, y + 0.003, z - h * 0.16), mat("#2b2c2e", 0.5), axis="Y", segs=12)
 
 
 # ------------------------------------------------------------------ 0-3 grow room panel
@@ -172,8 +203,9 @@ def grow_panel():
     box((0.006, 0.004, 0.04), tc + Vector((0, -0.016, 0.06)), mat("#c23a2e", 0.5, dirt=0), bevel=0)
     # temperature / humidity gauge and a red LED readout
     gauge((0.085, fy - 0.002, z + 0.12), (0, 0, 0), 0.04, 0.55, rim="#b5b8bb")
-    box((0.1, 0.008, 0.035), (0.085, fy - 0.002, z + 0.035), mat("#141414", 0.4, dirt=0, wear=False), bevel=0.002)
-    box((0.07, 0.004, 0.018), (0.085, fy - 0.006, z + 0.035), glow("#ff4a32", 4.0), bevel=0)
+    box((0.11, 0.008, 0.045), (0.085, fy - 0.002, z + 0.035), mat("#1b2a20", 0.2, dirt=0, wear=False), bevel=0.002)
+    box((0.095, 0.004, 0.032), (0.085, fy - 0.006, z + 0.035), glow("#6dff8a", 3.2), bevel=0)
+    for i in range(3): box((0.05 - i * 0.012, 0.002, 0.004), (0.07 - i * 0.006, fy - 0.009, z + 0.045 - i * 0.009), mat("#123a1c", 0.5, dirt=0, wear=False), bevel=0)
     # pilot lamps: power green, lights amber, fault red (dark)
     for x, col, lit in ((-0.1, "#6fe07a", True), (-0.05, "#f2b63c", True), (0.0, "#d84a3a", False)):
         cyl(0.013, 0.006, (x, fy, z - 0.03), mat("#2b2c2e", 0.5), axis="Y", segs=14)
@@ -186,6 +218,31 @@ def grow_panel():
     box((0.06, 0.003, 0.004), (0.075, fy - 0.004, z - 0.09), mat("#3a3a3a", 0.6, dirt=0), bevel=0)
     box((0.05, 0.003, 0.004), (0.075, fy - 0.004, z - 0.11), mat("#3a3a3a", 0.6, dirt=0), bevel=0)
     label((0, fy - 0.001, z - 0.175), (0.2, 0.004, 0.028), "#c9b779")
+    # corner screws on the door, side vents, a warning sticker and the probe lead
+    for sx in (-1, 1):
+        for sz in (-1, 1): screw((sx * (w / 2 - 0.03), B - d - 0.007, z + sz * (h / 2 - 0.03)), r=0.006)
+    for i in range(6):
+        box((0.004, 0.05, 0.008), (w / 2 + 0.001, B - 0.05, z + 0.12 - i * 0.02), mat("#2b2c2e", 0.6), bevel=0)
+    back_panel(w, h, z)
+    tri = mat("#e1c43f", 0.6, dirt=0.1)
+    for k in range(5):
+        box((0.036 - k * 0.007, 0.003, 0.006), (0.12, fy - 0.001, z - 0.155 + k * 0.006), tri, bevel=0)
+    box((0.003, 0.0035, 0.012), (0.12, fy - 0.002, z - 0.143), mat("#1a1a1a", 0.6, dirt=0, wear=False), bevel=0)
+    # cable glands under the box with two leads down the wall
+    for i, x in enumerate((-0.09, -0.03, 0.05)):
+        cyl(0.014, 0.022, (x, B - 0.05, z - h / 2 - 0.01), mat("#2b2c2e", 0.5), segs=12)
+        cyl(0.017, 0.006, (x, B - 0.05, z - h / 2 - 0.002), mat("#3a3c3f", 0.5), segs=6)
+    if not ICON[0]:
+        path([(-0.09, B - 0.05, z - h / 2 - 0.02), (-0.095, B - 0.03, z - h / 2 - 0.12), (-0.1, B - 0.014, 0.6),
+              (-0.1, B - 0.014, 0.04), (-0.07, B - 0.04, 0.01)], 0.006, mat("#1f1f21", 0.6, dirt=0.1), segs=8)
+        path([(-0.03, B - 0.05, z - h / 2 - 0.02), (-0.03, B - 0.03, z - h / 2 - 0.1), (-0.035, B - 0.014, 0.9),
+              (-0.035, B - 0.014, 0.04), (0.0, B - 0.05, 0.01)], 0.005, mat("#c9c3ae", 0.6, dirt=0.1), segs=8)
+        for zz in (0.5, 0.85): box((0.09, 0.012, 0.01), (-0.065, B - 0.008, zz), p["steel"], bevel=0.002)
+    # probe on a short lead
+    if not ICON[0]:
+        path([(0.05, B - 0.05, z - h / 2 - 0.02), (0.07, B - 0.06, z - h / 2 - 0.08), (0.13, B - 0.05, z - h / 2 - 0.1)],
+             0.003, mat("#d9d5c6", 0.6, dirt=0), segs=6)
+        cyl(0.008, 0.04, (0.15, B - 0.05, z - h / 2 - 0.1), p["steel"], axis="X", segs=10)
     # conduit up to the ceiling from the top, and a strap
     cyl(0.02, 0.02, (0.1, B - 0.045, z + h / 2 + 0.01), p["steel_dark"], segs=12)
     if not ICON[0]:
@@ -206,6 +263,11 @@ def curtain(width, height, bottom):
     for x in (-width / 2 - 0.05, width / 2 + 0.05):
         ball(0.014, (x, B - 0.018, rz), mat("#6b6e72", 0.35, 0.7, dirt=0.15))
         box((0.012, 0.018, 0.03), (x, B - 0.009, rz), p["steel_dark"], bevel=0.002)
+    box((width, 0.014, 0.05), (0, B - 0.03, bottom + height - 0.02), mat("#24202a", 0.95, var=0.08, dirt=0.15), bevel=0.003)
+    stitch = mat("#4a4452", 0.8, dirt=0)
+    for zz in (bottom + height - 0.044, bottom + 0.022):
+        for i in range(int(width / 0.02)):
+            box((0.012, 0.002, 0.002), (-width / 2 + 0.01 + i * 0.02, B - 0.038, zz), stitch, bevel=0)
     n = max(5, round(width / 0.11))
     for i in range(n + 1):
         x = -width / 2 + width * i / n
@@ -237,7 +299,25 @@ def wall_fan(kind):
     for sx in (-1, 1):
         for sz in (-1, 1): screw((sx * (s / 2 - 0.015), B - d - 0.001, z + sz * (s / 2 - 0.015)))
     label((-0.15, B - d - 0.001, z - s / 2 + 0.015), (0.08, 0.004, 0.018), "#d0a33a" if kind == "exhaust" else "#d7d5cc")
-    wall_drop(s / 2 - 0.04, B - 0.02, z - s / 2)
+    # wall flange round the housing, bolted on, an airflow arrow and the motor's nameplate
+    fl = mat("#8d9196", 0.45, 0.5, dirt=0.3)
+    for sx in (-1, 1): box((0.035, 0.008, s + 0.07), (sx * (s / 2 + 0.017), B - 0.004, z), fl, bevel=0.002)
+    for sz in (-1, 1): box((s + 0.07, 0.008, 0.035), (0, B - 0.004, z + sz * (s / 2 + 0.017)), fl, bevel=0.002)
+    for sx in (-1, 1):
+        for sz in (-1, 1): screw((sx * (s / 2 + 0.017), B - 0.01, z + sz * (s / 2 + 0.017)), r=0.007)
+    arrow = mat("#e8e4d8" if kind == "intake" else "#2b2c2e", 0.6, dirt=0, wear=False)
+    for k in range(4): box((0.026 - k * 0.006, 0.003, 0.005), (s / 2 - 0.016, B - d - 0.001, z + 0.06 + k * 0.006 * (1 if kind == "exhaust" else -1)), arrow, bevel=0)
+    box((0.006, 0.003, 0.04), (s / 2 - 0.016, B - d - 0.001, z + 0.04 - (0.0 if kind == "exhaust" else 0.04)), arrow, bevel=0)
+    label((0.03, B - 0.07, z + 0.071), (0.05, 0.004, 0.012), "#c9c3ae")
+    # speed controller beside the fan: a small box with a dial, a lamp and the cord down the wall
+    cx = s / 2 + 0.1
+    box((0.08, 0.05, 0.12), (cx, B - 0.025, z - 0.08), mat("#d8d6cf", 0.5, dirt=0.25), bevel=0.008)
+    dial((cx, B - 0.051, z - 0.065), 0.022, pointer=-30)
+    cyl(0.007, 0.005, (cx, B - 0.052, z - 0.118), mat("#2b2c2e", 0.5), axis="Y", segs=10)
+    lamp((cx, B - 0.055, z - 0.118), True, "#6fe07a", 0.006)
+    screw((cx, B - 0.052, z - 0.027), r=0.005); screw((cx, B - 0.052, z - 0.133), r=0.005)
+    cord([(s / 2 - 0.01, B - 0.03, z - 0.17), (s / 2 + 0.03, B - 0.02, z - 0.2), (cx - 0.02, B - 0.02, z - 0.15)], r=0.005)
+    wall_drop(cx + 0.02, B - 0.02, z - 0.14)
 
 
 # ------------------------------------------------------------------ 16-18 floor units (legacy, kept for old saves)
@@ -261,6 +341,11 @@ def oil_radiator():
     for x in (x0 + 0.02, x0 + (n - 1) * pitch - 0.02):
         box((0.035, 0.34, 0.03), (x, 0, 0.075), mat("#c9c3b1", 0.45, 0.15, dirt=0.3), bevel=0.008)
         for y in (-0.15, 0.15): ball(0.022, (x, y, 0.035), p["rubber"])
+    for i in range(n - 1):                                                       # pressed seams between the fins
+        tube((x0 + (i + 0.5) * pitch, -0.11, 0.2), (x0 + (i + 0.5) * pitch, -0.11, 0.58), 0.004, mat("#c4bead", 0.45, dirt=0.3), 6)
+    box((0.004, 0.08, 0.03), (cx + 0.037, -0.02, 0.43), mat("#c23a2e", 0.5, dirt=0.05), bevel=0)             # power rocker
+    label((x0 + 0.1, -0.121, 0.62), (0.1, 0.004, 0.03), "#c9b779")
+    box((0.08, 0.02, 0.03), (x0 + 0.17, 0.0, 0.66), cream, bevel=0.008)                                        # carry handle
     cord([(cx, 0.06, 0.4), (cx + 0.06, 0.12, 0.2), (cx + 0.12, 0.2, 0.015), (cx + 0.2, 0.32, 0.01)])
 
 
@@ -285,6 +370,11 @@ def dehumidifier():
     for x in (-w / 2 + 0.05, w / 2 - 0.05):
         for y in (-dd / 2 + 0.05, dd / 2 - 0.05):
             cyl(0.022, 0.018, (x, y, 0.025), p["rubber"], axis="X", segs=16)
+    for sx in (-1, 1): box((0.008, 0.06, 0.02), (sx * (w / 2 + 0.002), 0.0, z0 + h - 0.06), mat("#2d2e30", 0.6), bevel=0.003)   # grips
+    box((0.06, 0.004, 0.014), (0.0, -dd / 2 - 0.002, z0 + h - 0.035), mat("#5a7a92", 0.5, dirt=0.05), bevel=0)               # badge
+    for i in range(4): box((0.06, 0.004, 0.003), (0.0, -dd / 2 - 0.006, z0 + 0.12 + i * 0.012), mat("#4f86b5", 0.3, dirt=0), bevel=0)
+    for sx in (-1, 1):
+        for sz in (z0 + 0.08, z0 + h - 0.05): screw((sx * (w / 2 - 0.03), -dd / 2 - 0.002, sz), r=0.005)
     cord([(w / 2 - 0.04, dd / 2, z0 + 0.1), (w / 2 + 0.05, dd / 2 + 0.06, 0.012), (w / 2 + 0.12, dd / 2 + 0.02, 0.008)])
 
 
@@ -304,6 +394,12 @@ def humidifier():
     puffs((0, -0.06, 0.5), 5, 0.03, "#eef2f4", 0.28, rise=(0.02, -0.06, 0.5), seed=4)
     dial((0.0, -0.16, 0.08), 0.026)
     lamp((0.06, -0.15, 0.1), True, "#6fe07a", 0.007)
+    for k in range(4):                                                          # level marks on the tank
+        box((0.03 if k % 2 == 0 else 0.018, 0.004, 0.003), (0.0, -0.151, 0.17 + k * 0.05), mat("#e8f2f6", 0.4, dirt=0, wear=False), bevel=0)
+    label((0.0, -0.172, 0.05), (0.08, 0.004, 0.02), "#7a8a99")
+    for i in range(14):                                                         # base vents
+        a = math.radians(200 + i * 10)
+        box((0.006, 0.004, 0.04), (math.cos(a) * 0.168, math.sin(a) * 0.168, 0.07), mat("#4b4d50", 0.5), rot=(0, 0, math.degrees(a) + 90), bevel=0)
     cord([(0.12, 0.1, 0.03), (0.2, 0.18, 0.012), (0.3, 0.22, 0.008)])
 
 
@@ -334,8 +430,18 @@ def wall_heater():
     box((0.03, 0.012, 0.022), (0.17, fy - 0.008, z - 0.03), mat("#1f1f21", 0.5), bevel=0.003)
     lamp((0.17, fy - 0.008, z - 0.075), True, "#ff5a3a", 0.007)
     for x in (-0.18, 0.18): screw((x, B - d / 2, z + h / 2 + 0.001), axis="Z", r=0.006)
+    for i in range(9):                                                         # guard rods over the grille
+        box((0.004, 0.006, 0.23), (-0.2 + i * 0.035, fy - 0.014, z), mat("#b9bcbf", 0.3, 0.8, dirt=0.1), bevel=0)
+    for i in range(7):                                                         # top vents
+        box((0.04, 0.06, 0.004), (-0.18 + i * 0.06, B - d / 2, z + h / 2 + 0.001), mat("#2b2522", 0.6), bevel=0)
+    box((0.07, 0.004, 0.016), (0.17, fy - 0.006, z + 0.1), mat("#c9b779", 0.4, 0.6, dirt=0.05), bevel=0)  # badge
+    back_panel(w, h, z)
+    label((-0.06, fy - 0.001, z - h / 2 + 0.02), (0.12, 0.004, 0.018), "#d9d2bd")
+    for sx in (-1, 1):
+        for sz in (-1, 1): screw((sx * (w / 2 - 0.02), fy - 0.001, z + sz * (h / 2 - 0.02)), r=0.006)
     HEAD.pop()
-    wall_drop(0.2, B - 0.03, z - h / 2 - 0.02)
+    cyl(0.014, 0.025, (0.2, B - 0.03, z - h / 2 - 0.03), mat("#2b2c2e", 0.5), segs=12)
+    wall_drop(0.2, B - 0.03, z - h / 2 - 0.04)
 
 
 def wall_dehumidifier():
@@ -353,6 +459,14 @@ def wall_dehumidifier():
     cyl(0.009, 0.006, (0.15, fy - 0.002, z - 0.09), mat("#2b2c2e", 0.5), axis="Y", segs=12)
     lamp((0.15, fy - 0.006, z - 0.09), True, "#6fe07a", 0.007)
     label((0.15, fy - 0.001, z - 0.14), (0.08, 0.004, 0.018), "#7a8a99")
+    for sx in (-1, 1):
+        for sz in (-1, 1): screw((sx * (w / 2 - 0.022), fy - 0.001, z + sz * (h / 2 - 0.022)), r=0.006)
+    for i in range(8):                                                         # side intake slots
+        box((0.004, 0.1, 0.008), (w / 2 + 0.001, B - d / 2, z - 0.1 + i * 0.026), mat("#34373a", 0.6), bevel=0)
+    box((0.06, 0.004, 0.014), (-0.02, fy - 0.001, z + 0.16), mat("#5a7a92", 0.5, dirt=0.05), bevel=0)        # badge
+    print_rows((0.07, 0.11), fy - 0.004, z - 0.075, 3)
+    back_panel(w, h, z)
+    for i in range(9): box((0.36, 0.008, 0.004), (0, B - d / 2 - 0.02 + (i - 4) * 0.012, z + h / 2 + 0.001), mat("#34373a", 0.6), bevel=0)
     cyl(0.014, 0.03, (0.18, B - 0.07, z - h / 2 - 0.01), p["steel"], segs=12)
     if not ICON[0]:
         cord([(0.18, B - 0.07, z - h / 2 - 0.02), (0.185, B - 0.05, z - h / 2 - 0.15), (0.19, B - 0.02, 0.2),
@@ -375,6 +489,13 @@ def wall_humidifier():
     cyl(0.009, 0.006, (0.13, fy - 0.002, z - 0.0), mat("#2b2c2e", 0.5), axis="Y", segs=12)
     lamp((0.13, fy - 0.006, z - 0.0), True, "#6fe07a", 0.007)
     label((0.11, fy - 0.001, z - 0.09), (0.1, 0.004, 0.02), "#d9d2bd")
+    for sx in (-1, 1):
+        for sz in (-1, 1): screw((sx * (w / 2 - 0.02), fy - 0.001, z + sz * (h / 2 - 0.02)), r=0.006)
+    for i in range(6): box((0.03, 0.004, 0.003), (-0.13, fy - 0.007, z - 0.105 + i * 0.016), mat("#e8e4d8", 0.5, dirt=0, wear=False), bevel=0)
+    for i in range(7):
+        box((0.004, 0.1, 0.008), (w / 2 + 0.001, B - d / 2, z - 0.09 + i * 0.026), mat("#22303b", 0.6), bevel=0)
+    print_rows((0.07, 0.15), fy - 0.004, z - 0.12, 2)
+    back_panel(w, h, z)
     for x in (-0.09, 0.09):                                                              # mist heads
         cyl(0.028, 0.04, (x, B - 0.08, z + h / 2 + 0.02), mat("#d8dadb", 0.4), segs=18)
         cyl(0.02, 0.01, (x, B - 0.08, z + h / 2 + 0.042), mat("#2b2c2e", 0.5), segs=14)
@@ -410,6 +531,16 @@ def wall_ac():
     dial((0.225, fy - 0.004, z - 0.01), 0.03, pointer=60)
     label((0.225, fy - 0.004, z - 0.1), (0.08, 0.004, 0.02), "#7d8a96")
     box((0.06, 0.004, 0.012), (0.225, fy - 0.006, z - 0.145), mat("#a07f3e", 0.4, 0.6, dirt=0), bevel=0)
+    for sx in (-1, 1):
+        for sz in (-1, 1): screw((sx * (w / 2 - 0.018), fy - 0.001, z + sz * (h / 2 - 0.018)), r=0.006)
+    for i in range(8):                                                         # sleeve side louvres
+        box((0.006, 0.12, 0.012), (w / 2 - 0.004, B - 0.12, z - 0.14 + i * 0.04), mat("#7d786b", 0.6), rot=(0, 0, 0), bevel=0.001)
+    box((0.1, 0.004, 0.02), (0.225, fy - 0.004, z + 0.145), mat("#2f4a78", 0.5, dirt=0.05), bevel=0)    # energy sticker
+    box((0.05, 0.004, 0.012), (0.225, fy - 0.006, z + 0.145), mat("#e1c43f", 0.5, dirt=0, wear=False), bevel=0)
+    cyl(0.01, 0.02, (-w / 2 + 0.06, B - 0.06, z - h / 2 - 0.005), mat("#2b2c2e", 0.5), segs=10)        # drip spout
+    back_panel(w - 0.04, h - 0.04, z, fins=True)
+    for i in range(10):                                                        # top vents on the sleeve
+        box((0.05, 0.12, 0.004), (-w / 2 + 0.06 + i * 0.058, B - 0.12, z + h / 2 - 0.009), mat("#7d786b", 0.6), bevel=0)
     wall_drop(w / 2 - 0.03, B - 0.03, z - h / 2)
 
 
@@ -422,6 +553,7 @@ def circ_fan():
     chrome = mat("#c3c6c8", 0.3, 0.8, dirt=0.15)
     box((0.1, 0.02, 0.15), (0, B - 0.01, z + 0.05), body, bevel=0.008)
     for zz in (z + 0.0, z + 0.1): screw((0, B - 0.021, zz), r=0.006)
+    label((0, B - 0.021, z + 0.05), (0.05, 0.004, 0.02), "#c9c3ae")
     tube((0, B - 0.02, z + 0.02), (0, B - 0.07, z + 0.0), 0.016, body)
     ball(0.024, (0, B - 0.07, z), body)
     HEAD.append(HEAD[-1] @ M((0, B - 0.07, z)) @ M((0, 0, 0), (-14, 0, 0)) @ M((0, -B + 0.07, -z)))
@@ -435,6 +567,10 @@ def circ_fan():
     cyl(0.035, 0.03, fh, body, axis="Y", segs=20)
     guard(fh + Vector((0, -0.03, 0)), 0.19, chrome, rings=(0.3, 0.55, 0.8), spokes=24, depth=0.04)
     cyl(0.045, 0.012, fh + Vector((0, -0.075, 0)), mat("#3c5f86", 0.4, dirt=0), axis="Y", segs=24)       # badge
+    torus(0.045, 0.004, fh + Vector((0, -0.08, 0)), chrome, axis="Y", seg=24, rseg=5)
+    box((0.04, 0.004, 0.008), fh + Vector((0, -0.083, 0)), mat("#e8e4d8", 0.5, dirt=0, wear=False), bevel=0)
+    for k in range(4): box((0.012, 0.03, 0.008), c + Vector((-0.02 + k * 0.013, 0.1, 0.035)), body, bevel=0.002)   # speed keys
+    for i in range(5): box((0.004, 0.035, 0.03), c + Vector((-0.04 + i * 0.02, 0.04, -0.052)), mat("#3a3a38", 0.6), bevel=0)
     HEAD.pop()
     if not ICON[0]:
         path([(0.04, B - 0.08, z - 0.06), (0.05, B - 0.085, z - 0.3)], 0.002, mat("#d9d5c6", 0.6, dirt=0))
@@ -459,6 +595,16 @@ def drip_tank():
     box((0.04, 0.02, 0.5), tc + Vector((0.13, -0.25, 0.36)), mat("#cfd6d4", 0.15, alpha=0.65, dirt=0), rot=(0, 0, -30), bevel=0.004)
     box((0.026, 0.022, 0.3), tc + Vector((0.13, -0.25, 0.26)), mat("#4f86b5", 0.2, dirt=0), rot=(0, 0, -30), bevel=0.003)
     cyl(0.035, 0.04, tc + Vector((0, 0, 0.02)), green, segs=16)
+    for k in range(5):                                                          # level marks beside the sight tube
+        box((0.03 if k % 2 == 0 else 0.018, 0.004, 0.004), tc + Vector((0.165, -0.232, 0.16 + k * 0.1)), mat("#e8e4d8", 0.5, dirt=0, wear=False), rot=(0, 0, -30), bevel=0)
+    la = math.radians(-120)
+    label(tc + Vector((math.cos(la) * 0.283, math.sin(la) * 0.283, 0.48)), (0.14, 0.004, 0.09), "#d9d2bc", rot=(0, 0, math.degrees(la) + 90))
+    box((0.13, 0.004, 0.012), tc + Vector((math.cos(la) * 0.286, math.sin(la) * 0.286, 0.505)), mat("#3f8a3e", 0.5, dirt=0), rot=(0, 0, math.degrees(la) + 90), bevel=0)
+    # ball valve on the outlet and the water-line inlet at the top
+    vc = tc + Vector((0.2, -0.2, 0.06))
+    cyl(0.022, 0.05, vc, p["brass"], axis="X", rot=(0, 90, -45), segs=14)
+    box((0.06, 0.012, 0.008), vc + Vector((0, 0, 0.03)), mat("#c23a2e", 0.5), rot=(0, 0, 45), bevel=0.002)
+    cyl(0.018, 0.04, tc + Vector((0.08, 0.1, 0.78)), mat("#2c3a2d", 0.55), segs=12)
     # pump on a block, its timer and the outlet
     box((0.16, 0.16, 0.06), (0.3, -0.16, 0.03), p["cinder"], bevel=0.006)
     cyl(0.06, 0.12, (0.3, -0.16, 0.12), mat("#2f3236", 0.5, 0.4, dirt=0.2), axis="X", segs=24)
