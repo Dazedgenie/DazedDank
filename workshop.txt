@@ -3,7 +3,7 @@ id=3816693450
 title=Dazed Dank
 description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're not comfortable with that, please stop reading here.
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/banner.jpg[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/banner.jpg?v=2[/img]
 description=
 description=Grow cannabis the way it's really done: sexed seeds, strains and breeding, light cycles, feeding, cloning, grow bags, three hydro systems, climate-controlled grow rooms, drying, trimming, curing and smoking. Every step matters to the quality of what you harvest. Made by a working grower for [b]Build 42[/b].
 description=
@@ -15,8 +15,8 @@ description=[tr][td][b]Works with[/b][/td][td]Dazed Core, Climate and Plumbing (
 description=[tr][td][b]Mod ID[/b][/td][td]DazedDank[/td][/tr]
 description=[/table]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-grow.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/stages.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-grow.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/stages.png?v=2[/img]
 description=[list]
 description=[*]Cannabis is a normal farm crop: plow, [b]Sow Seed[/b], water, harvest. It grows indoors too.
 description=[*]Feed [b]Veg[/b] food in veg and [b]Bloom[/b] food in flower, once per stage. [b]Top Plant[/b] for more buds.
@@ -24,84 +24,84 @@ description=[*][b]Strip Fan Leaves[/b] in late veg and early flower for better b
 description=[*][b]Inspect Cannabis Plant[/b] opens a status window with stage, water, health and warnings.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-light.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/lights.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-light.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/lights.png?v=2[/img]
 description=[list]
 description=[*]Ceiling lamps hang indoors; flood lights stand anywhere. All need power.
 description=[*]A [b]Light Timer[/b] runs [b]18/6[/b] to hold plants in veg, where extra days add yield, or [b]12/12[/b] to flower.
 description=[*]Veg light reaching a 12/12 plant in its dark hours is a [b]light leak[/b]: stress, and maybe a hermie.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-bags.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/bags.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-bags.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/bags.png?v=2[/img]
 description=[list]
 description=[*][b]Small, Large and XL Grow Bags[/b] place like furniture. Fill them with potting soil once and they're reusable.
 description=[*]A [b]drip tank[/b] keeps soil pots evenly watered.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-hydro.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/hydro.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-hydro.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/hydro.png?v=2[/img]
 description=[list]
 description=[*][b]DWC[/b] buckets, [b]RDWC[/b] with up to 6 sites on one reservoir, and [b]Ebb and Flow[/b] flood tables on a timer.
 description=[*]Plants drink and eat from the reservoir: top it up, dose it, change it.
 description=[*]A dead air pump or stale water brings [b]root rot[/b]. Catch it early: change the water and treat with bleach.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-breed.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/strains.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-breed.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/strains.png?v=2[/img]
 description=[list]
 description=[*]Six starter strains with hidden potency, yield and flowering speed. Cross two and you get a new named strain.
 description=[*]Males show at pre-flower. [b]Pull Male Plant[/b], or keep one near your females for seeds.
 description=[*]Stressed females can turn [b]hermie[/b] and seed the whole room. Cold nights in late flower can turn buds [b]purple[/b].
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-clone.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/cloning.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-clone.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/cloning.png?v=2[/img]
 description=Clones keep their mother's genetics, with a little drift each generation. Keep a mother in an XL pot for steady cuttings.
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-rooms.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/rooms.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/roomgear.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-rooms.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/rooms.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/roomgear.png?v=2[/img]
 description=[list]
 description=[*]Hang a [b]Grow Room Panel[/b] in a closed room: one light schedule and one dashboard for every lamp, plant and reservoir inside.
 description=[*]Set the room to Veg, Flower or Drying. Fans, AC, heater and (de)humidifiers hold it in range on their own.
 description=[*]Open doors and bare windows leak light. Hang a sheet to seal them.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-cure.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/curing.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-cure.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/curing.png?v=2[/img]
 description=[list]
 description=[*]Hang wet plants on a [b]Drying Rack[/b]. Leave them too long and they over-dry; damp and rain bring mold.
 description=[*]Cure in a [b]Curing Jar[/b] or [b]Curing Barrel[/b]. Burp every day and a half or risk mold.
 description=[*]Buds are named by quality, up to [b]Top Shelf[/b] from RDWC. Fan leaves dry and cure into hemp wraps.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-smoke.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/smoking.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-smoke.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/smoking.png?v=2[/img]
 description=[list]
 description=[*][b]Roll Joint[/b], [b]Smoke in Pipe[/b], or [b]Roll Blunt[/b] in a hemp wrap or tobacco leaf. A blunt lasts 3 sessions: put it out and relight it later.
 description=[*]Tolerance builds with every dose. Regular use builds dependency, and going without brings withdrawal.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-people.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/people.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-people.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/people.png?v=2[/img]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-skill.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/skill.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-skill.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/skill.png?v=2[/img]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-parts.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/gear.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-parts.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/gear.png?v=2[/img]
 description=Everything is craftable once learned from the [b]Grower's Handbook[/b], [b]Hydroponics Monthly[/b] and [b]Controlled Environment Quarterly[/b].
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-compat.png[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/compat.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-compat.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/compat.png?v=2[/img]
 description=[list]
 description=[*]Single player and multiplayer. 22 sandbox options, from growth speed and mold to light leaks and room climate.
 description=[*][b]Dazed Power[/b] isn't needed. Dank gear runs in any building with power, including one Power has wired, but it doesn't register as Power loads.
 description=[*]The [b]Dazed Dank: Garden Crops[/b] add-on lets vanilla crops grow in Dank's bags and hydro.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-help.png[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-help.png?v=2[/img]
 description=Found a bug? Post in [b]Discussions[/b] with what happened and your console.txt.
 description=
 description=[hr][/hr]
