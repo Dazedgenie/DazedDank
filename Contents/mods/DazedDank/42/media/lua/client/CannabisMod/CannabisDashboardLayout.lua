@@ -38,6 +38,13 @@ function Dash.coldNightsText(cn, temp)
 end
 
 --- A plant card's cold night tag as { text, pill or color } (`pill` draws a purple pill), or nil when there is nothing to show.
+--- A crop key as words: "SweetPotato" is "Sweet Potato". Pure, for crops with no translation.
+function Dash.cropLabel(crop)
+    local s = tostring(crop or "")
+    s = s:gsub("(%l)(%u)", "%1 %2")
+    return s
+end
+
 function Dash.coldTag(cold)
     if not cold then return nil end
     if cold.rolled then
@@ -133,6 +140,7 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     local mw = measure("Small", mode) + 20
     button(nx + 10, (HEAD_H - small - 6) / 2, mw, small + 6, mode, "mode", true)
     local counts = (info.tiles or 0) .. " tiles  |  " .. #(info.lamps or {}) .. " lamps  |  " .. #(info.plants or {}) .. " plants"
+    if (info.othersTotal or 0) > 0 then counts = counts .. "  |  " .. info.othersTotal .. " other crops" end
     text(counts, nx + mw + 20, (HEAD_H - small) / 2, { 0.79, 0.75, 0.88 })
     -- Refresh asks the server for the room again; the close button sits to its right as a child of the window.
     -- The label shows the last refresh's outcome for a moment ("Updated", "No reply"); the width fits the longest.
@@ -248,13 +256,16 @@ function Dash.build(info, scroll, fontH, measure, sealScroll)
     label("Plants", M + 2, A.y - small - 6, "icon_plants")
     local plants = info.plants or {}
     -- "View all" opens the sortable list of every plant; it sits at the right end of the label line, below the Room seal card.
-    if #plants > 0 then
+    local otherN = #(info.others or {})
+    if #plants + otherN > 0 then
         local bw = measure("Small", "View all") + 20
         button(A.x + A.w - bw, A.y - small - 9, bw, small + 6, "View all", "allPlants")
     end
     if #plants == 0 then
         card(A.x, A.y, A.w, A.h)
-        text("No plants in this room yet.", A.x + A.w / 2, A.y + A.h / 2 - small / 2, C.muted, "Small", "center")
+        local empty = "No plants in this room yet."
+        if otherN > 0 then empty = "No cannabis plants. " .. (info.othersTotal or otherN) .. " other crops: View all" end
+        text(empty, A.x + A.w / 2, A.y + A.h / 2 - small / 2, C.muted, "Small", "center")
     else
         ops[#ops + 1] = { kind = "clip", x = A.x, y = A.y, w = A.w, h = A.h }
         for i, p in ipairs(plants) do

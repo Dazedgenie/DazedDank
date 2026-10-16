@@ -775,6 +775,47 @@ function Rooms.contents(panelKey, fresh)
     return c
 end
 
+--- The vanilla crops (Garden Crops) growing in a room's containers, worked out on demand for the panel.
+--- Dead first, then thirsty, then by crop and tile; at most Config.Rooms.OTHER_CROPS_MAX rows.
+--- Only the crop key is sent; the client translates it.
+--- @return table rows, number total
+function Rooms.otherCropRows(panelKey)
+    local VC, Registry = CannabisMod.VanillaCrops, CannabisMod.Registry
+    if not VC then return {}, 0 end
+    local rows = {}
+    local props = farming_vegetableconf and farming_vegetableconf.props or {}
+    for _, t in ipairs(tileList[panelKey] or {}) do
+        local x, y, z = t.x, t.y, t.z
+        if Registry.hasBagAt(x, y, z) then
+            local ok, plot = pcall(VC.at, x, y, z)
+            if ok and plot and plot.state ~= "harvested" and plot.state ~= "destroyed" then
+                local okRow, row = pcall(function()
+                    local crop = plot.typeOfSeed
+                    local water = plot.waterLvl or 0
+                    local alive = plot:isAlive() and plot.state ~= "dead" and plot.state ~= "rotten"
+                    return {
+                        x = x, y = y, z = z, crop = crop, nb = plot.nbOfGrow or 0,
+                        full = (props[crop] or {}).fullGrown, water = math.floor(water),
+                        dead = not alive, thirsty = alive and water < (plot.waterNeeded or 0),
+                    }
+                end)
+                if okRow and row.crop then rows[#rows + 1] = row end
+            end
+        end
+    end
+    table.sort(rows, function(a, b)
+        if a.dead ~= b.dead then return a.dead end
+        if a.thirsty ~= b.thirsty then return a.thirsty end
+        if a.crop ~= b.crop then return tostring(a.crop) < tostring(b.crop) end
+        if a.x ~= b.x then return a.x < b.x end
+        return a.y < b.y
+    end)
+    local total = #rows
+    local max = Config.Rooms.OTHER_CROPS_MAX
+    for i = total, max + 1, -1 do rows[i] = nil end
+    return rows, total
+end
+
 --- What the panel window shows: the room's settings, its size and every lamp in it.
 function Rooms.info(panelKey, player)
     local room, set = panels[panelKey], tiles[panelKey]
@@ -814,7 +855,9 @@ function Rooms.info(panelKey, player)
         coldNights = { state = Rooms.coldNightsState(room), armed = coldArmed, active = coldActive,
             nightLo = K.COLD_NIGHT.tLo, nightHi = K.COLD_NIGHT.tHi }
     end
+    local others, othersTotal = Rooms.otherCropRows(panelKey)
     return {
+        others = others, othersTotal = othersTotal,
         x = room.x, y = room.y, z = room.z, name = room.name, schedule = room.schedule, mode = room.mode,
         tiles = count, lamps = lamps, hour = hour, openings = Rooms.openingsOf(panelKey),
         reservoirs = Rooms.reservoirRows(panelKey), equipment = Rooms.equipmentRows(panelKey), floodTimer = room.floodTimer == true,

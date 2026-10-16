@@ -712,6 +712,7 @@ Config.Weather = {
 -- Grow rooms: a wall panel claims the indoor floor around it and runs every lamp in it on one schedule.
 Config.Rooms = {
     MAX_TILES = 400,                            -- the flood fill stops growing past this many tiles
+    OTHER_CROPS_MAX = 40,                       -- most vanilla crops (Garden Crops) the panel lists for a room; the rest are only counted
     FALLBACK_RADIUS = 10,                       -- past the cap the room is the indoor tiles within this many tiles of the panel
     SCHEDULES = { "24/0", "18/6", "12/12" },    -- what the panel can set; 24/0 is a lamp with no timer
     DEFAULT_SCHEDULE = "18/6",

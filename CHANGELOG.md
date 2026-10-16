@@ -1,5 +1,9 @@
 # Dazed Dank patch notes
 
+## dd56.4 (Other crops in the grow panel, in testing)
+- Added: with the Dazed Dank: Garden Crops add-on, the grow room panel now counts vanilla crops growing in the room's containers ("N other crops" in the header) and the View all button opens them in a new "Other crops" section of the All plants window: name, stage ("Growing 3/7", "Ready" or "Dead"), water, and a Thirsty or Dead flag. Dead crops list first, then thirsty ones. The section shows up to 40 crops and says "+N more" past that. Crop rows are display only.
+- Without Garden Crops nothing changes.
+
 ## dd56.3 (Cured tobacco, in testing)
 - Added: **Cured Tobacco Leaf.** Vanilla's Dried Tobacco (dried on vanilla's own rack; Dank racks still don't take it) can go in a Dank curing jar or barrel, where it cures like a dried fan leaf: the same share of Curing Time, the same burps and mold risk. Mold carries over the same way; a mold-struck leaf comes out as a Moldy Cured Tobacco Leaf that no recipe accepts.
 - Added: recipe **Shred Cured Tobacco** (Grower's Handbook, or automatic with Recipe Magazine off): 1 Cured Tobacco Leaf plus scissors or a sharp knife (kept) gives 2 loose tobacco, double vanilla's Shred Tobacco.

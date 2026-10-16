@@ -1,11 +1,10 @@
 # Vanilla crops in Dazed Dank containers: design
 
-**Status (2026-10-10):** built in dd56. The rules live in Dazed Dank (`server/CannabisMod/CannabisVanillaCrops.lua` and
+**Status (2026-10-10):** built in dd56; the grow panel's Other crops list in dd56.4. The rules live in Dazed Dank (`server/CannabisMod/CannabisVanillaCrops.lua` and
 the sow, sprite and harvest hooks) and switch on only when the separate **Dazed Dank: Garden Crops** add-on is enabled
 (repo DazedDank-GardenCrops). The add-on supplies the crop list, the soil-only list and a soil-free plant for every
 vanilla crop sprite, cut automatically from the game's own art by its `tools/make_crop_sprites.py`. The plant is drawn
-as a raised layer on the container, the same way as cannabis (no lift on the plot itself). Not built yet: the grow
-panel's "Other crops" list.
+as a raised layer on the container, the same way as cannabis (no lift on the plot itself).
 
 Agreed 2026-10-04. Vanilla crops (tomatoes, lettuce, potatoes and the rest) can be sown into grow bags and hydro containers and grow on vanilla's own rules. No quality, light schedule, nutrients, root rot or room-climate stress for them; vanilla handles growth, watering by hand, pests and harvest.
 
@@ -46,7 +45,7 @@ Agreed 2026-10-04. Vanilla crops (tomatoes, lettuce, potatoes and the rest) can 
 
 ## Grow room panel
 
-- Plants tab: an "Other crops" list with name, stage and water for vanilla crops in the room.
+- Dashboard: the header counts "N other crops" and View all opens the All plants window, which ends with an "Other crops" section (name, stage, water, Thirsty/Dead flag; dead first, then thirsty). The server sends at most 40 rows plus the total, and the window adds "+N more" past that. Rows are display only and computed when the panel asks.
 - Hydro tab: unchanged; its reservoirs already include what vanilla crops drink.
 
 ## Performance

@@ -25,7 +25,8 @@ end
 --- Take the dashboard's fresh info, keeping the sort and keeping the scroll where it still fits.
 function ListPanel:setInfo(info)
     self.info = info
-    local max = PL.metrics(#(info.plants or {}), fontHeight).maxScroll
+    local max = PL.metrics(#(info.plants or {}), fontHeight,
+        #(info.others or {}) + ((info.othersTotal or 0) > #(info.others or {}) and 1 or 0)).maxScroll
     self.scroll = math.max(0, math.min(self.scroll or 0, max))
     self:rebuild()
 end

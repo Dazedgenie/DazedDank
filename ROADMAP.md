@@ -7,4 +7,4 @@
   vanilla smokers.
 - Vanilla crops in grow bags and hydro: design agreed 2026-10-04, see [docs/vanilla-crops.md](docs/vanilla-crops.md).
   First version built in dd56 with the separate **Dazed Dank: Garden Crops** add-on; the grow panel's "Other crops"
-  list is still to do.
+  list is done in dd56.4.

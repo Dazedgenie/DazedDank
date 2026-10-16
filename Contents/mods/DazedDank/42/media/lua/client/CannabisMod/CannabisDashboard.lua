@@ -46,6 +46,13 @@ function DashPanel:setInfo(info)
         self.refreshSent = nil
         info.refreshLabel, self.labelUntil = "Updated", getTimestampMs() + 1500
     end
+    -- The server sends crop keys; name them here, with the key's own words as the fallback.
+    for _, o in ipairs(info.others or {}) do
+        local key = tostring(o.crop)
+        local name = getText("Farming_" .. key)
+        if name == nil or name == "" or name == "Farming_" .. key then name = Dash.cropLabel(key) end
+        o.name = name
+    end
     self.info = info
     self.scroll = math.max(0, math.min(self.scroll or 0, Dash.maxScroll(info)))
     self.sealScroll = math.max(0, math.min(self.sealScroll or 0, Dash.maxSealScroll(info, fontHeight)))

@@ -64,6 +64,7 @@ description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/mai
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/roomgear.png?v=2[/img]
 description=[list]
 description=[*]Hang a [b]Grow Room Panel[/b] in a closed room: one light schedule and one dashboard for every lamp, plant and reservoir inside.
+description=[*]With the Garden Crops add-on, vanilla crops growing in the room's containers show up under View all in an Other crops list.
 description=[*]Set the room to Veg, Flower or Drying. Fans, AC, heater and (de)humidifiers hold it in range on their own.
 description=[*]Open doors and bare windows leak light. Hang a sheet to seal them.
 description=[/list]

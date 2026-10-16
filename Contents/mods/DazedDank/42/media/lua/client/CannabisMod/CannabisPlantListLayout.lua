@@ -66,14 +66,25 @@ end
 
 --- Where the rows sit and how far they can scroll, so the window and the layout agree.
 --- @return table { x, y, w, h, rowH, headH, content, maxScroll }; x/y/w/h is the rows area
-function PL.metrics(count, fontH)
+function PL.metrics(count, fontH, otherCount)
     local small = fontH("Small")
     local rowH, headH = small + 8, small + 10
     local top = HEAD_H + M + headH + 1
     local h = PL.HEIGHT - M - 4 - top
     local content = count * rowH
+    otherCount = otherCount or 0
+    -- The Other crops sub-heading takes one row of its own, then one row per crop (and the "+N more" row, counted by the caller).
+    if otherCount > 0 then content = content + rowH + otherCount * rowH end
     return { x = M, y = top, w = PL.WIDTH - 2 * M, h = h, rowH = rowH, headH = headH, content = content,
         maxScroll = math.max(0, content - h) }
+end
+
+--- A crop row's stage: "Dead", "Ready", "Growing nb/full", or plain "Growing" when the crop's length is unknown.
+function PL.cropStage(o)
+    if o.dead then return "Dead" end
+    if o.full == nil then return "Growing" end
+    if (o.nb or 0) >= o.full then return "Ready" end
+    return "Growing " .. (o.nb or 0) .. "/" .. o.full
 end
 
 --- Build the window for a roomInfo's plants. `sort` is { key, asc } and `scroll` the rows' offset in pixels.
@@ -84,7 +95,10 @@ function PL.build(info, sort, scroll, fontH, measure)
     local small, medium = fontH("Small"), fontH("Medium")
     local plants = info.plants or {}
     sort = sort or PL.DEFAULT_SORT
-    local S = PL.metrics(#plants, fontH)
+    local others = info.others or {}
+    local total = info.othersTotal or #others
+    local more = total > #others
+    local S = PL.metrics(#plants, fontH, #others + (more and 1 or 0))
     scroll = Config.clamp(scroll or 0, 0, S.maxScroll)
 
     local function text(str, x, y, color, font)
@@ -100,7 +114,9 @@ function PL.build(info, sort, scroll, fontH, measure)
 
     -- Title bar with the count; the close button sits on it as a child of the window.
     ops[#ops + 1] = { kind = "rect", x = 0, y = 0, w = W, h = HEAD_H, color = C.head, a = 1 }
-    text("All plants (" .. #plants .. ")", M, (HEAD_H - medium) / 2, C.white, "Medium")
+    local title = "All plants (" .. #plants .. ")"
+    if total > 0 then title = title .. " + " .. total .. " other crops" end
+    text(title, M, (HEAD_H - medium) / 2, C.white, "Medium")
 
     local cardY = HEAD_H + M
     ops[#ops + 1] = { kind = "card", x = M, y = cardY, w = W - 2 * M, h = H - M - cardY, color = C.card, border = C.line }
@@ -118,7 +134,7 @@ function PL.build(info, sort, scroll, fontH, measure)
     ops[#ops + 1] = { kind = "rect", x = M + 4, y = S.y - 1, w = W - 2 * M - 8, h = 1, color = C.line, a = 1 }
 
     local order = PL.order(plants, sort.key, sort.asc)
-    if #plants == 0 then
+    if #plants == 0 and #others == 0 then
         text("No plants in this room yet.", M + 12, S.y + 10, C.muted)
     end
     ops[#ops + 1] = { kind = "clip", x = S.x, y = S.y, w = S.w, h = S.h }
@@ -145,6 +161,39 @@ function PL.build(info, sort, scroll, fontH, measure)
             -- The click region stops at the edges of the rows area, so a half-hidden row can't be hit through the header.
             local top, bottom = math.max(y, S.y), math.min(y + S.rowH, S.y + S.h)
             hits[#hits + 1] = { x = S.x, y = top, w = S.w, h = bottom - top, id = "plant:" .. i }
+        end
+    end
+    if #others > 0 then
+        local base = S.y + #plants * S.rowH - scroll
+        local function inView(y) return y + S.rowH > S.y and y < S.y + S.h end
+        if inView(base) then
+            text("Other crops (" .. total .. ")", M + 8, base + (S.rowH - small) / 2, C.muted)
+        end
+        local K = PL.COLUMNS
+        for i, o in ipairs(others) do
+            local y = base + i * S.rowH
+            if inView(y) then
+                local x = M + 8
+                local function cell(col, str, color)
+                    text(fit(str, "Small", col.w - 6), x, y + (S.rowH - small) / 2, color)
+                    x = x + col.w
+                end
+                local stage = PL.cropStage(o)
+                local state = o.dead and "Dead" or (o.thirsty and "Thirsty" or "-")
+                cell(K[1], o.name or o.crop or "Crop", C.text)
+                cell(K[2], "-", C.muted)
+                cell(K[3], stage, o.dead and C.bad or C.text)
+                cell(K[4], (o.water or 0) .. "%", o.thirsty and C.warn or C.text)
+                cell(K[5], state, o.dead and C.bad or (o.thirsty and C.warn or C.muted))
+                cell(K[6], "-", C.muted)
+                ops[#ops + 1] = { kind = "rect", x = M + 8, y = y + S.rowH - 1, w = W - 2 * M - 16, h = 1, color = C.line, a = 0.6 }
+            end
+        end
+        if more then
+            local y = base + (#others + 1) * S.rowH
+            if inView(y) then
+                text("+" .. (total - #others) .. " more", M + 8, y + (S.rowH - small) / 2, C.muted)
+            end
         end
     end
     ops[#ops + 1] = { kind = "unclip" }

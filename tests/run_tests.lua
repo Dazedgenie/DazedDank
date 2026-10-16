@@ -5093,6 +5093,50 @@ do
     cmd("requestRoom")
     check("dd56: an old room record reads as off", sent[#sent].data.climate.coldNights.state == "off")
 
+    -- dd56.4: vanilla crops in the room's containers (Other crops).
+    do
+        local VCm = CannabisMod.VanillaCrops
+        farming_vegetableconf.props.Tomato = { fullGrown = 7 }
+        local function cropAt(x, y, crop, f)
+            Reg.setBag(x, y, 0, "small")
+            local pl = newPlot(x, y, 0)
+            pl.state, pl.typeOfSeed, pl.nbOfGrow, pl.waterNeeded = "seeded", crop, 3, 50
+            for k, v in pairs(f or {}) do pl[k] = v end
+            return pl
+        end
+        local tomato = cropAt(5601, 5603, "Tomato", { waterLvl = 80.7 })
+        cropAt(5602, 5603, "Cannabis")
+        local gone = cropAt(5603, 5603, "Potato", { state = "harvested" })
+        local rows, total = Rm.otherCropRows(key)
+        check("dd56.4: the tomato is listed with crop, stage and water", total == 1 and #rows == 1 and rows[1].crop == "Tomato"
+            and rows[1].nb == 3 and rows[1].full == 7 and rows[1].water == 80 and not rows[1].dead and not rows[1].thirsty)
+        check("dd56.4: cannabis and harvested plots are not listed", total == 1)
+        local dry = cropAt(5604, 5603, "Cabbage", { waterLvl = 10 })
+        local dead = cropAt(5604, 5602, "Carrots", { state = "dead", waterLvl = 90 })
+        rows, total = Rm.otherCropRows(key)
+        check("dd56.4: dead first, then thirsty, then the rest", total == 3 and rows[1].crop == "Carrots" and rows[1].dead and not rows[1].thirsty
+            and rows[2].crop == "Cabbage" and rows[2].thirsty and rows[3].crop == "Tomato")
+        check("dd56.4: a crop with no known length has no full", rows[2].full == nil)
+        local oldMax = C.Rooms.OTHER_CROPS_MAX
+        check("dd56.4: the cap is 40", oldMax == 40)
+        C.Rooms.OTHER_CROPS_MAX = 2
+        rows, total = Rm.otherCropRows(key)
+        check("dd56.4: the cap keeps the first rows and counts them all", #rows == 2 and total == 3 and rows[1].dead and rows[2].thirsty)
+        C.Rooms.OTHER_CROPS_MAX = oldMax
+        sent = {}
+        cmd("requestRoom")
+        local inf = sent[#sent].data
+        check("dd56.4: room info carries others and the total", #inf.others == 3 and inf.othersTotal == 3 and inf.others[3].crop == "Tomato")
+        CannabisMod.VanillaCrops = nil
+        local none, nt = Rm.otherCropRows(key)
+        sent = {}
+        cmd("requestRoom")
+        check("dd56.4: without Garden Crops others is an empty table", #none == 0 and nt == 0 and type(sent[#sent].data.others) == "table"
+            and #sent[#sent].data.others == 0 and sent[#sent].data.othersTotal == 0)
+        CannabisMod.VanillaCrops = VCm
+        for x = 5601, 5604 do for y = 5602, 5603 do Reg.setBag(x, y, 0, nil) end end
+    end
+
     f.coldNightHours, f.warnings = 7, { coldNight = true }
     r.purpleRolled, r.purple = true, true
     local veg = plantAt(5603, 5602, { stage = C.STAGE.Vegetative })
@@ -5197,6 +5241,47 @@ do
         and pillUnder(offM, textOp(offM, "Off")).color == Lay.COLORS.purple)
     local disabled = room("Flower", cn); disabled.climate.enabled = false
     check("dd56: no strip while room climate is off", not hitIds(Dash.build(disabled, 0, fh, ms))["cold:off"])
+
+    -- dd56.4: Other crops on the dashboard and in the All plants window.
+    do
+        require "CannabisMod/CannabisPlantListLayout"
+        local PL = CannabisMod.PlantListLayout
+        local function textHas(m, frag) for _, op in ipairs(m.ops) do if op.kind == "text" and op.text:find(frag, 1, true) then return op end end end
+        local others = {
+            { x = 1, y = 1, z = 0, crop = "Carrots", name = "Carrots", nb = 2, full = 7, water = 5, dead = true, thirsty = false },
+            { x = 2, y = 1, z = 0, crop = "Cabbage", name = "Cabbage", nb = 3, full = 7, water = 10, dead = false, thirsty = true },
+            { x = 3, y = 1, z = 0, crop = "Tomato", name = "Tomato", nb = 7, full = 7, water = 80, dead = false, thirsty = false },
+        }
+        local withCrops = room("Veg", nil); withCrops.others, withCrops.othersTotal = others, 3
+        local dm = Dash.build(withCrops, 0, fh, ms)
+        check("dd56.4: the header counts other crops", textHas(dm, "3 other crops") ~= nil)
+        check("dd56.4: no other crops, no count", textHas(Dash.build(room("Veg", nil), 0, fh, ms), "other crops") == nil)
+        local noCannabis = room("Veg", nil); noCannabis.plants = {}; noCannabis.others, noCannabis.othersTotal = { others[3] }, 1
+        local nm = Dash.build(noCannabis, 0, fh, ms)
+        check("dd56.4: View all shows with no cannabis but one crop", hitIds(nm).allPlants ~= nil)
+        check("dd56.4: the empty state names the crops", textOp(nm, "No cannabis plants. 1 other crops: View all") ~= nil)
+        local empty = room("Veg", nil); empty.plants = {}
+        check("dd56.4: nothing at all keeps the old empty state", hitIds(Dash.build(empty, 0, fh, ms)).allPlants == nil
+            and textOp(Dash.build(empty, 0, fh, ms), "No plants in this room yet.") ~= nil)
+        local lm = PL.build(withCrops, nil, 0, fh, ms)
+        check("dd56.4: the list title adds the crops", textOp(lm, "All plants (4) + 3 other crops") ~= nil)
+        check("dd56.4: the sub-heading is muted", textOp(lm, "Other crops (3)") ~= nil and textOp(lm, "Other crops (3)").color == Lay.COLORS.muted)
+        check("dd56.4: crop rows draw name, stage and state", textOp(lm, "Carrots") and textOp(lm, "Dead") and textOp(lm, "Growing 3/7")
+            and textOp(lm, "Ready") and textOp(lm, "10%").color == Lay.COLORS.warn and textOp(lm, "Thirsty").color == Lay.COLORS.warn)
+        local cropHit = false
+        for _, h in ipairs(lm.hits) do if not (h.id:find("^sort:") or h.id:find("^plant:")) then cropHit = true end end
+        check("dd56.4: crop rows have no hit regions", not cropHit and #lm.hits == 6 + 4)
+        withCrops.othersTotal = 45
+        local mm = PL.build(withCrops, nil, 0, fh, ms)
+        check("dd56.4: a +N more row when the list is capped", textOp(mm, "+42 more") ~= nil)
+        withCrops.othersTotal = 3
+        local base = PL.metrics(4, fh)
+        local with = PL.metrics(4, fh, 3)
+        check("dd56.4: crop rows add to the scroll range", with.content == base.content + 4 * with.rowH and with.content > base.content)
+        check("dd56.4: PL.cropStage strings", PL.cropStage({ dead = true }) == "Dead" and PL.cropStage({ nb = 7, full = 7 }) == "Ready"
+            and PL.cropStage({ nb = 2, full = 7 }) == "Growing 2/7" and PL.cropStage({ nb = 2 }) == "Growing")
+        check("dd56.4: Dash.cropLabel splits CamelCase", Dash.cropLabel("SweetPotato") == "Sweet Potato" and Dash.cropLabel("Tomato") == "Tomato")
+    end
 
     -- Plant cards: hours so far, then Purple as a pill or "stayed green" muted.
     local tag = textOp(m, "7/12 h cold")
