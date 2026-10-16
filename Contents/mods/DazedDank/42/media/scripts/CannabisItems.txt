@@ -686,6 +686,7 @@ module CannabisMod
         ItemType        = base:normal,
         Weight          = 0.2,
         Icon            = CuredTobacco,
+        WorldStaticModel = TobaccoLeafDried,
         Tooltip         = Tooltip_DD_CuredTobacco,
     }
 
@@ -696,6 +697,7 @@ module CannabisMod
         ItemType        = base:normal,
         Weight          = 0.2,
         Icon            = CuredTobacco,
+        WorldStaticModel = TobaccoLeafDried,
         Tooltip         = Tooltip_DD_MoldyCuredTobacco,
     }
 
