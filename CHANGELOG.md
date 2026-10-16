@@ -1,5 +1,11 @@
 # Dazed Dank patch notes
 
+## dd56.1 (art update)
+- Art: every piece of grow gear is re-rendered in Dazed Power's style with more detail: hanging lamps (the basic ones are now finned UFO LEDs with a purple face, the pro ones hammered reflectors with a ballast and a warm bulb), the large basic and pro bar lamps, both flood stands, grow bags and XL bags, DWC, RDWC and XL DWC buckets, the RDWC control bucket, flood tables and the flood reservoir, the drying rack (the hanging buds look as before), the drying fan, the curing barrel and the ground plot.
+- Art: the grow-room panel, fans, heaters, dehumidifiers, humidifiers, wall AC, circulation fan, curtains and drip tank get more parts (screws, labels, vents, cable glands, a fan speed controller, a green panel display) and a detailed back for the north- and west-facing walls.
+- Art: matching new inventory icons for all of that gear and for the nutrients, rooting gel, rockwool, clay pebbles, soil, cloning dome, curing jar, rolling papers, pipe and the three magazines and handbook; the fan leaf and blunt placeholders are replaced too.
+- Sprites sit where they did: pots, buckets and tables keep their height under the plants, and no sprite names or tile properties changed.
+
 ## dd56 (vanilla crops in containers, in testing)
 - Changed: every debug helper moved under one right-click row, **Dazed Dank debug**, grouped into Showcase setup, Give kit, This plant, Skip time, water fill and Smoker state, instead of 16 loose "[Debug]" rows.
 - Added: **Showcase setup** debug spawns a whole grow for Workshop screenshots around the clicked spot: seedlings, vegetative, flowering or ready-to-harvest plants in grow bags under lamps, a hydro bench (DWC, RDWC and a flood table, filled and fed), or drying and curing (rack with wet plants, fan, jar and barrel of buds). It needs open floor and lights its lamps only where there is power.
