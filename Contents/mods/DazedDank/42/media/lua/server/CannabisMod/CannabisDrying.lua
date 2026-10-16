@@ -35,7 +35,8 @@ CannabisMod.Drying = Drying
 
 -- db.plants[itemId] = { harvest, hours, moldy, sunLoss, at, seen, touched }   plants that have been on a rack
 --                     fan leaves on a rack share this table with leaf = true (and no harvest)
--- db.leaves[itemId]  = { leaf = true, cureHours, moldy, at, seen, touched }   dried fan leaves curing into wraps in a jar
+-- db.leaves[itemId]  = { leaf = true, kind, cureHours, moldy, at, seen, touched }   dried fan leaves (kind nil) and dried tobacco
+--                     (kind "tobacco") curing in a jar
 -- db.buds[itemId]   = { type, quality, cureHours, moldy, moldBaked, moist, at, seen, touched, fromItem }   buds part-way through a cure
 -- db.jars[jarId or "barrel_x_y_z"] = { lastBurp, touched }      db.stations["x_y_z"] = { lastTick }
 -- A bud item carries { type, quality, cureHours, moldy, moldBaked, moist, seeded, genetics, purple } under Config.Drying.BUD_DATA.
@@ -424,7 +425,7 @@ function Drying.advanceJar(jar, buds, elapsed, now, tempC)
     for _, rec in ipairs(buds) do
         rec.cureHours = (rec.cureHours or 0) + elapsed * speed
         -- Fan leaves (rec.leaf) cure in their own, shorter time.
-        local full = rec.leaf and Config.leafCureHours() or Config.cureDays() * 24
+        local full = rec.leaf and Config.cureHoursFor(rec.kind) or Config.cureDays() * 24
         if rec.cureHours < full then curing = true end
         if rec.moist then moist = true end
     end
@@ -479,24 +480,28 @@ local function finishBud(container, item, rec)
     db.buds[item:getID()] = nil
 end
 
---- The curing record for a dried fan leaf in a cure container, made the first time it goes in. Its rack record goes.
+--- The curing record for a dried fan leaf or dried tobacco in a cure container, made the first time it goes in. Its rack record goes.
 local function leafCureRecord(item)
     local id = item:getID()
     local rec = db.leaves[id]
     if rec then return rec end
+    local kind = Config.cureKindOf(item:getFullType())
     rec = { leaf = true, cureHours = 0, moldy = leafData(item).moldy == true }
+    if kind == "tobacco" then rec.kind = kind end
     db.leaves[id] = rec
     db.plants[id] = nil
     return rec
 end
 
---- Swap a dried fan leaf that has cured for a hemp wrap (Cured Fan Leaf), carrying its mold, and drop its record.
+--- Swap a dried leaf that has cured for its cured item (a hemp wrap, or a Cured Tobacco Leaf), carrying its mold, and drop its
+--- record. A moldy tobacco leaf becomes a Moldy Cured Tobacco Leaf, which no recipe uses.
 local function finishLeaf(container, item, rec)
-    local added = container:AddItems(Config.FanLeaves.CURED_ITEM, 1)
+    local k = Config.CureKinds[rec.kind or "leaf"] or Config.CureKinds.leaf
+    local added = container:AddItems((rec.moldy and k.moldyOutput) or k.output, 1)
     local fresh = added and added:size() > 0 and added:get(0)
     if not fresh then return end
     fresh:getModData()[Config.FanLeaves.DATA] = { moldy = rec.moldy == true }
-    if rec.moldy then fresh:setName("Moldy Cured Fan Leaf") end
+    if rec.moldy and k.moldyName then fresh:setName(k.moldyName) end
     container:Remove(item)
     sendRemoveItemFromContainer(container, item)
     sendAddItemsToContainer(container, added)
@@ -529,7 +534,7 @@ local function settleCure(container, cureKey, key, now)
     end
     -- Dried fan leaves cure alongside, in the same jar air and burp clock; they never count as buds.
     local leafRecs, leafItems = {}, {}
-    for _, item in ipairs(directItems(container, Config.isDriedLeaf)) do
+    for _, item in ipairs(directItems(container, Config.isCureInput)) do
         local rec = leafCureRecord(item)
         if rec.at == key and rec.seen == prev then
             leafRecs[#leafRecs + 1] = rec
@@ -558,7 +563,7 @@ local function settleCure(container, cureKey, key, now)
         if presentItems[i] and cureDone(rec) then finishBud(container, presentItems[i], rec) end
     end
     for i, rec in ipairs(leafRecs) do
-        if rec.cureHours >= Config.leafCureHours() then finishLeaf(container, leafItems[i], rec) end
+        if rec.cureHours >= Config.cureHoursFor(rec.kind) then finishLeaf(container, leafItems[i], rec) end
     end
 end
 
@@ -772,24 +777,34 @@ end
 --- Tell the player how a curing container is doing: bud count, curing days, time since the last burp and mold.
 local function reportCure(player, container, cureKey, label)
     local items = budsIn(container)
-    local leaves = directItems(container, Config.isDriedLeaf)
+    local leaves = directItems(container, Config.isCureInput)
     if #items == 0 and #leaves == 0 then
         Net.notify(player, "The " .. label:lower() .. " is empty")
         return
     end
-    -- Fan leaves curing into wraps get their own note, and never count as buds.
+    -- Leaves curing (fan leaves, tobacco) get their own note, and never count as buds.
     local leafNote = ""
     if #leaves > 0 then
-        local leafDays, leafMold = 0, false
-        for _, item in ipairs(leaves) do
-            local rec = db.leaves[item:getID()]
-            if rec then
-                leafDays = math.max(leafDays, (rec.cureHours or 0) / 24)
-                if rec.moldy then leafMold = true end
+        local parts, leafMold = {}, false
+        for _, kind in ipairs(Config.CureKindOrder) do
+            local k = Config.CureKinds[kind]
+            local n, days = 0, 0
+            for _, item in ipairs(leaves) do
+                if Config.cureKindOf(item:getFullType()) == kind then
+                    n = n + 1
+                    local rec = db.leaves[item:getID()]
+                    if rec then
+                        days = math.max(days, (rec.cureHours or 0) / 24)
+                        if rec.moldy then leafMold = true end
+                    end
+                end
+            end
+            if n > 0 then
+                parts[#parts + 1] = string.format("%d %s%s curing %.0f of %.0f days", n, k.word, n == 1 and k.one or k.many,
+                    days, Config.cureHoursFor(kind) / 24)
             end
         end
-        leafNote = string.format("%d fan lea%s curing %.0f of %.0f days%s", #leaves, #leaves == 1 and "f" or "ves",
-            leafDays, Config.leafCureHours() / 24, leafMold and " (MOLD)" or "")
+        leafNote = table.concat(parts, ", ") .. (leafMold and " (MOLD)" or "")
     end
     if #items == 0 then
         local info = db.jars[cureKey]

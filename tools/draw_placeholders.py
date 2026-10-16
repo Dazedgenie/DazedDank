@@ -1173,6 +1173,7 @@ ICONS = {
     "FanLeaf": icon_fan_leaf,
     "DriedFanLeaf": lambda: recolor(icon_fan_leaf(), (150, 130, 70), 0.5, 0.7, 0.95),
     "CuredFanLeaf": lambda: icon_fan_leaf((112, 84, 44), (60, 42, 20)),
+    "CuredTobacco": lambda: icon_fan_leaf((120, 88, 40), (66, 44, 18)),
     "Blunt": icon_blunt,
     "HalfSmokedBlunt": lambda: icon_blunt(True),
     "DryingRack": icon_drying_rack,

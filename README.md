@@ -208,6 +208,13 @@ offline: if nothing is tinted, tell me.
     time (3 days by default), with the same burps and mold, they become
     **Cured Fan Leaves**, hemp wraps for blunts. Leaves never count as buds
     in a jar's count, yield or quality.
+28d. **Cured tobacco.** Vanilla dries tobacco on its own drying rack into Dried
+    Tobacco (Dank racks don't take it). Put that in a curing jar or barrel and
+    it cures like a dried fan leaf (3 days by default, same burps and mold) into
+    a **Cured Tobacco Leaf**. Shred it (**Shred Cured Tobacco**, scissors or a
+    sharp knife, learned from the Grower's Handbook) for 2 loose tobacco instead
+    of vanilla's 1. Mold in the jar ruins it: a **Moldy Cured Tobacco Leaf**
+    can't be shredded.
 
 ### Loot and recipes
 
@@ -236,6 +243,7 @@ Everything is also craftable. Each recipe needs its skill level and must be lear
 | Flood reservoir | Electrical 4 | 2 empty buckets, 2 rubber hoses, 3 electronics scrap, 2 wire |
 | Flood timer | Electrical 3 | timer, wire, electronics scrap |
 | Rolling papers | none | vanilla rolling papers (repack) |
+| Shred Cured Tobacco | none | 1 Cured Tobacco Leaf, scissors or sharp knife kept; gives 2 loose tobacco |
 
 ### Sandbox options
 
@@ -422,7 +430,7 @@ Keep `--no-style`: the packer's style pass is tuned for furniture and turns
 foliage brown. The sprite numbering lives in `Config.spriteName`
 (CannabisConfig.lua); change it together with `sprite_slot` in the script.
 
-The fan leaf (fresh, dried, cured) and blunt (whole, half-smoked) icons are procedural placeholders from
+The fan leaf (fresh, dried, cured), cured tobacco leaf and blunt (whole, half-smoked) icons are procedural placeholders from
 `icon_fan_leaf` and `icon_blunt` in the same script, with no Blender render yet.
 
 Tile id **7420** must not clash with another installed mod's `tiledef=` line.

@@ -2348,6 +2348,14 @@ do
     local same = true
     for n in pairs(inScript) do if not listed[n] then same = false end end
     check("auto-learn list matches the recipes", same and #CannabisMod.Recipes.NAMES == total)
+    local shred = recipes:match("craftRecipe%s+DDShredCuredTobacco%s*(%b{})")
+    check("tobacco: DDShredCuredTobacco is learned, keeps the tool, and gives 2 loose tobacco from a cured leaf",
+        shred and inMag["DDShredCuredTobacco"] and listed["DDShredCuredTobacco"] and shred:find("NeedToBeLearn = true", 1, true)
+        and shred:find("[CannabisMod.CuredTobacco]", 1, true) and shred:find("item 2 Base.TobaccoLoose", 1, true)
+        and shred:find("tags[base:scissors;base:sharpknife] mode:keep", 1, true) and not shred:find("dazedcore", 1, true)
+        and not shred:find("MoldyCuredTobacco", 1, true))
+    check("tobacco: the cured and moldy tobacco items exist as normal items", items:find("item CuredTobacco", 1, true)
+        and items:find("item MoldyCuredTobacco", 1, true))
     local known, learned = {}, 0
     local player = { isRecipeKnown = function(_, n) return known[n] end, learnRecipe = function(_, n) known[n] = true; learned = learned + 1 end }
     local old = SandboxVars
@@ -5781,6 +5789,44 @@ end)()
         end
     end
     check("leaves: buds cured beside leaves reach the same quality as alone", #budQ == 2 and budQ[1] == 88 and budQ[2] == 88)
+
+    -- Vanilla dried tobacco cures in the same jar like a dried fan leaf: same time, same mold carry, a different result.
+    check("tobacco: jars take dried tobacco and what it becomes, racks never do", A.Buds(nil, newItem("Base.TobaccoDried"))
+        and A.Buds(nil, newItem("CannabisMod.CuredTobacco")) and A.Buds(nil, newItem("CannabisMod.MoldyCuredTobacco"))
+        and not A.Rack(nil, newItem("Base.TobaccoDried")) and not A.Rack(nil, newItem("CannabisMod.CuredTobacco"))
+        and not A.Buds(nil, newItem("Base.Tobacco")))
+    check("tobacco: cures in the same share of CuringDays as a fan leaf", Cf.cureHoursFor("tobacco") == 72 and Cf.cureHoursFor(nil) == 72
+        and Cf.cureHoursFor("leaf") == Cf.leafCureHours())
+    local tob = jinv:addExisting(newItem("Base.TobaccoDried"))
+    local tobMold = jinv:addExisting(newItem("Base.TobaccoDried")); tobMold:getModData().DDLeaf = { moldy = true }
+    local tobId, tobMoldId = tob:getID(), tobMold:getID()
+    worldHours = worldHours + 1; fire("EveryTenMinutes")
+    check("tobacco: dried tobacco in a jar gets a tobacco cure record, mold carried", dd.leaves[tobId] and dd.leaves[tobId].leaf
+        and dd.leaves[tobId].kind == "tobacco" and dd.leaves[tobId].moldy == false and dd.leaves[tobMoldId].moldy == true)
+    fire("OnClientCommand", "CannabisMod", "checkJar", hanger, { id = jar:getID(), x = 5210, y = 5200, z = 0 })
+    check("tobacco: the jar report counts tobacco leaves apart from fan leaves and buds", sent[#sent].data.text:find("2 tobacco leaves curing", 1, true)
+        and sent[#sent].data.text:find("Jar: 2 buds", 1, true) and sent[#sent].data.text:find("MOLD", 1, true))
+    for _ = 1, 3 do
+        worldHours = worldHours + 24; fire("EveryTenMinutes")
+        fire("OnClientCommand", "CannabisMod", "burpJar", hanger, { id = jar:getID(), x = 5210, y = 5200, z = 0 })
+    end
+    local curedT, moldyT, driedT = nil, nil, 0
+    for _, it in ipairs(jinv.items) do
+        if it.fullType == "CannabisMod.CuredTobacco" then curedT = it end
+        if it.fullType == "CannabisMod.MoldyCuredTobacco" then moldyT = it end
+        if it.fullType == "Base.TobaccoDried" then driedT = driedT + 1 end
+    end
+    check("tobacco: after 3 days a clean leaf is Cured Tobacco and a moldy one Moldy Cured Tobacco, records gone", driedT == 0
+        and curedT and curedT:getModData().DDLeaf.moldy == false and moldyT and moldyT:getModData().DDLeaf.moldy == true
+        and moldyT.name == nil and dd.leaves[tobId] == nil and dd.leaves[tobMoldId] == nil)
+    -- An old-save leaf record has no kind and still means a fan leaf.
+    local oldLeaf = jinv:addExisting(newItem(F.DRIED_ITEM))
+    dd.leaves[oldLeaf:getID()] = { leaf = true, cureHours = 71, moldy = false }
+    worldHours = worldHours + 1; fire("EveryTenMinutes")
+    worldHours = worldHours + 24; fire("EveryTenMinutes")
+    local oldCured = 0
+    for _, it in ipairs(jinv.items) do if it.fullType == F.CURED_ITEM then oldCured = oldCured + 1 end end
+    check("tobacco: a leaf record with no kind still cures a fan leaf", oldCured == 4 and dd.leaves[oldLeaf:getID()] == nil)
 
     -- The harvest trim gives fan leaves too, fresh from a wet plant, and the bud count is unchanged.
     local trimmer = newPlayer(0, 0, 8)

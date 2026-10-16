@@ -1,5 +1,11 @@
 # Dazed Dank patch notes
 
+## dd56.3 (Cured tobacco, in testing)
+- Added: **Cured Tobacco Leaf.** Vanilla's Dried Tobacco (dried on vanilla's own rack; Dank racks still don't take it) can go in a Dank curing jar or barrel, where it cures like a dried fan leaf: the same share of Curing Time, the same burps and mold risk. Mold carries over the same way; a mold-struck leaf comes out as a Moldy Cured Tobacco Leaf that no recipe accepts.
+- Added: recipe **Shred Cured Tobacco** (Grower's Handbook, or automatic with Recipe Magazine off): 1 Cured Tobacco Leaf plus scissors or a sharp knife (kept) gives 2 loose tobacco, double vanilla's Shred Tobacco.
+- Added: Check Curing Jar and Check Curing Barrel count tobacco leaves apart from fan leaves and buds. Old saves keep working: a leaf curing record with no kind is a fan leaf.
+- Art: placeholder Cured Tobacco Leaf icon (used by the moldy one too).
+
 ## dd56.2 (Cold nights, in testing)
 - Added: **Cold nights** on the grow room panel. Flower rooms get a strip under the temperature and humidity meters with three pills: Off, Late flower and On (Off by default, and for rooms from older saves).
 - Added: while Cold nights is armed, the room's lights-off hours work to a 6-13 C night band instead of the Flower range: ACs run above 13 C and rest at 11 C, inside the 5-15 C purple window, and a heater still guards 6 C so the under-5 C yield loss only bites rooms without one. Lit hours keep the normal 20-26 C. Humidity targets don't change and no new equipment is needed, so a warm night outdoors may need more than one AC (an AC still can't pull a room below 12 C).

@@ -73,6 +73,7 @@ description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/mai
 description=[list]
 description=[*]Hang wet plants on a [b]Drying Rack[/b]. Leave them too long and they over-dry; damp and rain bring mold.
 description=[*]Cure in a [b]Curing Jar[/b] or [b]Curing Barrel[/b]. Burp every day and a half or risk mold.
+description=[*]Vanilla dried tobacco cures in a jar or barrel too, and shreds into double the loose tobacco.
 description=[*]Buds are named by quality, up to [b]Top Shelf[/b] from RDWC. Fan leaves dry and cure into hemp wraps.
 description=[/list]
 description=

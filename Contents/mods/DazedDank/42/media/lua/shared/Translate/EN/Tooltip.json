@@ -14,6 +14,8 @@
     "Tooltip_DD_PurplePrefix": "Purple",
     "Tooltip_DD_FanLeaf": "A big fan leaf off a cannabis plant. Hang it on a drying rack: it dries in about a day.",
     "Tooltip_DD_DriedFanLeaf": "A dried fan leaf. Cure it in a curing jar for about 3 days (burp it like buds) and it becomes a hemp wrap for blunts.",
+    "Tooltip_DD_CuredTobacco": "Dried tobacco cured in a curing jar or barrel. Shred it with scissors or a sharp knife for twice the loose tobacco.",
+    "Tooltip_DD_MoldyCuredTobacco": "Dried tobacco that went mouldy in the jar. Ruined: it can't be shredded.",
     "Tooltip_DD_CuredFanLeaf": "A cured fan leaf: a hemp wrap. Roll a blunt from it and two buds (right-click a bud).",
     "Tooltip_DD_Blunt": "Two buds rolled in a wrap. Stronger and longer than a joint, smoked over 3 sessions; it's put out after each to relight later with a lighter. A tobacco-leaf blunt gives nicotine too.",
     "Tooltip_DD_HalfSmokedBlunt": "A blunt put out for later. Relight it with a lighter or an open flame to smoke the next session."

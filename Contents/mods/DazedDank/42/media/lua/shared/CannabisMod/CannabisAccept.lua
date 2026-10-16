@@ -19,11 +19,12 @@ function Accept.Rack(container, item)
     return item ~= nil and Config.isRackItem(item:getFullType())
 end
 
---- Jars and barrels hold buds, and dried fan leaves curing into wraps (and the wraps they become).
+--- Jars and barrels hold buds, and dried fan leaves and dried tobacco curing (and what they become).
+--- Racks never take tobacco: vanilla's own rack dries it.
 function Accept.Buds(container, item)
     if item == nil then return false end
     local t = item:getFullType()
-    return t == Config.Drying.BUD_ITEM or Config.isDriedLeaf(t) or Config.isCuredLeaf(t)
+    return t == Config.Drying.BUD_ITEM or Config.isCureInput(t) or Config.isCuredLeaf(t) or Config.isCuredTobacco(t)
 end
 
 --- The accept function for a sprite name, or nil for anything that isn't a rack or barrel.

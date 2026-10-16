@@ -580,6 +580,26 @@ module CannabisMod
         }
     }
 
+    /* Cured tobacco (Base.TobaccoDried cured in a Dank jar or barrel) shreds into twice the loose tobacco of vanilla's
+       ShredTobacco. A moldy cure is a different item (MoldyCuredTobacco), so it never matches. */
+    craftRecipe DDShredCuredTobacco
+    {
+        timedAction = Making,
+        time = 300,
+        NeedToBeLearn = true,
+        Tags = AnySurfaceCraft;Farming,
+        category = Farming,
+        inputs
+        {
+            item 1 [CannabisMod.CuredTobacco] mode:destroy flags[Prop2],
+            item 1 tags[base:scissors;base:sharpknife] mode:keep flags[MayDegradeLight;Prop1;IsNotDull],
+        }
+        outputs
+        {
+            item 2 Base.TobaccoLoose,
+        }
+    }
+
     craftRecipe DDMakeExhaustFan
     {
         timedAction = MakingElectrical,

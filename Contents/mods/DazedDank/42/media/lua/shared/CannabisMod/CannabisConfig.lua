@@ -289,6 +289,36 @@ function Config.isFreshLeaf(fullType) return fullType == Config.FanLeaves.ITEM e
 function Config.isDriedLeaf(fullType) return fullType == Config.FanLeaves.DRIED_ITEM end
 function Config.isCuredLeaf(fullType) return fullType == Config.FanLeaves.CURED_ITEM end
 
+-- Things that cure in a jar or barrel besides buds, by kind. A leaf curing record with no kind is a fan leaf (older saves).
+-- Both kinds take the same share of CuringDays, the same burp and mold clock, and carry mold the same way ({ moldy } under DATA).
+-- Dried tobacco is vanilla's own Base.TobaccoDried (dried on vanilla's rack); it cures into a Cured Tobacco Leaf, or a
+-- Moldy Cured Tobacco Leaf if mold struck (the shred recipe can't check mold, so a moldy one is a different item).
+Config.CureKinds = {
+    leaf = { input = Config.FanLeaves.DRIED_ITEM, output = Config.FanLeaves.CURED_ITEM, share = Config.FanLeaves.CURE_SHARE,
+             moldyName = "Moldy Cured Fan Leaf", word = "fan lea", one = "f", many = "ves" },
+    tobacco = { input = "Base.TobaccoDried", output = "CannabisMod.CuredTobacco", moldyOutput = "CannabisMod.MoldyCuredTobacco",
+                share = 0.5, word = "tobacco lea", one = "f", many = "ves" },
+}
+Config.CureKindOrder = { "leaf", "tobacco" }  -- pairs() order isn't stable, so code that must be repeatable walks this
+
+--- The cure kind of an item that cures in a jar or barrel as a leaf (dried fan leaf, dried tobacco), or nil.
+function Config.cureKindOf(fullType)
+    for _, kind in ipairs(Config.CureKindOrder) do
+        if Config.CureKinds[kind].input == fullType then return kind end
+    end
+    return nil
+end
+function Config.isCureInput(fullType) return Config.cureKindOf(fullType) ~= nil end
+function Config.isCuredTobacco(fullType)
+    local k = Config.CureKinds.tobacco
+    return fullType == k.output or fullType == k.moldyOutput
+end
+--- Hours a leaf of this kind (nil means fan leaf) takes to cure in a jar or barrel.
+function Config.cureHoursFor(kind)
+    local k = Config.CureKinds[kind or "leaf"] or Config.CureKinds.leaf
+    return Config.sandbox("CuringDays") * 24 * k.share
+end
+
 -- Cuttings: each pot holds a budget of cuttings that regrows; cutting past it sets the plant back.
 Config.Cuttings = {
     BUDGET = { ground = 3, small = 2, large = 4, xlbag = 8, dwc = 4, xldwc = 8, rdwc = 4, ebb = 2 },

@@ -347,7 +347,7 @@ module CannabisMod
         Icon            = GrowersHandbook,
         BoredomChange   = -20,
         StressChange    = -15,
-        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeGrowBagXL;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDMakeCuringBarrel;DDSwapPapers,
+        LearnedRecipes  = DDMakeGrowBagSmall;DDMakeGrowBagLarge;DDMakeGrowBagXL;DDMakeSoilSack;DDMakeDryingRack;DDMakeDryingFan;DDMakeGrowLampBasic;DDMakeGrowLampPro;DDMakeGrowLampLargeBasic;DDMakeGrowLampLargePro;DDMakeGrowFloodBasic;DDMakeGrowFloodPro;DDMakeLightTimer;DDMakeCuringJar;DDMakeCuringBarrel;DDSwapPapers;DDShredCuredTobacco,
         StaticModel     = Magazine,
         WorldStaticModel = MagazineGround,
         Tags            = base:magazine,
@@ -674,6 +674,29 @@ module CannabisMod
         Weight          = 0.01,
         Icon            = CuredFanLeaf,
         Tooltip         = Tooltip_DD_CuredFanLeaf,
+    }
+
+    /* Vanilla dried tobacco (Base.TobaccoDried) cured in a Dank curing jar or barrel, like a dried fan leaf. The shred
+       recipe DDShredCuredTobacco turns one into two loose tobacco. Mold in the jar ruins it (Moldy Cured Tobacco Leaf,
+       which no recipe takes). Racks never take tobacco: vanilla dries it itself. */
+    item CuredTobacco
+    {
+        DisplayName     = Cured Tobacco Leaf,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.01,
+        Icon            = CuredTobacco,
+        Tooltip         = Tooltip_DD_CuredTobacco,
+    }
+
+    item MoldyCuredTobacco
+    {
+        DisplayName     = Moldy Cured Tobacco Leaf,
+        DisplayCategory = Gardening,
+        ItemType        = base:normal,
+        Weight          = 0.01,
+        Icon            = CuredTobacco,
+        Tooltip         = Tooltip_DD_MoldyCuredTobacco,
     }
 
     /* A blunt: two buds rolled in a hemp wrap or a dried tobacco leaf. Smoked over several sessions;

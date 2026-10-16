@@ -11,7 +11,7 @@ Recipes.NAMES = {
     "DDMakeGrowBagSmall", "DDMakeGrowBagLarge", "DDMakeGrowBagXL", "DDMakeSoilSack", "DDMakeDryingRack", "DDMakeDryingFan",
     "DDMakeGrowLampBasic", "DDMakeGrowLampPro", "DDMakeGrowLampLargeBasic", "DDMakeGrowLampLargePro",
     "DDMakeGrowFloodBasic", "DDMakeGrowFloodPro", "DDMakeLightTimer",
-    "DDMakeCuringJar", "DDMakeCuringBarrel", "DDSwapPapers",
+    "DDMakeCuringJar", "DDMakeCuringBarrel", "DDSwapPapers", "DDShredCuredTobacco",
     "DDMakeDWCBucket", "DDMakeDWCBucketXL", "DDMakeClayPebbles", "DDMakeRDWCSite", "DDMakeRDWCControl",
     "DDMakeFloodTable", "DDMakeFloodReservoir", "DDMakeFloodTimer",
     "DDMakeGrowRoomPanel",
