@@ -684,7 +684,7 @@ module CannabisMod
         DisplayName     = Cured Tobacco Leaf,
         DisplayCategory = Gardening,
         ItemType        = base:normal,
-        Weight          = 0.01,
+        Weight          = 0.2,
         Icon            = CuredTobacco,
         Tooltip         = Tooltip_DD_CuredTobacco,
     }
@@ -694,7 +694,7 @@ module CannabisMod
         DisplayName     = Moldy Cured Tobacco Leaf,
         DisplayCategory = Gardening,
         ItemType        = base:normal,
-        Weight          = 0.01,
+        Weight          = 0.2,
         Icon            = CuredTobacco,
         Tooltip         = Tooltip_DD_MoldyCuredTobacco,
     }
