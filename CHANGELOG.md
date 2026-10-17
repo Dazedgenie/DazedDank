@@ -1,5 +1,10 @@
 # Dazed Dank patch notes
 
+## dd57.3 (stale drying stations)
+- Fixed: abandoned drying racks, jars and curing barrels no longer pile up in server ModData on long servers. The daily prune now drops a station whose last tick is older than the record keep time (90 days) while its square is not loaded, together with its barrel burp record and the bud, leaf and plant records tied to it. A station record with no clock starts one and is kept that day. One console line (counts only) is printed when anything is dropped.
+- Added: in debug mode the daily prune prints record counts (plants, stations, hydro, timers, panels). No new sandbox options or ticks.
+- Tests: 1362 checks.
+
 ## dd57.2 (HUD data)
 - Changed: Dazed Dank is now licensed CC BY-NC-SA 4.0 (LICENSE and the Workshop page's licence line); the HUD next-stage time is rounded to 0.1 hour so a stalled plant does not resend every ten minutes.
 - Added: Dank now publishes read-only data on synced object ModData for other Dazed mods (such as the Dazed HUD overlay), which cannot read the server's global ModData. `DDHud` on each cannabis plant's plot object holds `{ stage, stageStartAt, nextStageAt }` (stage is the Config.STAGE index, times are world hours). `DDRoomHud` on each grow room's panel object holds `{ temp, hum, tLo, tHi, hLo, hHi, plants, stressed }`. See the README for the contract.

@@ -208,6 +208,10 @@ offline: if nothing is tinted, tell me.
     time (3 days by default), with the same burps and mold, they become
     **Cured Fan Leaves**, hemp wraps for blunts. Leaves never count as buds
     in a jar's count, yield or quality.
+    Server housekeeping: a drying or curing station nobody has been near for
+    90 days (its square not loaded) is dropped once a day, with its barrel burp
+    record and the bud, leaf and plant records tied to it. The items keep their
+    own data.
 28d. **Cured tobacco.** Vanilla dries tobacco on its own drying rack into Dried
     Tobacco (Dank racks don't take it). Put that in a curing jar or barrel and
     it cures like a dried fan leaf (3 days by default, same burps and mold) into

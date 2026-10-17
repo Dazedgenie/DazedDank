@@ -1360,6 +1360,31 @@ check("barrel holds ten jars' worth", C.Drying.BARREL_CAPACITY == 10 * C.Drying.
     check("prune keeps cure and drying progress the item doesn't have", dd.buds.p7 and dd.plants.p5)
     check("records from before pruning start their clock", dd.buds.p4 and dd.buds.p4.touched == now)
 
+    -- Stale stations: nobody near for RECORD_KEEP_DAYS, square not loaded -> station, barrel jar and tied records go.
+    do
+        local nowS = 200000
+        local oldT = nowS - (C.Drying.RECORD_KEEP_DAYS + 1) * 24
+        fakeSquares["901_900_0"] = fakeSquares["901_900_0"] or fakeSquare(901, 900, 0)
+        dd.stations["900_900_0"] = { lastTick = oldT }      -- stale, unloaded
+        dd.stations["901_900_0"] = { lastTick = oldT }      -- stale, but loaded
+        dd.stations["902_900_0"] = { lastTick = nowS - 24 } -- fresh
+        dd.stations["903_900_0"] = {}                       -- no clock yet
+        dd.jars["barrel_900_900_0"] = { lastBurp = 0, touched = nowS }
+        dd.jars["barrel_901_900_0"] = { lastBurp = 0, touched = nowS }
+        dd.buds.s1 = { type = "Indica", cureHours = 10, at = "900_900_0", touched = nowS }
+        dd.leaves.s2 = { leaf = true, at = "900_900_0", touched = nowS }
+        dd.plants.s3 = { hours = 5, at = "900_900_0", touched = nowS }
+        dd.buds.s4 = { type = "Indica", cureHours = 10, at = "902_900_0", touched = nowS }
+        dd.buds.s5 = { type = "Indica", cureHours = 10, at = "901_900_0", touched = nowS }
+        Dr.prune(nowS)
+        check("stale: an unvisited station goes with its barrel jar and tied buds, leaves and plants",
+            dd.stations["900_900_0"] == nil and dd.jars["barrel_900_900_0"] == nil and dd.buds.s1 == nil and dd.leaves.s2 == nil and dd.plants.s3 == nil)
+        check("stale: a station on a loaded square is kept with its records", dd.stations["901_900_0"] and dd.jars["barrel_901_900_0"] and dd.buds.s5)
+        check("stale: a fresh station and its records are kept", dd.stations["902_900_0"] and dd.buds.s4)
+        check("stale: a station with no clock starts it and stays", dd.stations["903_900_0"] and dd.stations["903_900_0"].lastTick == nowS)
+        check("stale: other stations' records are untouched", dd.buds.s4 and dd.buds.s5 and dd.buds.p3 and dd.jars["barrel_901_900_0"])
+    end
+
     -- Inspecting a bud in a nearby container uses the data the client read off it, checked first.
     local far = newPlayer(0, 0, 9)
     fire("OnClientCommand", "CannabisMod", "inspectBud", far, { id = 424242, data = { type = "Sativa", quality = 77, cureHours = 0 } })

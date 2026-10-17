@@ -680,6 +680,38 @@ function Drying.prune(now)
     now = now or Registry.nowHours()
     local keep = D.RECORD_KEEP_DAYS * 24
     local dropped = 0
+    -- Stations nobody has been near for RECORD_KEEP_DAYS go with their barrel burp record and the records tied to them.
+    -- lastTick is written every ten minutes while the square is loaded, so an old one means nobody has visited.
+    local staleStations, staleRecords = 0, 0
+    local goneStations = {}
+    for key, station in pairs(db.stations) do
+        if not station.lastTick then
+            station.lastTick = now
+        elseif now - station.lastTick > keep then
+            local x, y, z = Config.parseKey(key)
+            local loaded = x and getCell():getGridSquare(x, y, z)
+            if not loaded then goneStations[#goneStations + 1] = key end
+        end
+    end
+    if #goneStations > 0 then
+        local gone = {}
+        for _, key in ipairs(goneStations) do gone[key] = true end
+        for _, list in ipairs({ db.buds, db.leaves, db.plants }) do
+            local ids = {}
+            for id, rec in pairs(list) do
+                if rec.at and gone[rec.at] then ids[#ids + 1] = id end
+            end
+            for _, id in ipairs(ids) do list[id] = nil end
+            staleRecords = staleRecords + #ids
+        end
+        for _, key in ipairs(goneStations) do
+            if db.jars["barrel_" .. key] then db.jars["barrel_" .. key] = nil; staleRecords = staleRecords + 1 end
+            db.stations[key] = nil
+        end
+        staleStations = #goneStations
+        dropped = dropped + staleStations + staleRecords
+        print("[DazedDank] dropped " .. staleStations .. " stale drying stations and " .. staleRecords .. " records tied to them")
+    end
     local function sweep(list, canDrop)
         local gone = {}
         for id, rec in pairs(list) do
@@ -703,6 +735,17 @@ function Drying.prune(now)
         local isBarrel = type(id) == "string" and id:sub(1, 7) == "barrel_"
         return not (isBarrel and db.stations[id:sub(8)])
     end)
+    if Config.debugOn() then
+        local function count(suffix)
+            local n = 0
+            for _ in pairs(ModData.getOrCreate(Config.MODDATA_KEY .. suffix)) do n = n + 1 end
+            return n
+        end
+        local n = 0
+        for _ in pairs(db.stations) do n = n + 1 end
+        print("[DazedDank] records: plants " .. count("") .. ", stations " .. n .. ", hydro " .. count("_Hydro")
+            .. ", timers " .. count("_Timers") .. ", panels " .. count("_Rooms"))
+    end
     return dropped
 end
 Events.EveryDays.Add(function() Drying.prune() end)
