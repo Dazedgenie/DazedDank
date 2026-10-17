@@ -4,7 +4,6 @@ if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisInfo"
-require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
@@ -54,7 +53,7 @@ local function sendPlantInfo(player, x, y, z)
         return
     end
 
-    local data = Info.buildVisible(plant, agricultureLevel(player), Registry.nowHours(), CannabisMod.Traits.reading(player))
+    local data = Info.buildVisible(plant, agricultureLevel(player), Registry.nowHours())
     data.x, data.y, data.z = x, y, z
     -- The plant's own sprites, so the window can show it as it stands: the pot (or furrow) and the plant layer raised onto it.
     pcall(function()

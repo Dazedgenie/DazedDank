@@ -36,8 +36,6 @@
     "Sandbox_CannabisMod_RoomClimate_tooltip": "If enabled, grow rooms simulate temperature and humidity and need fans, heaters and dehumidifiers. If off, rooms always sit at their target.",
     "Sandbox_CannabisMod_LightLeaks": "Light Leaks",
     "Sandbox_CannabisMod_LightLeaks_tooltip": "If enabled, light that does not come from a grow room's own lamps counts as a leak during its dark hours. Hang a sheet or curtain on a window or door and draw it shut to block it.",
-    "Sandbox_CannabisMod_TraitsAndOccupations": "Grower Occupations and Traits",
-    "Sandbox_CannabisMod_TraitsAndOccupations_tooltip": "If enabled, character creation offers the Cultivation Tech, Budtender and Botanist / Breeder occupations and the Green Thumb, Trim Hand, Chronic and Lightweight traits. Turning it off hides them and switches their effects off for characters who already have them.",
     "Sandbox_CannabisMod_RoomPowerPenalty": "Room Power Penalty",
     "Sandbox_CannabisMod_RoomPowerPenalty_tooltip": "If enabled, a power cut in a grow room adds stress to flowering plants for every lit hour lost. If off, only the normal per-plant penalty applies.",
     "Sandbox_CannabisMod_PlantTemperature": "Plant Temperature",

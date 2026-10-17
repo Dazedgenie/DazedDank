@@ -231,21 +231,17 @@ function Strains.of(record, n)
     return Strains.fromType(record.type or T.HYBRID, n or 0)
 end
 
--- Traits a grower always wants higher (indica share has no better direction, so a Breeder's luck leaves it alone).
-Strains.WANT_UP = { pot = true, yld = true, flw = true }
-
---- Average two parents' traits, with noise when `noisy`; `skill` ({ noise, luck }) is a Breeder's tighter, luckier cross.
-function Strains.blend(a, b, noisy, skill)
+--- Average two parents' traits, with noise when `noisy`.
+function Strains.blend(a, b, noisy)
     local out = {}
     local br = Strains.Breed
-    local noise = skill and skill.noise or br.NOISE
+    local noise = br.NOISE
     for _, k in ipairs(Strains.TRAITS) do
         local v = ((a[k] or 50) + (b[k] or 50)) / 2
         if noisy then
             v = v + Config.randInt(-noise, noise)
             if Config.rollPercent(br.THROW_CHANCE) then
-                local upOdds = (skill and Strains.WANT_UP[k]) and skill.luck or 50
-                v = v + (Config.rollPercent(upOdds) and br.THROW or -br.THROW)
+                v = v + (Config.rollPercent(50) and br.THROW or -br.THROW)
             end
         end
         out[k] = clamp100(v)
@@ -287,9 +283,9 @@ local function sameStrain(a, b)
 end
 
 --- Breed two strains' traits without naming the result (the other seeds of a batch share the first one's name).
-function Strains.crossTraits(a, b, skill)
+function Strains.crossTraits(a, b)
     a, b = a or Strains.STARTERS[1], b or Strains.STARTERS[1]
-    local s = Strains.blend(a, b, true, skill)
+    local s = Strains.blend(a, b, true)
     if sameStrain(a, b) then
         -- A strain bred with itself breeds true in looks too.
         s.name, s.shp, s.col = a.name, Strains.shapeOf(a), Strains.colourOf(a)
@@ -298,9 +294,9 @@ function Strains.crossTraits(a, b, skill)
 end
 
 --- Breed two strains. The same strain crossed with itself breeds true; anything else is a new strain with a name of its own.
-function Strains.cross(a, b, skill)
+function Strains.cross(a, b)
     a, b = a or Strains.STARTERS[1], b or Strains.STARTERS[1]
-    local s = Strains.crossTraits(a, b, skill)
+    local s = Strains.crossTraits(a, b)
     if not s.name then s.name = Strains.claimName(Strains.nameFor(s, a, b)) end
     return s
 end

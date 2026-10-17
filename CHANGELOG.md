@@ -1,5 +1,11 @@
 # Dazed Dank patch notes
 
+## dd58 (occupations and traits removed)
+- Removed: the three occupations (Cultivation Tech, Budtender, Botanist / Breeder) and the four traits (Green Thumb, Trim Hand, Chronic, Lightweight), with every effect they gave: faster trimming and the Trim Plant Anyway option, the starting dependency, stronger highs and faster tolerance, the care-penalty cut, extra rooting chance, the +15% cure, the extra seed and steadier crosses on pollination, and reading plants, buds and seeds above your Agriculture level. Inspect, the Sow menu and seed labels now follow Agriculture level alone; Inspect Bud shows what your level allows; the hermie-line note that only a Breeder saw is gone.
+- Removed: the "Grower Occupations and Traits" sandbox option, the occupation and trait icons and translations.
+- Kept: everything else. Every recipe is still learned from the Grower's Handbook and Hydroponics Monthly, and everyone now plays the way a character without the traits did. Characters saved with a removed occupation or trait load normally; the game drops the unknown ones.
+- Tests: 1326 checks.
+
 ## dd57.3 (stale drying stations)
 - Fixed: abandoned drying racks, jars and curing barrels no longer pile up in server ModData on long servers. The daily prune now drops a station whose last tick is older than the record keep time (90 days) while its square is not loaded, together with its barrel burp record. Records tied to it then follow the usual keep rules: cure and drying progress the item does not carry is kept (the bud or plant may be in someone's pack), the rest goes after the keep time. A station record with no clock starts one and is kept that day. One console line (counts only) is printed when a station is dropped.
 - Added: in debug mode the daily prune prints record counts (plants, stations, hydro, timers, panels). No new sandbox options or ticks.

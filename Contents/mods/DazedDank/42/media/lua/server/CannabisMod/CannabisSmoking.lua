@@ -13,7 +13,6 @@ require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisDrying"
 require "CannabisMod/CannabisWeather"
 require "CannabisMod/CannabisServerCommands"
-require "CannabisMod/CannabisTraits"
 
 local Config   = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
@@ -63,7 +62,7 @@ local function budInfo(bud)
     local rec = Drying.budRecord(bud)
     if not rec then return { type = "Hybrid", quality = 50, moldy = false } end
     return { type = rec.type, strain = Strains.copy(rec.strain), purple = rec.purple == true or nil,
-             quality = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked, rec.cureBonus), moldy = rec.moldy == true }
+             quality = Genetics.curedQuality(rec.quality, rec.cureHours, rec.moldy, rec.moldBaked), moldy = rec.moldy == true }
 end
 
 --- What a bud or joint is called: its strain when it has one, else its type, with "Purple" in front for purple buds.
@@ -225,8 +224,7 @@ local function smokeBlunt(player, args, id)
     end
 
     local user = userOf(player)
-    local light = CannabisMod.Traits.has(player, "lightweight") and { mult = CannabisMod.Traits.LIGHTWEIGHT_STRENGTH } or nil
-    local strength, hours = Use.dose(user, now(), Use.potency(info.quality, info.moldy, info.strain) * portion, "blunt", light)
+    local strength, hours = Use.dose(user, now(), Use.potency(info.quality, info.moldy, info.strain) * portion, "blunt")
     Net.toPlayer(player, "smoked", {
         type = info.type, strain = info.strain, moldy = info.moldy, strength = strength, hours = hours,
         tolerance = user.tol, dependency = user.dep, method = "blunt", to = Net.targetOf(player),
@@ -260,8 +258,7 @@ commands.smoke = function(player, args)
     Drying.data().buds[id] = nil
 
     local user = userOf(player)
-    local light = CannabisMod.Traits.has(player, "lightweight") and { mult = CannabisMod.Traits.LIGHTWEIGHT_STRENGTH } or nil
-    local strength, hours = Use.dose(user, now(), Use.potency(info.quality, info.moldy, info.strain), method, light)
+    local strength, hours = Use.dose(user, now(), Use.potency(info.quality, info.moldy, info.strain), method)
     if Config.debugOn() then
         Config.debugLog(string.format("smoke: dose strength %.2f for %.2fh (quality %s)", strength, hours, tostring(info.quality)))
     end
@@ -278,17 +275,6 @@ commands.requestUseState = function(player, args)
     Net.toPlayer(player, "useState", {
         withdrawal = Use.withdrawal(user, now()), tolerance = user.tol, dependency = user.dep, to = Net.targetOf(player),
     })
-end
-
---- A new Chronic character starts hooked: their record is raised to the trait's dependency and tolerance, last use now.
-commands.chronicStart = function(player, args)
-    if not CannabisMod.Traits.has(player, "chronic") then return end
-    local user = userOf(player)
-    Use.decay(user, now())
-    user.dep = math.max(user.dep, CannabisMod.Traits.CHRONIC_DEP)
-    user.tol = math.max(user.tol, CannabisMod.Traits.CHRONIC_TOL)
-    user.lastUse, user.at = now(), now()
-    commands.requestUseState(player, {})
 end
 
 -- Debug helpers (debug mode or admins only)

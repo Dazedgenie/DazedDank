@@ -6,7 +6,6 @@ require "Farming/ISUI/ISFarmingMenu"
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisSeeds"
 require "CannabisMod/CannabisInfo"
-require "CannabisMod/CannabisTraits"
 
 local Config = CannabisMod.Config
 local Info = CannabisMod.Info
@@ -56,7 +55,7 @@ end
 
 --- The player's seed groups, as the Sow list shows them.
 local function seedGroups(player)
-    return Info.seedGroups(carriedSeeds(player), player:getPerkLevel(Perks.Farming), CannabisMod.Traits.reading(player), Seeds.getData)
+    return Info.seedGroups(carriedSeeds(player), player:getPerkLevel(Perks.Farming), Seeds.getData)
 end
 
 --- The first carried seed in the group with this label, or nil.
