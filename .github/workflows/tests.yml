@@ -1,0 +1,40 @@
+# Runs Dank's headless Lua tests on every push and pull request.
+# Dank is standalone, so unlike the other Dazed mods it needs no DazedCore checkout (and no secret).
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lua:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.4 && sudo ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
+
+      - name: Run the headless tests
+        run: lua tests/run_tests.lua .
+
+      - name: Lint the scripts and Lua for known B42 traps
+        if: always()
+        run: |
+          set +e
+          bad=0
+          # Kahlua has no next(); a bare next( in mod Lua is a crash at run time.
+          hits=$(grep -rnE '(^|[^A-Za-z_.:])next\(' --include=*.lua Contents/ | grep -vE '^[^:]+:[0-9]+:\s*--')
+          if [ -n "$hits" ]; then echo "::error::next( in mod Lua:"; echo "$hits"; bad=1; fi
+          # Kahlua has no goto either (Lua 5.4's loadfile accepts it, so syntax_check cannot catch it).
+          hits=$(grep -rnE '(^|[^A-Za-z_])goto\s+[A-Za-z_]' --include=*.lua Contents/ | grep -vE '^[^:]+:[0-9]+:\s*--')
+          if [ -n "$hits" ]; then echo "::error::goto in mod Lua:"; echo "$hits"; bad=1; fi
+          # A DisplayName with a comma breaks the script parser.
+          hits=$(grep -rnE '^\s*DisplayName\s*=.*,.*,' --include=*.txt Contents/)
+          if [ -n "$hits" ]; then echo "::error::comma in DisplayName:"; echo "$hits"; bad=1; fi
+          # item:hasTag takes an ItemTag, never a string (Defences 0.2.0 bug).
+          hits=$(grep -rnE 'hasTag\("' --include=*.lua Contents/)
+          if [ -n "$hits" ]; then echo "::error::hasTag with a string:"; echo "$hits"; bad=1; fi
+          exit $bad
