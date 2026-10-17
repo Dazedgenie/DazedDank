@@ -275,6 +275,10 @@ All under the **Dazed Dank** page of the sandbox settings:
 | Hydro Quality Bonus | 0.15 | how far above 100 RDWC quality can reach |
 | Pumps Need Power | on | hydro pumps only run with power |
 
+### Optional: Dazed Occupations
+
+Dank has no occupations or traits of its own. With the standalone **Dazed Occupations** mod installed, its Cultivation Tech, Budtender, Botanist / Breeder, Green Thumb, Trim Hand, Chronic and Lightweight entries take effect here through `shared/CannabisMod/CannabisTraits.lua` (`Traits.has` asks `DazedOccupations.has`, and Dank announces the seven `DazedOccupationsHooks["dank.*"]` flags). Without it every player plays as a no-trait player, exactly as in 0.58.0.
+
 ### Hydroponics: DWC (deep water culture)
 
 29. A **DWC Bucket** is placed like furniture, **indoors only**, and turns into a hydro plot. Before planting, give its
@@ -450,7 +454,7 @@ Values are rounded and sent only when they change; the room table is refreshed o
 ## Offline tests
 
 `tests/run_tests.lua` stubs the game API (shaped like the vanilla B42
-farming files) and runs 1326 checks. From the repo root:
+farming files) and runs 1357 checks. From the repo root:
 
     lua tests/run_tests.lua .
 

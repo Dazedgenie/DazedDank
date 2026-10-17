@@ -6,6 +6,7 @@ if isClient() then return end
 
 require "CannabisMod/CannabisConfig"
 require "CannabisMod/CannabisSchedule"
+require "CannabisMod/CannabisTraits"
 require "CannabisMod/CannabisGenetics"
 require "CannabisMod/CannabisStrains"
 
@@ -311,6 +312,7 @@ function Registry.applyPenalty(plant, amount, warningName)
     -- Hydro systems are more forgiving: their containers scale every care penalty.
     local def = plant.bag and Config.GrowBag[plant.bag]
     if def and def.careMult then amount = amount * def.careMult end
+    if plant.greenThumb and CannabisMod.Traits then amount = amount * CannabisMod.Traits.GREEN_THUMB_CARE end
     plant.care = Config.clamp(plant.care - amount, 0, 100)
     plant.stress = Config.clamp(plant.stress + amount * Config.Care.STRESS_FROM_CARE,
         0, Config.Stress.MAX)

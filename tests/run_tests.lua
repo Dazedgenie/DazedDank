@@ -4220,6 +4220,151 @@ do
     check("the curing jar item takes buds only", text:find("item CuringJar%s*{[^}]*AcceptItemFunction%s*=%s*DazedDankAccept%.Buds") ~= nil)
 end
 
+-- ---- Optional DazedOccupations hooks -------------------------------------
+;(function()
+    local Tr = CannabisMod.Traits
+    check("traits: Dank announces all seven effect flags", (function()
+        for _, k in ipairs({ "cultivationtech", "budtender", "breeder", "greenthumb", "trimhand", "chronic", "lightweight" }) do
+            if DazedOccupationsHooks == nil or DazedOccupationsHooks["dank." .. k] ~= true then return false end
+        end
+        return true
+    end)())
+    check("traits: Dank registers no traits of its own", DazedDankTraits == nil and DazedDankProfessions == nil)
+
+    -- Without DazedOccupations every player is a no-trait player (exactly Dank 0.58.0).
+    DazedOccupations = nil
+    local anyone = newPlayer(9, 9, 3)
+    local allKeys = { "cultivationtech", "budtender", "breeder", "greenthumb", "trimhand", "chronic", "lightweight" }
+    local none = true
+    for _, k in ipairs(allKeys) do if Tr.has(anyone, k) then none = false end end
+    check("traits: without DazedOccupations nobody has a trait", none and not Tr.has(nil, "chronic"))
+    local r0 = Tr.reading(anyone)
+    check("traits: without DazedOccupations reading and rooting are the no-trait values",
+        r0.boost == 0 and r0.genetics == false and r0.buds == false and Tr.rootingBonus(anyone) == 0)
+
+    -- A stub DazedOccupations: a player's traits are a set of Dank keys.
+    DazedOccupations = { has = function(player, key) return player.stubTraits ~= nil and player.stubTraits[key] == true end }
+    local function traitPlayer(x, y, level, list)
+        local p = newPlayer(x, y, level)
+        p.stubTraits = {}
+        for _, k in ipairs(list) do p.stubTraits[k] = true end
+        p.getUsername = function() return "trait" .. x end
+        return p
+    end
+    SandboxVars = { CannabisMod = { MoldChance = 0 } }
+    local plain, tech = traitPlayer(1, 1, 3, {}), traitPlayer(2, 2, 3, { "cultivationtech", "greenthumb" })
+    check("traits: has reads the player's traits", Tr.has(tech, "cultivationtech") and not Tr.has(plain, "cultivationtech"))
+    check("traits: rooting bonus stacks Tech and Green Thumb", Tr.rootingBonus(tech) == 15 and Tr.rootingBonus(plain) == 0)
+    check("traits: has answers false for a non-true result", (function()
+        local saved = DazedOccupations
+        DazedOccupations = { has = function() return 1 end }
+        local r = Tr.has(plain, "chronic")
+        DazedOccupations = saved
+        return r == false
+    end)())
+
+    -- Reading: the Tech reads 2 levels up short of genetics; the Breeder reads genetics and hermie lines.
+    local techRead, breedRead = Tr.reading(tech), { boost = 0, genetics = true, buds = false }
+    check("traits: Tech opens a tier 2 levels up", I.tierOpen(5, 3, techRead) and not I.tierOpen(6, 3, techRead))
+    check("traits: Tech never opens genetics early", not I.tierOpen(I.GENETICS_LEVEL, 8, techRead) and I.tierOpen(I.GENETICS_LEVEL, 9, techRead))
+    check("traits: Breeder reads genetics at any level", I.tierOpen(I.GENETICS_LEVEL, 0, breedRead) and not I.tierOpen(5, 0, breedRead))
+    local seed = { type = T.SATIVA, sex = "female", strain = CannabisMod.Strains.copy(CannabisMod.Strains.STARTERS[1]), hermieLineage = true }
+    local seedText = I.seedLabel(seed, 3, breedRead)
+    check("traits: Breeder sees a seed's traits and hermie line", seedText:find("hermie line") and seedText:find(":"))
+    check("traits: others don't see a hermie line", not I.seedLabel(seed, 10):find("hermie line"))
+    check("traits: a Breeder reads a seed's strain and sex at Agriculture 0", I.seedLabel(seed, 0, breedRead):find("Knox Kush") ~= nil
+        and I.seedLabel(seed, 0) == "Unknown cannabis seed")
+
+    -- Rooting, curing and seeds
+    check("traits: rooting bonus adds to the odds", G.rootingOdds(5, { moist = true, bonus = 10 }) == G.rootingOdds(5, { moist = true }) + 10)
+    check("traits: a Budtender's cure goes to +15%", G.curedQuality(80, 5000, false, false, 0.15) == 92 and G.curedQuality(80, 5000) == 88)
+    local mom, dad = { type = T.INDICA, strain = CannabisMod.Strains.STARTERS[1] }, { type = T.SATIVA, strain = CannabisMod.Strains.STARTERS[5] }
+    local range = C.SEEDS_PER_POLLINATED_PLANT
+    local fewest, most = 99, 0
+    for _ = 1, 40 do
+        local n = #G.seedsFromPollination(mom, dad, { extra = 1, noise = 5, luck = 75 })
+        fewest, most = math.min(fewest, n), math.max(most, n)
+    end
+    check("traits: a Breeder gets one extra seed", fewest >= range.min + 1 and most <= range.max + 1)
+    local St = CannabisMod.Strains
+    local a, b = St.copy(St.STARTERS[1]), St.copy(St.STARTERS[5])
+    local plainSum, breedSum, plainSpread, breedSpread = 0, 0, 0, 0
+    local mid = ((a.pot or 50) + (b.pot or 50)) / 2
+    for _ = 1, 400 do
+        local p1, p2 = St.blend(a, b, true), St.blend(a, b, true, { noise = 5, luck = 75 })
+        plainSum, breedSum = plainSum + p1.pot, breedSum + p2.pot
+        plainSpread, breedSpread = plainSpread + math.abs(p1.ind - (a.ind + b.ind) / 2), breedSpread + math.abs(p2.ind - (a.ind + b.ind) / 2)
+    end
+    check("traits: Breeder crosses lean toward more potency", breedSum > plainSum)
+    check("traits: Breeder crosses vary less", breedSpread < plainSpread)
+
+    -- Trim Hand stops at a wet plant unless told to trim anyway.
+    local trimmer2 = traitPlayer(300, 300, 8, { "trimhand" })
+    local sc = newItem("Base.Scissors"); sc.tags[ItemTag.SCISSORS] = true; trimmer2.inv:addExisting(sc)
+    local wet = trimmer2.inv:addExisting(newItem(C.WET_PLANT_ITEMS.Indica))
+    wet:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 2, genetics = 80 }
+    fire("OnClientCommand", "CannabisMod", "trimPlant", trimmer2, { id = wet:getID() })
+    check("traits: Trim Hand won't trim a wet plant without asking", sent[#sent].data.text:find("too wet")
+        and trimmer2.inv:count(C.Drying.BUD_ITEM) == 0)
+    fire("OnClientCommand", "CannabisMod", "trimPlant", trimmer2, { id = wet:getID(), force = true })
+    check("traits: Trim Plant Anyway trims it", trimmer2.inv:count(C.Drying.BUD_ITEM) == 2)
+    local wet2 = plain.inv:addExisting(newItem(C.WET_PLANT_ITEMS.Indica))
+    wet2:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 1 }
+    local sc2 = newItem("Base.Scissors"); sc2.tags[ItemTag.SCISSORS] = true; plain.inv:addExisting(sc2)
+    fire("OnClientCommand", "CannabisMod", "trimPlant", plain, { id = wet2:getID() })
+    check("traits: anyone else trims wet plants as before", plain.inv:count(C.Drying.BUD_ITEM) == 1)
+
+    -- Lightweight and Chronic
+    local U = CannabisMod.Use
+    local u1, u2 = U.new(), U.new()
+    local s1 = U.dose(u1, 100, 1, "joint")
+    local s2 = U.dose(u2, 100, 1, "joint", { mult = Tr.LIGHTWEIGHT_STRENGTH })
+    check("traits: Lightweight highs hit 50% harder", math.abs(s2 - s1 * 1.5) < 1e-6 and math.abs(u2.tol - u1.tol * 1.5) < 1e-6)
+    local light = traitPlayer(1500, 1500, 1, { "lightweight" })
+    local lj = newItem(C.Smoking.JOINT_ITEM); light.inv:addExisting(lj)
+    lj:getModData().DDJoint = { type = "Indica", quality = 50, moldy = false }
+    local heavy = traitPlayer(1501, 1501, 1, {})
+    local hj = newItem(C.Smoking.JOINT_ITEM); heavy.inv:addExisting(hj)
+    hj:getModData().DDJoint = { type = "Indica", quality = 50, moldy = false }
+    fire("OnClientCommand", "CannabisMod", "smoke", light, { id = lj:getID(), method = "joint" })
+    local ls = sent[#sent].data.strength
+    fire("OnClientCommand", "CannabisMod", "smoke", heavy, { id = hj:getID(), method = "joint" })
+    check("traits: a Lightweight smoker gets the stronger dose", sent[#sent].cmd == "smoked" and ls > sent[#sent].data.strength * 1.4)
+    local chronic = traitPlayer(1502, 1502, 1, { "chronic" })
+    fire("OnClientCommand", "CannabisMod", "chronicStart", chronic, {})
+    local cu = CannabisMod.Smoking.data().users["trait1502"]
+    check("traits: a Chronic starts hooked", cu and cu.dep == Tr.CHRONIC_DEP and cu.tol == Tr.CHRONIC_TOL and sent[#sent].cmd == "useState")
+    fire("OnClientCommand", "CannabisMod", "chronicStart", plain, {})
+    check("traits: chronicStart does nothing without the trait", CannabisMod.Smoking.data().users["trait1"] == nil)
+
+    -- Green Thumb softens care penalties on plants they planted.
+    check("traits: Green Thumb care constant is a reduction", Tr.GREEN_THUMB_CARE < 1)
+
+    -- Back to no DazedOccupations: the same actions behave as for a no-trait player.
+    DazedOccupations = nil
+    local chronic0 = traitPlayer(1600, 1600, 1, { "chronic" })
+    fire("OnClientCommand", "CannabisMod", "chronicStart", chronic0, {})
+    check("traits: without DazedOccupations chronicStart does nothing", CannabisMod.Smoking.data().users["trait1600"] == nil)
+    local trimmer0 = traitPlayer(1601, 1601, 8, { "trimhand" })
+    local sc0 = newItem("Base.Scissors"); sc0.tags[ItemTag.SCISSORS] = true; trimmer0.inv:addExisting(sc0)
+    local wet0 = trimmer0.inv:addExisting(newItem(C.WET_PLANT_ITEMS.Indica))
+    wet0:getModData().CannabisHarvest = { type = "Indica", quality = 80, budYield = 2 }
+    fire("OnClientCommand", "CannabisMod", "trimPlant", trimmer0, { id = wet0:getID() })
+    check("traits: without DazedOccupations a wet plant trims without asking", trimmer0.inv:count(C.Drying.BUD_ITEM) == 2)
+    local light0 = traitPlayer(1602, 1602, 1, { "lightweight" })
+    local lj0 = newItem(C.Smoking.JOINT_ITEM); light0.inv:addExisting(lj0)
+    lj0:getModData().DDJoint = { type = "Indica", quality = 50, moldy = false }
+    local base0 = traitPlayer(1603, 1603, 1, {})
+    local bj0 = newItem(C.Smoking.JOINT_ITEM); base0.inv:addExisting(bj0)
+    bj0:getModData().DDJoint = { type = "Indica", quality = 50, moldy = false }
+    fire("OnClientCommand", "CannabisMod", "smoke", light0, { id = lj0:getID(), method = "joint" })
+    local s0 = sent[#sent].data.strength
+    fire("OnClientCommand", "CannabisMod", "smoke", base0, { id = bj0:getID(), method = "joint" })
+    check("traits: without DazedOccupations the dose is the plain dose", math.abs(s0 - sent[#sent].data.strength) < 1e-6)
+    check("traits: without DazedOccupations the inspect tiers are unchanged", not I.tierOpen(5, 3, Tr.reading(tech)) and I.tierOpen(5, 3, nil) == I.tierOpen(5, 3, Tr.reading(tech)))
+    SandboxVars = nil
+end)()
+
 -- ---- High Tracker report --------------------------------------------------
 ;(function()
     require "CannabisMod/CannabisHighReport"
@@ -4260,12 +4405,15 @@ end)()
     end
     local items = { seed(1, "Female"), seed(1, "Female"), seed(1, "Male"), seed(4, "Female"), seed(4, "Female", { hermieLineage = true }) }
     local dataOf = function(it) return it.d end
-    local groups = I.seedGroups(items, 5, dataOf)
+    local groups = I.seedGroups(items, 5, nil, dataOf)
     local function count(label) for _, g in ipairs(groups) do if g.label == label then return #g.items end end return 0 end
     check("sow: seeds group by strain and sex", #groups == 3 and count("Knox Kush (Indica), Female") == 2
         and count("Knox Kush (Indica), Male") == 1 and count("Riverside Haze (Sativa), Female") == 2)
-    groups = I.seedGroups(items, 1, dataOf)
+    groups = I.seedGroups(items, 1, nil, dataOf)
     check("sow: below the inspect level every seed is one unknown group", #groups == 1 and groups[1].label == "Unknown cannabis seed" and #groups[1].items == 5)
+    groups = I.seedGroups(items, 0, { boost = 0, genetics = true }, dataOf)
+    check("sow: a Breeder tells hermie lines apart at any level", count("Riverside Haze (Sativa), Female, hermie line") == 1
+        and count("Riverside Haze (Sativa), Female") == 1)
 end)()
 
 -- ---- Shared sprite dispatcher ----------------------------------------------
