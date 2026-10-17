@@ -60,9 +60,10 @@ def write_vdf(repo, out, note_file, with_description):
     fields = [
         ("appid", APP_ID),
         ("publishedfileid", item_id),
-        ("contentfolder", content),
-        ("changenote", note),
     ]
+    # --page-only leaves the uploaded mod files as they are and changes just the page.
+    if "--page-only" not in sys.argv:
+        fields += [("contentfolder", content), ("changenote", note)]
     if os.path.isfile(preview) and "--no-preview" not in sys.argv:
         fields.append(("previewfile", preview))
     if "--set-visibility" in sys.argv:

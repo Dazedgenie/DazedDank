@@ -19,6 +19,10 @@ on:
         description: "Also set the item's visibility from workshop.txt (unlisted lets dedicated servers download it)"
         type: boolean
         default: false
+      page_only:
+        description: "Only update the page (title, description, preview); leave the mod files on Steam as they are"
+        type: boolean
+        default: false
       dry_run:
         description: "Build the upload file and stop (no Steam login)"
         type: boolean
@@ -68,6 +72,7 @@ jobs:
           fi
           if [ "$UPLOAD_PREVIEW" != "true" ]; then flag="$flag --no-preview"; fi
           if [ "${{ github.event.inputs.set_visibility }}" = "true" ]; then flag="$flag --set-visibility"; fi
+          if [ "${{ github.event.inputs.page_only }}" = "true" ]; then flag="$flag --page-only"; fi
           python3 tools/workshop/steam_upload.py vdf "$GITHUB_WORKSPACE" "$RUNNER_TEMP/item.vdf" "$RUNNER_TEMP/note.txt" $flag
           grep -v '"description"' "$RUNNER_TEMP/item.vdf"
 
