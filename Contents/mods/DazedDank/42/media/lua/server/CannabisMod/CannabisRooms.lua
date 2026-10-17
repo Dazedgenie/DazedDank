@@ -14,6 +14,7 @@ require "CannabisMod/CannabisInfo"
 require "CannabisMod/CannabisClimate"
 require "CannabisMod/CannabisWeather"
 require "CannabisMod/CannabisPlantTemp"
+require "CannabisMod/CannabisHudData"
 require "CannabisMod/CannabisDrying"
 require "CannabisMod/CannabisWorld"
 require "CannabisMod/CannabisPowerLink"
@@ -1424,6 +1425,18 @@ function Rooms.checkPower(room, square, set, now, hour, tick, lamps)
     end
 end
 
+--- Publish the room's reading, target bands and plant counts for other Dazed mods (DDRoomHud on the panel object).
+--- Called once per climate pass; the object is only transmitted when a rounded value changed.
+function Rooms.writeHud(room, square, plants)
+    local ok, err = pcall(function()
+        local panel = Rooms.panelObject(square)
+        if not panel then return end
+        local targets = CannabisMod.Climate.targetsFor(room.mode, room.young == true, room.coldActive == true)
+        CannabisMod.HudData.writeRoom(panel, room, targets, plants)
+    end)
+    if not ok then print("[DazedDank] room HUD data failed: " .. tostring(err)) end
+end
+
 --- Every ten minutes: notice power going and coming back, count the lit hours lost, and pass the state on to the lamps.
 function Rooms.tick(now)
     now = now or getGameTime():getWorldAgeHours()
@@ -1438,7 +1451,9 @@ function Rooms.tick(now)
             local c = Rooms.contents(key, true)
             Rooms.sync(key)
             Rooms.checkPower(room, square, set, now, hour, true, c.lampTiles)
-            Rooms.updateClimate(key, Rooms.plantsIn(key), outdoor, true, now)
+            local living = Rooms.plantsIn(key)
+            Rooms.updateClimate(key, living, outdoor, true, now)
+            Rooms.writeHud(room, square, living)
         end
     end
 end

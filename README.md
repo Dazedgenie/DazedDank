@@ -414,6 +414,7 @@ type changes on a fresh save.
 | server/CannabisMod/CannabisVanillaCrops.lua | server | Vanilla crops in containers (Garden Crops add-on): hydro water, growth speed, indoor survival; the grow room panel lists these as "Other crops" (dashboard count, All plants section, 40 rows) |
 | server/CannabisMod/CannabisGrowing.lua | server | Feeding nutrients, debug grow kit |
 | server/CannabisMod/CannabisRegistry.lua | server | Plant records, growth clock, water, feeding, pollination |
+| server/CannabisMod/CannabisHudData.lua | server | Builds and writes the DDHud and DDRoomHud ModData that other Dazed mods read (see "HUD data for other mods"); pure helpers, change-only transmit |
 | server/CannabisMod/CannabisRateLimit.lua | server | Per-player token bucket and per-command minimum gaps for client commands (Config.RateLimit); drops silently |
 | server/CannabisMod/CannabisServerCommands.lua | server | Validates and answers client requests |
 | client/CannabisMod/CannabisClient.lua | client | Right-click menus and the plant info window |
@@ -446,10 +447,21 @@ The fan leaf (fresh, dried, cured), cured tobacco leaf and blunt (whole, half-sm
 
 Tile id **7420** must not clash with another installed mod's `tiledef=` line.
 
+## HUD data for other mods
+
+Public contract for other Dazed mods. A client cannot read the server's global ModData, so Dank mirrors a little state onto synced IsoObject ModData (server-side, `CannabisHudData.lua`). Both tables are read-only for readers, and the fields below will not change meaning without a version note in the changelog. Dank needs none of those mods.
+
+| Key | Object | Fields |
+|-----|--------|--------|
+| `DDHud` | the plant's plot IsoObject (the vanilla farm plot at the plant's x, y, z; in a grow bag, the bag's plot) | `stage` (Config.STAGE index: 1 Seedling, 2 Vegetative, 3 PreFlower, 4 Flowering, 5 Ripe), `stageStartAt`, `nextStageAt` (world hours, `getGameTime():getWorldAgeHours()`). Absent when there is no live cannabis plant. At Ripe, `nextStageAt` is the end of the harvest window. |
+| `DDRoomHud` | the room's panel IsoObject (any of the `Config.Rooms.PANEL_SPRITES`, `dazeddank_rooms_01_0` to `_3`) | `temp` (C, 0.1), `hum` (percent, whole), `tLo`, `tHi` (current temperature band, C), `hLo`, `hHi` (humidity band, percent), `plants` (living cannabis plants in the room), `stressed` (of those, how many carry a warning; cold-night slowdown is not counted) |
+
+Values are rounded and sent only when they change; the room table is refreshed once per climate pass (every ten game minutes).
+
 ## Offline tests
 
 `tests/run_tests.lua` stubs the game API (shaped like the vanilla B42
-farming files) and runs 1333 checks. From the repo root:
+farming files) and runs 1357 checks. From the repo root:
 
     lua tests/run_tests.lua .
 

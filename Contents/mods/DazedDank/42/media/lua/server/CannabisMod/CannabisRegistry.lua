@@ -219,6 +219,8 @@ function Registry.removePlant(x, y, z)
     if not plants then return end
     plants[Config.tileKey(x, y, z)] = nil
     Registry.version = Registry.version + 1
+    -- Other Dazed mods read DDHud off the plot, so take it down with the record.
+    if CannabisMod.Farming and CannabisMod.Farming.clearHud then pcall(CannabisMod.Farming.clearHud, x, y, z) end
 end
 
 --- Loop over every plant: for key, plant in Registry.each() do ... end

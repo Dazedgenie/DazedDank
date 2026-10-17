@@ -6382,5 +6382,102 @@ do
     RL.setClock(RL.testClock)
 end
 
+-- ---- dd57.2: HUD data on synced object ModData (DDHud, DDRoomHud) ----
+do
+    local H = CannabisMod.HudData
+    local C = CannabisMod.Config
+    local Reg = CannabisMod.Registry
+    local function stubObj()
+        local o = { md = {}, sent = 0 }
+        function o:getModData() return self.md end
+        function o:transmitModData() self.sent = self.sent + 1 end
+        return o
+    end
+
+    -- pure helpers
+    local t = H.buildPlant({ stage = 3, stageStartAt = 10.004, nextStageAt = 50.126 })
+    check("hud: plant table has stage and rounded world hours", t.stage == 3 and t.stageStartAt == 10 and t.nextStageAt == 50.13)
+    check("hud: a record without a stage builds nothing", H.buildPlant({}) == nil and H.buildPlant(nil) == nil)
+    check("hud: changed() sees identical, differing, missing and extra fields",
+        not H.changed({ a = 1 }, { a = 1 }) and H.changed({ a = 1 }, { a = 2 }) and H.changed(nil, { a = 1 })
+        and H.changed({ a = 1 }, nil) and not H.changed(nil, nil) and H.changed({ a = 1, b = 2 }, { a = 1 }) and H.changed({ a = 1 }, { a = 1, b = 2 }))
+    check("hud: changed() ignores float noise", not H.changed({ a = 1.0000001 }, { a = 1 }))
+
+    -- plant: written on stage change, not resent, cleared on removal
+    local plot = newPlot(700, 700, 0)
+    plot.state, plot.typeOfSeed, plot.nbOfGrow = "seeded", C.CROP_TYPE, 1
+    local hp = Reg.addPlant(700, 700, 0, CannabisMod.Genetics.newSeed(C.TYPES.INDICA))
+    local iso = plot:getIsoObject()
+    CannabisMod.Farming.onStageChanged(hp)
+    local md = iso.md.DDHud
+    check("hud: a plant's stage change writes DDHud and transmits once",
+        md and md.stage == hp.stage and md.stageStartAt == H.round(hp.stageStartAt, 0.01) and md.nextStageAt == H.round(hp.nextStageAt, 0.01) and iso.sent == 1)
+    CannabisMod.Farming.onStageChanged(hp)
+    CannabisMod.Farming.syncWithVanilla()
+    check("hud: unchanged values are not retransmitted (stage hook and ten-minute sync)", iso.sent == 1)
+    worldHours = worldHours + 5
+    Reg.advanceStage(hp)
+    check("hud: advancing a stage rewrites and transmits once",
+        iso.md.DDHud.stage == hp.stage and iso.md.DDHud.nextStageAt == H.round(hp.nextStageAt, 0.01) and iso.sent == 2)
+    hp.nextStageAt = hp.nextStageAt + 20   -- topping or a set-back moves the timer without a stage change
+    CannabisMod.Farming.syncWithVanilla()
+    check("hud: the ten-minute sync picks up a moved timer", iso.md.DDHud.nextStageAt == H.round(hp.nextStageAt, 0.01) and iso.sent == 3)
+    Reg.removePlant(700, 700, 0)
+    check("hud: removing the plant clears DDHud and transmits", iso.md.DDHud == nil and iso.sent == 4)
+    Reg.removePlant(700, 700, 0)
+    check("hud: clearing twice does not retransmit", iso.sent == 4)
+
+    -- a plant that dies stays on the registry but loses its DDHud
+    local plot2 = newPlot(701, 700, 0)
+    plot2.state, plot2.typeOfSeed, plot2.nbOfGrow = "seeded", C.CROP_TYPE, 1
+    local hp2 = Reg.addPlant(701, 700, 0, CannabisMod.Genetics.newSeed(C.TYPES.INDICA))
+    CannabisMod.Farming.syncWithVanilla()
+    local iso2 = plot2:getIsoObject()
+    check("hud: the sync writes DDHud for a plant that has none", iso2.md.DDHud and iso2.md.DDHud.stage == hp2.stage)
+    plot2.state = "dead"
+    CannabisMod.Farming.syncWithVanilla()
+    check("hud: a dead plant's DDHud is cleared", iso2.md.DDHud == nil)
+    Reg.removePlant(701, 700, 0)
+    table.remove(plots)  -- keep the shared plot list as the later tests expect
+    table.remove(plots)
+
+    -- a broken object never throws
+    check("hud: a missing or broken object is ignored",
+        H.writePlant(nil, { stage = 2 }) == false and H.writePlant({ getModData = function() error("x") end }, { stage = 2 }) == false)
+
+    -- room table
+    local plantsList = { { warnings = { roomTemp = true } }, { warnings = { coldNight = true } }, { warnings = {} }, {} }
+    check("hud: stressed counts plants with a warning and ignores cold nights", H.countStressed(plantsList) == 1)
+    local rt = H.buildRoom({ temp = 24.04, hum = 55.6 }, { tLo = 20, tHi = 26, hLo = 40, hHi = 60 }, plantsList)
+    check("hud: room table fields", rt.temp == 24 and rt.hum == 56 and rt.tLo == 20 and rt.tHi == 26 and rt.hLo == 40 and rt.hHi == 60
+        and rt.plants == 4 and rt.stressed == 1)
+    check("hud: no reading builds nothing", H.buildRoom({}, { tLo = 1, tHi = 2, hLo = 3, hHi = 4 }, {}) == nil)
+    local panel = stubObj()
+    local room = { temp = 24.04, hum = 55.6 }
+    local targets = { tLo = 20, tHi = 26, hLo = 40, hHi = 60 }
+    check("hud: first room write transmits", H.writeRoom(panel, room, targets, plantsList) == true and panel.sent == 1 and panel.md.DDRoomHud.plants == 4)
+    room.temp, room.hum = 24.01, 55.9   -- same after rounding to 0.1 C and 1 percent
+    check("hud: sub-rounding drift is not retransmitted", H.writeRoom(panel, room, targets, plantsList) == false and panel.sent == 1)
+    room.temp = 24.2
+    check("hud: a 0.1 C move transmits", H.writeRoom(panel, room, targets, plantsList) == true and panel.sent == 2 and panel.md.DDRoomHud.temp == 24.2)
+    room.hum = 57
+    check("hud: a 1 percent move transmits", H.writeRoom(panel, room, targets, plantsList) == true and panel.sent == 3)
+    check("hud: a new target band transmits", H.writeRoom(panel, room, { tLo = 6, tHi = 13, hLo = 40, hHi = 60 }, plantsList) == true and panel.md.DDRoomHud.tHi == 13)
+    check("hud: a changed plant count transmits", H.writeRoom(panel, room, { tLo = 6, tHi = 13, hLo = 40, hHi = 60 }, { {} }) == true and panel.md.DDRoomHud.plants == 1)
+
+    -- through the rooms module: the panel object at the room's panel square, once per climate pass
+    local Rm = CannabisMod.Rooms
+    local sq = fakeSquare(800, 800, 0, false, true)
+    sq.objs[1] = { sprite = "dazeddank_rooms_01_0" }
+    Rm.writeHud({ mode = "Flower", temp = 22.34, hum = 48.2, young = nil }, sq, { {}, {} })
+    local rh = sq.objs[1].md and sq.objs[1].md.DDRoomHud
+    local fl = C.Climate.TARGETS.Flower
+    check("hud: Rooms.writeHud puts DDRoomHud on the panel object with the mode's bands",
+        rh and rh.temp == 22.3 and rh.hum == 48 and rh.tLo == fl.tLo and rh.tHi == fl.tHi and rh.hLo == fl.hLo and rh.hHi == fl.hHi and rh.plants == 2 and rh.stressed == 0)
+    local blank = fakeSquare(801, 800, 0, false, true)
+    local okBlank = pcall(Rm.writeHud, { mode = "Flower", temp = 20, hum = 50 }, blank, {})
+    check("hud: a square with no panel is skipped quietly", okBlank)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

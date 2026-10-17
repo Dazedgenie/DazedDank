@@ -1,5 +1,10 @@
 # Dazed Dank patch notes
 
+## dd57.2 (HUD data)
+- Added: Dank now publishes read-only data on synced object ModData for other Dazed mods (such as the Dazed HUD overlay), which cannot read the server's global ModData. `DDHud` on each cannabis plant's plot object holds `{ stage, stageStartAt, nextStageAt }` (stage is the Config.STAGE index, times are world hours). `DDRoomHud` on each grow room's panel object holds `{ temp, hum, tLo, tHi, hLo, hHi, plants, stressed }`. See the README for the contract.
+- Added: writes are server-side only, guarded, and transmitted only when a value changed (times to 0.01 hour, temperature to 0.1 C, humidity to 1 percent). The plant key is written on a stage change, when a record is created and on the ten-minute sync (which also catches topping, rooting and set-backs), and cleared when the plant is removed, dies or is harvested. The room key is written once per climate pass. Dank stays standalone and adds no sandbox options.
+- Tests: 1357 checks.
+
 ## dd57.1 (rate limit, translations)
 - Added: the server now rate limits Dank client commands per player (CannabisRateLimit.lua, standalone, no Dazed Core needed). A token bucket across all commands (40 burst, 20 per second refill) and a minimum gap for pure request/info commands (plant info, room refresh, plant inspect, use state, bud inspect, dome, rack, jar, barrel and reservoir checks, set in Config.RateLimit.EVERY). Over-limit commands are dropped silently, with at most one console line per player per minute; idle players are forgotten. Timed-action commands (sow, harvest, feed, fill and so on) have no gap, so normal play is unchanged.
 - Changed: the sow menu's "This crop needs soil: use a grow bag", "No seeds carried that grow here" and "No cannabis seeds carried" texts are now translation keys (UI_DD_SowNeedsSoil, UI_DD_SowNoSeedsHere, UI_DD_SowNoCannabisSeeds). The server's notify messages stay plain English.

@@ -16,6 +16,7 @@ require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisCrop"
 require "CannabisMod/CannabisStrains"
 require "CannabisMod/CannabisWeather"
+require "CannabisMod/CannabisHudData"
 
 local Config   = CannabisMod.Config
 local Genetics = CannabisMod.Genetics
@@ -107,6 +108,7 @@ local function applyStage(plant, luaObject)
     if sprite then luaObject:setSpriteName(sprite) end
     applyTint(plant, luaObject)
     luaObject:saveData()
+    Farming.writeHud(plant, luaObject)
 end
 
 -- --------------------------------------------------------------------------
@@ -137,6 +139,24 @@ function Farming.syncLeafWindow(plant, now)
     if sent then plant.leafSync = code end
 end
 
+--- The plot's IsoObject, or nil.
+local function isoOf(luaObject)
+    if not (luaObject and luaObject.getIsoObject) then return nil end
+    local ok, obj = pcall(luaObject.getIsoObject, luaObject)
+    return ok and obj or nil
+end
+
+--- Publish the plant's stage and timings for other Dazed mods (DDHud on the plot object); sent only when they change.
+function Farming.writeHud(plant, luaObject)
+    CannabisMod.HudData.writePlant(isoOf(luaObject), plant)
+end
+
+--- Remove a plot's DDHud (plant harvested, dead, dug up or replaced).
+function Farming.clearHud(x, y, z)
+    local ok, luaObject = pcall(Farming.getVanilla, x, y, z)
+    if ok then CannabisMod.HudData.clearPlant(isoOf(luaObject)) end
+end
+
 --- Mark a bag's plot as plowed today, so vanilla doesn't let an empty one fade away.
 local function freshenPlot(luaObject, today)
     local square = luaObject:getSquare()
@@ -161,6 +181,7 @@ function Farming.syncWithVanilla()
             if plant then
                 plant.dead = true
                 seen[Config.tileKey(luaObject.x, luaObject.y, luaObject.z)] = true
+                CannabisMod.HudData.clearPlant(isoOf(luaObject))
             end
         elseif live then
             local x, y, z = luaObject.x, luaObject.y, luaObject.z
@@ -179,6 +200,8 @@ function Farming.syncWithVanilla()
             end
             plant.water = luaObject.waterLvl
             holdVanillaClock(luaObject)
+            -- Catches timer changes between stage changes (topping, rooting, a set-back) and records loaded from a save.
+            Farming.writeHud(plant, luaObject)
             seen[Config.tileKey(x, y, z)] = true
         end
     end
