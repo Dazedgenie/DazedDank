@@ -6396,7 +6396,7 @@ do
 
     -- pure helpers
     local t = H.buildPlant({ stage = 3, stageStartAt = 10.004, nextStageAt = 50.126 })
-    check("hud: plant table has stage and rounded world hours", t.stage == 3 and t.stageStartAt == 10 and t.nextStageAt == 50.13)
+    check("hud: plant table has stage and rounded world hours", t.stage == 3 and t.stageStartAt == 10 and t.nextStageAt == 50.1)
     check("hud: a record without a stage builds nothing", H.buildPlant({}) == nil and H.buildPlant(nil) == nil)
     check("hud: changed() sees identical, differing, missing and extra fields",
         not H.changed({ a = 1 }, { a = 1 }) and H.changed({ a = 1 }, { a = 2 }) and H.changed(nil, { a = 1 })
@@ -6418,10 +6418,10 @@ do
     worldHours = worldHours + 5
     Reg.advanceStage(hp)
     check("hud: advancing a stage rewrites and transmits once",
-        iso.md.DDHud.stage == hp.stage and iso.md.DDHud.nextStageAt == H.round(hp.nextStageAt, 0.01) and iso.sent == 2)
+        iso.md.DDHud.stage == hp.stage and iso.md.DDHud.nextStageAt == H.round(hp.nextStageAt, 0.1) and iso.sent == 2)
     hp.nextStageAt = hp.nextStageAt + 20   -- topping or a set-back moves the timer without a stage change
     CannabisMod.Farming.syncWithVanilla()
-    check("hud: the ten-minute sync picks up a moved timer", iso.md.DDHud.nextStageAt == H.round(hp.nextStageAt, 0.01) and iso.sent == 3)
+    check("hud: the ten-minute sync picks up a moved timer", iso.md.DDHud.nextStageAt == H.round(hp.nextStageAt, 0.1) and iso.sent == 3)
     Reg.removePlant(700, 700, 0)
     check("hud: removing the plant clears DDHud and transmits", iso.md.DDHud == nil and iso.sent == 4)
     Reg.removePlant(700, 700, 0)

@@ -453,7 +453,7 @@ Public contract for other Dazed mods. A client cannot read the server's global M
 
 | Key | Object | Fields |
 |-----|--------|--------|
-| `DDHud` | the plant's plot IsoObject (the vanilla farm plot at the plant's x, y, z; in a grow bag, the bag's plot) | `stage` (Config.STAGE index: 1 Seedling, 2 Vegetative, 3 PreFlower, 4 Flowering, 5 Ripe), `stageStartAt`, `nextStageAt` (world hours, `getGameTime():getWorldAgeHours()`). Absent when there is no live cannabis plant. At Ripe, `nextStageAt` is the end of the harvest window. |
+| `DDHud` | the plant's plot IsoObject (the vanilla farm plot at the plant's x, y, z; in a grow bag, the bag's plot) | `stage` (Config.STAGE index: 1 Seedling, 2 Vegetative, 3 PreFlower, 4 Flowering, 5 Ripe), `stageStartAt`, `nextStageAt` (world hours, the next-stage time rounded to 0.1, `getGameTime():getWorldAgeHours()`). Absent when there is no live cannabis plant. At Ripe, `nextStageAt` is the end of the harvest window. |
 | `DDRoomHud` | the room's panel IsoObject (any of the `Config.Rooms.PANEL_SPRITES`, `dazeddank_rooms_01_0` to `_3`) | `temp` (C, 0.1), `hum` (percent, whole), `tLo`, `tHi` (current temperature band, C), `hLo`, `hHi` (humidity band, percent), `plants` (living cannabis plants in the room), `stressed` (of those, how many carry a warning; cold-night slowdown is not counted) |
 
 Values are rounded and sent only when they change; the room table is refreshed once per climate pass (every ten game minutes).

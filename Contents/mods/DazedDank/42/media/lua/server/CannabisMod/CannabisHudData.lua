@@ -27,13 +27,13 @@ Hud.round = round
 Hud.PLANT_FIELDS = { "stage", "stageStartAt", "nextStageAt" }
 Hud.ROOM_FIELDS = { "temp", "hum", "tLo", "tHi", "hLo", "hHi", "plants", "stressed" }
 
---- The plant's HUD table, or nil when the record has no stage. Times are world hours rounded to 0.01.
+--- The plant's HUD table, or nil when the record has no stage. Times are world hours rounded to 0.01 (the next-stage time to 0.1, so a stalled plant does not resend every pass).
 function Hud.buildPlant(plant)
     if type(plant) ~= "table" or type(plant.stage) ~= "number" then return nil end
     return {
         stage = plant.stage,
         stageStartAt = plant.stageStartAt and round(plant.stageStartAt, 0.01) or nil,
-        nextStageAt = plant.nextStageAt and round(plant.nextStageAt, 0.01) or nil,
+        nextStageAt = plant.nextStageAt and round(plant.nextStageAt, 0.1) or nil,
     }
 end
 
