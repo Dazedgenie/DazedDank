@@ -1,20 +1,30 @@
 """Helpers for the Steam Workshop upload workflow (.github/workflows/workshop-upload.yml).
 
-  python3 steam_upload.py vdf <repo dir> <out.vdf> <change note file> [--no-description] [--no-preview] [--set-visibility]
+  python3 steam_upload.py vdf <repo dir> <out.vdf> <change note file> [--no-description] [--no-preview] [--set-visibility] [--create]
       Writes the workshop_build_item VDF from workshop.txt. Visibility is left out (the item
       keeps what it has on Steam) unless --set-visibility applies workshop.txt's visibility=.
+      --create makes a new Workshop item when workshop.txt has no id (title, description and
+      visibility are sent with it).
   python3 steam_upload.py code
       Prints a Steam Guard code from the STEAM_SHARED_SECRET environment variable."""
 
 import base64
+import fnmatch
 import hashlib
 import hmac
 import os
+import shutil
 import struct
 import sys
 import time
 
 APP_ID = "108600"  # Project Zomboid
+# Never uploaded: developer files that sit inside Contents/ in some repos (tools, tests, scripts, docs,
+# caches) and the staff-only *Test mods. LICENSE and NOTICE files ship; README and the like do not.
+SKIP_DIRS = {"tools", "tests", "test", "__pycache__", ".git", ".github", "docs"}
+SKIP_FILES = ["*.py", "*.pyc", "*.whl", "*.sh", "*.bat", "*.md", "*.blend", "*.blend1", "*.psd", "*.xcf",
+              "*.zip", "*.7z", ".DS_Store", "Thumbs.db", "*.log"]
+KEEP_FILES = ["NOTICE*", "LICENSE*", "LICENCE*"]
 # workshop.txt visibility= values to Steam's numbers.
 VISIBILITY = {"public": "0", "friends": "1", "friendsonly": "1", "private": "2", "hidden": "2", "unlisted": "3"}
 
@@ -45,16 +55,70 @@ def vdf_str(s):
     return '"' + out + '"'
 
 
+def skipped(rel_dir, name, is_dir):
+    """Is this entry (relative dir inside Contents/, entry name) left out of the upload?"""
+    if is_dir:
+        if name in SKIP_DIRS:
+            return True
+        # Contents/mods/<Something>Test is a staff or debug test mod: never on Steam.
+        return rel_dir == "mods" and name.endswith("Test")
+    if any(fnmatch.fnmatch(name, k) for k in KEEP_FILES):
+        return False
+    return any(fnmatch.fnmatch(name, k) for k in SKIP_FILES)
+
+
+def stage_contents(repo, staging):
+    """Copy Contents/ to the staging folder without the developer files, and report what was left out."""
+    src = os.path.join(repo, "Contents")
+    if os.path.isdir(staging):
+        shutil.rmtree(staging)
+    left_out = []
+    for cur, dirs, files in os.walk(src):
+        rel = os.path.relpath(cur, src)
+        rel = "" if rel == "." else rel
+        keep_dirs = []
+        for d in sorted(dirs):
+            if skipped(rel, d, True):
+                left_out.append(os.path.join(rel, d) + "/")
+            else:
+                keep_dirs.append(d)
+        dirs[:] = keep_dirs
+        os.makedirs(os.path.join(staging, rel), exist_ok=True)
+        for f in sorted(files):
+            if skipped(rel, f, False):
+                left_out.append(os.path.join(rel, f))
+            else:
+                shutil.copy2(os.path.join(cur, f), os.path.join(staging, rel, f))
+    if left_out:
+        print("Left out of the upload (%d):" % len(left_out))
+        for item in left_out[:60]:
+            print("  " + item)
+        if len(left_out) > 60:
+            print("  ... and %d more" % (len(left_out) - 60))
+    return staging
+
+
 def write_vdf(repo, out, note_file, with_description):
     info = read_workshop_txt(os.path.join(repo, "workshop.txt"))
     item_id = (info.get("id") or info.get("workshopid") or "").strip()
     if not item_id.isdigit() or item_id == "0":
-        sys.exit("workshop.txt has no workshopid; publish the item from the game once first.")
-    content = os.path.join(repo, "Contents")
+        if "--create" not in sys.argv:
+            sys.exit("workshop.txt has no id; publish the item once first (or upload with --create).")
+        # Steam makes a new item; title, description and visibility must come with it.
+        item_id = "0"
+        with_description = True
+        if "--set-visibility" not in sys.argv:
+            sys.argv.append("--set-visibility")
+    source = os.path.join(repo, "Contents")
     preview = os.path.join(repo, "preview.png")
-    mods = os.path.join(content, "mods")
+    mods = os.path.join(source, "mods")
     if not any(os.path.isfile(os.path.join(mods, m, "42", "mod.info")) for m in os.listdir(mods)):
         sys.exit("No Contents/mods/<mod>/42/mod.info found; refusing to upload an empty item.")
+    content = stage_contents(repo, os.path.join(os.path.dirname(os.path.abspath(out)), "upload-contents"))
+    staged_mods = os.path.join(content, "mods")
+    if not os.path.isdir(staged_mods) or not any(
+            os.path.isfile(os.path.join(staged_mods, m, "42", "mod.info")) for m in os.listdir(staged_mods)):
+        sys.exit("The staged upload holds no mod; check SKIP_DIRS in steam_upload.py.")
     with open(note_file, encoding="utf-8") as f:
         note = f.read().strip() or "Update"
     fields = [
