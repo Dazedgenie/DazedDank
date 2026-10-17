@@ -3,7 +3,8 @@
 ## dd57.1 (rate limit, translations)
 - Added: the server now rate limits Dank client commands per player (CannabisRateLimit.lua, standalone, no Dazed Core needed). A token bucket across all commands (40 burst, 20 per second refill) and a minimum gap for pure request/info commands (plant info, room refresh, plant inspect, use state, bud inspect, dome, rack, jar, barrel and reservoir checks, set in Config.RateLimit.EVERY). Over-limit commands are dropped silently, with at most one console line per player per minute; idle players are forgotten. Timed-action commands (sow, harvest, feed, fill and so on) have no gap, so normal play is unchanged.
 - Changed: the sow menu's "This crop needs soil: use a grow bag", "No seeds carried that grow here" and "No cannabis seeds carried" texts are now translation keys (UI_DD_SowNeedsSoil, UI_DD_SowNoSeedsHere, UI_DD_SowNoCannabisSeeds). The server's notify messages stay plain English.
-- Tests: 1329 checks.
+- Tests: 1333 checks.
+- Fixed (review): the limit only runs on a real server (single player and local split-screen are never limited), split-screen players on one connection are keyed by username plus online ID so they do not share a bucket, and a zero clock now disables the limit instead of leaving an empty bucket that never refills.
 
 ## dd57 (Grow gear as Dazed Power loads, in testing)
 - Added: with Dazed Core 1.8.4 and Dazed Power 0.8.5 both active, grow gear registers as Dazed Power loads (optional: Dank requires neither and behaves exactly as before without them). Grow lights are GROW LIGHTS (150 W basic, 400 W pro, 300 W large basic, 600 W large pro, 300 W flood, 600 W pro flood), exhaust, intake and circulation fans and the drying fan are FANS (120, 120, 50 and 60 W), hydro and drip pumps are HYDRO PUMPS (RDWC control 40 W, flood reservoir 60 W, drip tank 25 W), and the heater (1200 W), AC (700 W), humidifier (50 W) and dehumidifier (250 W) are GROW CLIMATE. Dank gear takes no controller slot.

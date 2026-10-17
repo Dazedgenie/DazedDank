@@ -18,11 +18,11 @@ local lastSweep
 local function defaultClock()
     if getTimestampMs then
         local ok, ms = pcall(getTimestampMs)
-        if ok and type(ms) == "number" then return ms end
+        if ok and type(ms) == "number" and ms > 0 then return ms end
     end
     if os and os.time then
         local ok, t = pcall(os.time)
-        if ok and type(t) == "number" then return t * 1000 end
+        if ok and type(t) == "number" and t > 0 then return t * 1000 end
     end
     return nil
 end
@@ -31,11 +31,14 @@ RL.clock = defaultClock
 --- Replace the clock (a function returning ms); nil restores the default.
 function RL.setClock(fn) RL.clock = fn or defaultClock end
 
---- Stable key for a player: the username, else tostring(player).
+--- Stable key for a player: the username plus the online ID (split-screen
+--- players on one connection each get their own bucket), else tostring(player).
 function RL.keyOf(player)
     local ok, name = pcall(function() return player:getUsername() end)
-    if ok and type(name) == "string" and name ~= "" then return name end
-    return tostring(player)
+    if not (ok and type(name) == "string" and name ~= "") then return tostring(player) end
+    local okId, id = pcall(function() return player:getOnlineID() end)
+    if okId and type(id) == "number" then return name .. "#" .. tostring(id) end
+    return name
 end
 
 --- Drop entries not seen for IDLE_MS.
@@ -60,7 +63,7 @@ end
 --- True when this command from this player may run now; records it if so.
 function RL.allow(player, command)
     local now = RL.clock()
-    if not now then return true end
+    if type(now) ~= "number" or now <= 0 then return true end
     local cfg = Config.RateLimit
     if not lastSweep or now < lastSweep or now - lastSweep >= cfg.SWEEP_MS then RL.sweep(now) end
     local key = RL.keyOf(player)

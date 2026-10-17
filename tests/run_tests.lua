@@ -6341,8 +6341,21 @@ do
     t = t + 200
     fire("OnClientCommand", "CannabisMod", "requestPlantInfo", player, { x = 10, y = 10, z = 0 })
     check("rate limit: onClientCommand lets the first and a spaced repeat reach the handler", ran > before and #sent > ran)
-    fire("OnClientCommand", "OtherMod", "requestPlantInfo", b, {})
-    check("rate limit: other mods' commands are not counted", true)
+    local n1 = RL.count()
+    fire("OnClientCommand", "OtherMod", "requestPlantInfo", user("dave"), {})
+    check("rate limit: other mods' commands are not counted", RL.count() == n1)
+    -- single player (not a server): local commands skip the limiter entirely
+    local realIsServer = isServer
+    isServer = function() return false end
+    fire("OnClientCommand", "CannabisMod", "noSuchCommand", user("erin"), {})
+    isServer = realIsServer
+    check("rate limit: single player commands are not tracked", RL.count() == n1)
+    -- split-screen players sharing a username get separate buckets by online ID
+    local function split(id) return { getUsername = function() return "frank" end, getOnlineID = function() return id end } end
+    local p1, p2 = split(3), split(4)
+    check("rate limit: split-screen players have distinct keys", RL.keyOf(p1) ~= RL.keyOf(p2))
+    check("rate limit: split-screen players each get a requestUseState at once",
+        RL.allow(p1, "requestUseState") and RL.allow(p2, "requestUseState"))
 
     -- idle cleanup
     check("rate limit: players are tracked", RL.count() >= 2)
@@ -6360,6 +6373,10 @@ do
     local free = true
     for _ = 1, 100 do free = free and RL.allow(a, "feedPlant") end
     check("rate limit: with no clock nothing is limited", free)
+    RL.setClock(function() return 0 end)
+    free = true
+    for _ = 1, 100 do free = free and RL.allow(a, "feedPlant") end
+    check("rate limit: a zero clock limits nothing (no stuck empty bucket)", free)
 
     print = oldPrint
     RL.setClock(RL.testClock)

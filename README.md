@@ -449,7 +449,7 @@ Tile id **7420** must not clash with another installed mod's `tiledef=` line.
 ## Offline tests
 
 `tests/run_tests.lua` stubs the game API (shaped like the vanilla B42
-farming files) and runs 1329 checks. From the repo root:
+farming files) and runs 1333 checks. From the repo root:
 
     lua tests/run_tests.lua .
 

@@ -145,7 +145,8 @@ end
 --- that isn't ours.
 local function onClientCommand(module, command, player, args)
     if module ~= Config.COMMAND_MODULE then return end
-    if not CannabisMod.RateLimit.allow(player, command) then return end
+    -- Only a real server limits: in single player sendClientCommand runs this directly for local (split-screen) players.
+    if isServer() and not CannabisMod.RateLimit.allow(player, command) then return end
     local handler = commands[command]
     if handler then
         handler(player, args or {})
