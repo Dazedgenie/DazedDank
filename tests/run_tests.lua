@@ -4334,6 +4334,20 @@ end
     fire("OnClientCommand", "CannabisMod", "chronicStart", chronic, {})
     local cu = CannabisMod.Smoking.data().users["trait1502"]
     check("traits: a Chronic starts hooked", cu and cu.dep == Tr.CHRONIC_DEP and cu.tol == Tr.CHRONIC_TOL and sent[#sent].cmd == "useState")
+    cu.dep, cu.tol, cu.lastUse = 10, 5, 1
+    fire("OnClientCommand", "CannabisMod", "chronicStart", chronic, { dep = 100, tol = 100 })
+    check("traits: chronicStart runs once per character (no resetting last use to dodge withdrawal)",
+        cu.dep == 10 and cu.tol == 5 and cu.lastUse == 1)
+    chronic.getHoursSurvived = function() return -1000 end
+    fire("OnClientCommand", "CannabisMod", "chronicStart", chronic, {})
+    check("traits: a new Chronic character on the same account starts hooked again", cu.dep == Tr.CHRONIC_DEP and cu.tol == Tr.CHRONIC_TOL)
+    check("traits: has is false when DazedOccupations has no has()", (function()
+        local saved = DazedOccupations
+        DazedOccupations = {}
+        local r = Tr.has(chronic, "chronic")
+        DazedOccupations = saved
+        return r == false
+    end)())
     fire("OnClientCommand", "CannabisMod", "chronicStart", plain, {})
     check("traits: chronicStart does nothing without the trait", CannabisMod.Smoking.data().users["trait1"] == nil)
 

@@ -3,7 +3,8 @@
 ## dd59 (optional DazedOccupations hooks)
 - Added: the trait effects removed in 0.58.0 are back as soft hooks for the standalone Dazed Occupations mod: reading plants, buds, seeds and hermie lines above your Agriculture level, cutting rooting bonus, Green Thumb care reduction, Budtender +15% cure, Pheno Hunter extra seeds and steadier crosses, Trim Hand speed and the wet-plant confirm (Trim Plant Anyway), Lightweight dose strength, and Chronic starting dependency and tolerance. Every check goes through `CannabisMod.Traits.has`, which is false when Dazed Occupations is not installed.
 - Unchanged: Dank still registers no occupations, traits, icons or sandbox option. Without Dazed Occupations every player behaves as a no-trait player, exactly as in 0.58.0.
-- Tests: 1357 checks (trait tests run against a stub DazedOccupations, plus the no-mod path).
+- Fixed: a Chronic's start runs once per character on the server, so repeating the command can no longer reset the last use and hold off withdrawal.
+- Tests: 1360 checks (trait tests run against a stub DazedOccupations, plus the no-mod path).
 
 ## dd58 (occupations and traits removed)
 - Removed: the three occupations (Cultivation Tech, Budtender, Botanist / Breeder) and the four traits (Green Thumb, Trim Hand, Chronic, Lightweight), with every effect they gave: faster trimming and the Trim Plant Anyway option, the starting dependency, stronger highs and faster tolerance, the care-penalty cut, extra rooting chance, the +15% cure, the extra seed and steadier crosses on pollination, and reading plants, buds and seeds above your Agriculture level. Inspect, the Sow menu and seed labels now follow Agriculture level alone; Inspect Bud shows what your level allows; the hermie-line note that only a Breeder saw is gone.

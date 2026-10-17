@@ -26,7 +26,7 @@ Traits.CHRONIC_DEP, Traits.CHRONIC_TOL = 45, 30 -- a Chronic's starting dependen
 --- ("cultivationtech", "budtender", "breeder", through the trait each grants). Always false without DazedOccupations.
 function Traits.has(player, key)
     if not player then return false end
-    return DazedOccupations ~= nil and DazedOccupations.has(player, key) == true
+    return DazedOccupations ~= nil and type(DazedOccupations.has) == "function" and DazedOccupations.has(player, key) == true
 end
 
 --- What a player reads beyond their Agriculture level: { boost = levels, genetics = true/false, buds = true/false }.

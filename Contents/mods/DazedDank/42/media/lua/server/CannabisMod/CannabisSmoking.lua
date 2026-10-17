@@ -281,9 +281,18 @@ commands.requestUseState = function(player, args)
 end
 
 --- A new Chronic character starts hooked: their record is raised to the trait's dependency and tolerance, last use now.
+--- Once per character (keyed by when the character was born, so a new character after a death starts hooked again):
+--- a repeat would reset the last use and hold off withdrawal for good. Args are ignored; the numbers are the trait's.
 commands.chronicStart = function(player, args)
     if not CannabisMod.Traits.has(player, "chronic") then return end
     local user = userOf(player)
+    local ok, survived = pcall(function() return player:getHoursSurvived() end)
+    local born = (ok and type(survived) == "number") and math.floor(now() - survived + 0.5) or 0
+    if user.chronicBorn ~= nil and math.abs(user.chronicBorn - born) <= 1 then
+        commands.requestUseState(player, {}) -- the client skipped its own state request for this
+        return
+    end
+    user.chronicBorn = born
     Use.decay(user, now())
     user.dep = math.max(user.dep, CannabisMod.Traits.CHRONIC_DEP)
     user.tol = math.max(user.tol, CannabisMod.Traits.CHRONIC_TOL)

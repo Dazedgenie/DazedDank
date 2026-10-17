@@ -454,7 +454,7 @@ Values are rounded and sent only when they change; the room table is refreshed o
 ## Offline tests
 
 `tests/run_tests.lua` stubs the game API (shaped like the vanilla B42
-farming files) and runs 1357 checks. From the repo root:
+farming files) and runs 1360 checks. From the repo root:
 
     lua tests/run_tests.lua .
 
