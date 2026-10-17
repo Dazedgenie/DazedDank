@@ -31,6 +31,19 @@ local worldHours = 0
 hourOfDay = 12
 function getGameTime() return { getWorldAgeHours = function() return worldHours end, getHour = function() return hourOfDay end } end
 Perks = { Farming = "Farming" }
+-- getText reads the English UI.json, so client strings keep their wording under test.
+local uiText
+function getText(key)
+    if not uiText then
+        uiText = {}
+        local f = io.open(MOD .. "shared/Translate/EN/UI.json", "r")
+        if f then
+            for k, v in f:read("*a"):gmatch('"([%w_]+)"%s*:%s*"([^"]*)"') do uiText[k] = v end
+            f:close()
+        end
+    end
+    return uiText[key] or key
+end
 local sent = {}
 function sendServerCommand(player, module, cmd, data) sent[#sent + 1] = { module = module, cmd = cmd, data = data } end
 local function fire(name, ...) for _, fn in ipairs(handlers[name] or {}) do fn(...) end end
@@ -189,6 +202,13 @@ require "CannabisMod/CannabisPotPlants"
 require "CannabisMod/CannabisVanillaCrops"
 require "CannabisMod/CannabisPlantTemp"
 require "CannabisMod/CannabisLampHeat"
+-- The rate limiter gets a clock that steps a second per command, so the many
+-- commands the older tests fire are never limited. Its own tests (end of file) set their own.
+do
+    local step = 0
+    CannabisMod.RateLimit.testClock = function() step = step + 1000; return step end
+    CannabisMod.RateLimit.setClock(CannabisMod.RateLimit.testClock)
+end
 --- The plant layer a plot shows (plots themselves show the furrow or container).
 local function plantSprite(plot) return (CannabisMod.PotPlants.wanted(plot)) end
 --- The shape index of the plant on a plot's tile, from its strain.
@@ -6250,6 +6270,99 @@ do
     Link.init()
     check("power link: switching the link off restores square power", Link.on == false and Link.feeds(objC) == nil and Link.powered(objC, sqC) == false)
     Link.reset()
+end
+
+-- ---- Translated sow-menu strings ---
+check("translations: sow menu keys exist and read as before",
+    getText("UI_DD_SowNeedsSoil") == "This crop needs soil: use a grow bag"
+    and getText("UI_DD_SowNoSeedsHere") == "No seeds carried that grow here"
+    and getText("UI_DD_SowNoCannabisSeeds") == "No cannabis seeds carried")
+
+-- ---- Server rate limit -------------------------------------------------
+do
+    local RL, C = CannabisMod.RateLimit, CannabisMod.Config.RateLimit
+    local t = 1000000
+    RL.setClock(function() return t end)
+    local function user(name) return { getUsername = function() return name end } end
+    local a, b = user("alice"), user("bob")
+    local oldPrint, lines = print, {}
+    print = function(...) lines[#lines + 1] = table.concat({ ... }, " ") end
+
+    check("rate limit: config has capacity 40, refill 20/s and requestPlantInfo 150 ms",
+        C.CAPACITY == 40 and C.REFILL_PER_SEC == 20 and C.EVERY.requestPlantInfo == 150)
+    check("rate limit: grow actions are not on the interval list",
+        C.EVERY.sow == nil and C.EVERY.feedPlant == nil and C.EVERY.trimPlant == nil and C.EVERY.takeCutting == nil)
+
+    -- burst over capacity is dropped
+    local okN = 0
+    for _ = 1, 60 do if RL.allow(a, "feedPlant") then okN = okN + 1 end end
+    check("rate limit: a burst of 60 at one instant lets exactly 40 through", okN == 40)
+    check("rate limit: the dropped burst printed once", #lines == 1)
+
+    -- refill works: 100 ms = 2 tokens
+    t = t + 100
+    okN = 0
+    for _ = 1, 5 do if RL.allow(a, "feedPlant") then okN = okN + 1 end end
+    check("rate limit: 100 ms refills 2 tokens", okN == 2)
+    t = t + 5000
+    okN = 0
+    for _ = 1, 60 do if RL.allow(a, "feedPlant") then okN = okN + 1 end end
+    check("rate limit: refill caps at capacity", okN == 40)
+
+    -- independence
+    check("rate limit: another player is unaffected by a drained bucket", RL.allow(b, "feedPlant"))
+
+    -- print throttle: one line per player per minute
+    local n0 = #lines
+    for _ = 1, 20 do RL.allow(a, "feedPlant") end
+    check("rate limit: no second console line within a minute", #lines == n0)
+    t = t + 61000
+    for _ = 1, 60 do RL.allow(a, "feedPlant") end
+    check("rate limit: another console line after a minute", #lines == n0 + 1 and lines[#lines]:find("alice", 1, true) ~= nil)
+
+    -- per-command interval
+    t = t + 10000
+    check("rate limit: first requestPlantInfo passes", RL.allow(b, "requestPlantInfo"))
+    t = t + 100
+    check("rate limit: second within 150 ms is dropped", not RL.allow(b, "requestPlantInfo"))
+    check("rate limit: a different command passes inside that gap", RL.allow(b, "feedPlant"))
+    check("rate limit: another player may request in that gap", RL.allow(a, "requestPlantInfo"))
+    t = t + 50
+    check("rate limit: passes again at 150 ms", RL.allow(b, "requestPlantInfo"))
+
+    -- below the limits, handlers run as before (through the real entry point)
+    t = t + 10000
+    local before = #sent
+    fire("OnClientCommand", "CannabisMod", "requestPlantInfo", player, { x = 10, y = 10, z = 0 })
+    local ran = #sent
+    t = t + 50
+    fire("OnClientCommand", "CannabisMod", "requestPlantInfo", player, { x = 10, y = 10, z = 0 })
+    check("rate limit: onClientCommand drops a too-quick repeat before the handler", #sent == ran)
+    t = t + 200
+    fire("OnClientCommand", "CannabisMod", "requestPlantInfo", player, { x = 10, y = 10, z = 0 })
+    check("rate limit: onClientCommand lets the first and a spaced repeat reach the handler", ran > before and #sent > ran)
+    fire("OnClientCommand", "OtherMod", "requestPlantInfo", b, {})
+    check("rate limit: other mods' commands are not counted", true)
+
+    -- idle cleanup
+    check("rate limit: players are tracked", RL.count() >= 2)
+    t = t + C.IDLE_MS + C.SWEEP_MS + 1
+    RL.allow(user("carol"), "feedPlant")
+    check("rate limit: idle players are swept, active ones kept", RL.count() == 1)
+    RL.forget(user("carol"))
+    check("rate limit: forget removes a player at once", RL.count() == 0)
+
+    -- fallbacks
+    local anon = {}
+    check("rate limit: a player without getUsername is keyed by tostring", RL.keyOf(anon) == tostring(anon) and RL.allow(anon, "x"))
+    RL.forget(anon)
+    RL.setClock(function() return nil end)
+    local free = true
+    for _ = 1, 100 do free = free and RL.allow(a, "feedPlant") end
+    check("rate limit: with no clock nothing is limited", free)
+
+    print = oldPrint
+    RL.setClock(RL.testClock)
 end
 
 print(string.format("\n%d passed, %d failed", passed, failed))

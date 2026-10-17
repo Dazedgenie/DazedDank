@@ -1097,6 +1097,32 @@ end
 
 
 -- --------------------------------------------------------------------------
+-- Server rate limit (CannabisRateLimit.lua)
+-- --------------------------------------------------------------------------
+-- A per-player token bucket across every Dank client command, plus a minimum
+-- gap (ms) for pure request/info commands. Timed-action commands (sow, harvest,
+-- feed, fill, trim, ...) are deliberately not listed: they can fire in bursts.
+Config.RateLimit = {
+    CAPACITY = 40,          -- burst allowance, in commands
+    REFILL_PER_SEC = 20,    -- tokens regained per second
+    IDLE_MS = 600000,       -- a player's entry is dropped after this long unseen
+    SWEEP_MS = 60000,       -- how often idle entries are looked for
+    PRINT_MS = 60000,       -- at most one console line per player per this long
+    EVERY = {
+        requestPlantInfo = 150,
+        roomInspectPlant = 150,
+        requestRoom = 200,
+        requestUseState = 500,
+        inspectBud = 150,
+        domeCheck = 300,
+        checkRack = 300,
+        checkJar = 300,
+        checkBarrel = 300,
+        hydroCheck = 300,
+    },
+}
+
+-- --------------------------------------------------------------------------
 -- Smoking, effects, tolerance and dependency
 -- --------------------------------------------------------------------------
 Config.Smoking = {

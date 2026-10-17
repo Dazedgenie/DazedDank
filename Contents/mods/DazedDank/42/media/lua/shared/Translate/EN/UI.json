@@ -18,5 +18,8 @@
     "UI_trait_DD_Chronic": "Chronic",
     "UI_trait_DD_ChronicDesc": "Starts already dependent on cannabis with some tolerance. Withdrawal sets in about a day after the last smoke.",
     "UI_trait_DD_Lightweight": "Lightweight",
-    "UI_trait_DD_LightweightDesc": "Highs hit 50 percent harder and last longer, side effects included. Tolerance builds 50 percent faster."
+    "UI_trait_DD_LightweightDesc": "Highs hit 50 percent harder and last longer, side effects included. Tolerance builds 50 percent faster.",
+    "UI_DD_SowNeedsSoil": "This crop needs soil: use a grow bag",
+    "UI_DD_SowNoSeedsHere": "No seeds carried that grow here",
+    "UI_DD_SowNoCannabisSeeds": "No cannabis seeds carried"
 }

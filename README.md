@@ -414,6 +414,7 @@ type changes on a fresh save.
 | server/CannabisMod/CannabisVanillaCrops.lua | server | Vanilla crops in containers (Garden Crops add-on): hydro water, growth speed, indoor survival; the grow room panel lists these as "Other crops" (dashboard count, All plants section, 40 rows) |
 | server/CannabisMod/CannabisGrowing.lua | server | Feeding nutrients, debug grow kit |
 | server/CannabisMod/CannabisRegistry.lua | server | Plant records, growth clock, water, feeding, pollination |
+| server/CannabisMod/CannabisRateLimit.lua | server | Per-player token bucket and per-command minimum gaps for client commands (Config.RateLimit); drops silently |
 | server/CannabisMod/CannabisServerCommands.lua | server | Validates and answers client requests |
 | client/CannabisMod/CannabisClient.lua | client | Right-click menus and the plant info window |
 | client/CannabisMod/CannabisDomeContainer.lua | client | Cloning dome rules: cuttings only, max 12 |
@@ -448,7 +449,7 @@ Tile id **7420** must not clash with another installed mod's `tiledef=` line.
 ## Offline tests
 
 `tests/run_tests.lua` stubs the game API (shaped like the vanilla B42
-farming files) and runs 1273 checks. From the repo root:
+farming files) and runs 1329 checks. From the repo root:
 
     lua tests/run_tests.lua .
 

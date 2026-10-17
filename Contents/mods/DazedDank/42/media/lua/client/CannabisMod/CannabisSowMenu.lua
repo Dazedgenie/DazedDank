@@ -153,14 +153,14 @@ if ISFarmingMenu and ISFarmingMenu.doSeedMenu and not ISFarmingMenu.ddSowFiltere
                     option.notAvailable = true
                     option.onSelect = nil
                     local tip = ISInventoryPaneContextMenu.addToolTip()
-                    tip.description = "This crop needs soil: use a grow bag"
+                    tip.description = getText("UI_DD_SowNeedsSoil")
                     option.toolTip = tip
                 end
             end
         end
         for _, name in ipairs(drop) do subMenu:removeOptionByName(name) end
         if subMenu.numOptions <= 1 then
-            local none = Config.gardenCrops() and "No seeds carried that grow here" or "No cannabis seeds carried"
+            local none = getText(Config.gardenCrops() and "UI_DD_SowNoSeedsHere" or "UI_DD_SowNoCannabisSeeds")
             subMenu:addOption(none, nil, nil).notAvailable = true
         end
     end

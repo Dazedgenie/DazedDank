@@ -9,6 +9,7 @@ require "CannabisMod/CannabisNet"
 require "CannabisMod/CannabisRegistry"
 require "CannabisMod/CannabisFarming"
 require "CannabisMod/CannabisSeeds"
+require "CannabisMod/CannabisRateLimit"
 
 local Config = CannabisMod.Config
 local Net = CannabisMod.Net
@@ -144,6 +145,7 @@ end
 --- that isn't ours.
 local function onClientCommand(module, command, player, args)
     if module ~= Config.COMMAND_MODULE then return end
+    if not CannabisMod.RateLimit.allow(player, command) then return end
     local handler = commands[command]
     if handler then
         handler(player, args or {})
