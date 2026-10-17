@@ -1371,14 +1371,19 @@ check("barrel holds ten jars' worth", C.Drying.BARREL_CAPACITY == 10 * C.Drying.
         dd.stations["903_900_0"] = {}                       -- no clock yet
         dd.jars["barrel_900_900_0"] = { lastBurp = 0, touched = nowS }
         dd.jars["barrel_901_900_0"] = { lastBurp = 0, touched = nowS }
-        dd.buds.s1 = { type = "Indica", cureHours = 10, at = "900_900_0", touched = nowS }
-        dd.leaves.s2 = { leaf = true, at = "900_900_0", touched = nowS }
-        dd.plants.s3 = { hours = 5, at = "900_900_0", touched = nowS }
+        dd.buds.s1 = { type = "Indica", cureHours = 10, at = "900_900_0", touched = oldT, fromItem = true, changed = true }
+        dd.leaves.s2 = { leaf = true, at = "900_900_0", touched = oldT }
+        dd.plants.s3 = { hours = 5, at = "900_900_0", touched = oldT }
+        dd.buds.s6 = { type = "Indica", cureHours = 0, at = "900_900_0", touched = oldT, fromItem = true }
+        dd.buds.s7 = { type = "Indica", cureHours = 10, at = "900_900_0", touched = nowS, fromItem = true }
         dd.buds.s4 = { type = "Indica", cureHours = 10, at = "902_900_0", touched = nowS }
         dd.buds.s5 = { type = "Indica", cureHours = 10, at = "901_900_0", touched = nowS }
         Dr.prune(nowS)
-        check("stale: an unvisited station goes with its barrel jar and tied buds, leaves and plants",
-            dd.stations["900_900_0"] == nil and dd.jars["barrel_900_900_0"] == nil and dd.buds.s1 == nil and dd.leaves.s2 == nil and dd.plants.s3 == nil)
+        check("stale: an unvisited station goes with its barrel jar, and its old records the items can do without",
+            dd.stations["900_900_0"] == nil and dd.jars["barrel_900_900_0"] == nil and dd.leaves.s2 == nil and dd.buds.s6 == nil)
+        check("stale: cure and drying progress tied to it is kept (the item may be in a pack)",
+            dd.buds.s1 and dd.buds.s1.cureHours == 10 and dd.plants.s3 and dd.plants.s3.hours == 5)
+        check("stale: a record touched recently is kept though its station went", dd.buds.s7 ~= nil)
         check("stale: a station on a loaded square is kept with its records", dd.stations["901_900_0"] and dd.jars["barrel_901_900_0"] and dd.buds.s5)
         check("stale: a fresh station and its records are kept", dd.stations["902_900_0"] and dd.buds.s4)
         check("stale: a station with no clock starts it and stays", dd.stations["903_900_0"] and dd.stations["903_900_0"].lastTick == nowS)

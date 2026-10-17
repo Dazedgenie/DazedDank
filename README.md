@@ -210,8 +210,9 @@ offline: if nothing is tinted, tell me.
     in a jar's count, yield or quality.
     Server housekeeping: a drying or curing station nobody has been near for
     90 days (its square not loaded) is dropped once a day, with its barrel burp
-    record and the bud, leaf and plant records tied to it. The items keep their
-    own data.
+    record. Cure progress on buds and drying progress on whole plants that were
+    in it is kept, so one carried off in a pack keeps it (fan leaf records go
+    after 90 days untouched, as before).
 28d. **Cured tobacco.** Vanilla dries tobacco on its own drying rack into Dried
     Tobacco (Dank racks don't take it). Put that in a curing jar or barrel and
     it cures like a dried fan leaf (3 days by default, same burps and mold) into

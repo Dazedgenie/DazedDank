@@ -680,9 +680,10 @@ function Drying.prune(now)
     now = now or Registry.nowHours()
     local keep = D.RECORD_KEEP_DAYS * 24
     local dropped = 0
-    -- Stations nobody has been near for RECORD_KEEP_DAYS go with their barrel burp record and the records tied to them.
+    -- Stations nobody has been near for RECORD_KEEP_DAYS go with their barrel burp record.
     -- lastTick is written every ten minutes while the square is loaded, so an old one means nobody has visited.
-    local staleStations, staleRecords = 0, 0
+    -- The records tied to them are not dropped here: with the station gone they meet the sweep below, which keeps
+    -- cure and drying progress the item doesn't carry (a bud or plant taken off the station may still be in a pack).
     local goneStations = {}
     for key, station in pairs(db.stations) do
         if not station.lastTick then
@@ -694,23 +695,13 @@ function Drying.prune(now)
         end
     end
     if #goneStations > 0 then
-        local gone = {}
-        for _, key in ipairs(goneStations) do gone[key] = true end
-        for _, list in ipairs({ db.buds, db.leaves, db.plants }) do
-            local ids = {}
-            for id, rec in pairs(list) do
-                if rec.at and gone[rec.at] then ids[#ids + 1] = id end
-            end
-            for _, id in ipairs(ids) do list[id] = nil end
-            staleRecords = staleRecords + #ids
-        end
+        local burps = 0
         for _, key in ipairs(goneStations) do
-            if db.jars["barrel_" .. key] then db.jars["barrel_" .. key] = nil; staleRecords = staleRecords + 1 end
+            if db.jars["barrel_" .. key] then db.jars["barrel_" .. key] = nil; burps = burps + 1 end
             db.stations[key] = nil
         end
-        staleStations = #goneStations
-        dropped = dropped + staleStations + staleRecords
-        print("[DazedDank] dropped " .. staleStations .. " stale drying stations and " .. staleRecords .. " records tied to them")
+        dropped = dropped + #goneStations + burps
+        print("[DazedDank] dropped " .. #goneStations .. " stale drying stations and " .. burps .. " barrel burp records")
     end
     local function sweep(list, canDrop)
         local gone = {}
