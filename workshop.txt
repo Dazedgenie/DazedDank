@@ -85,25 +85,24 @@ description=[*][b]Roll Joint[/b], [b]Smoke in Pipe[/b], or [b]Roll Blunt[/b] in 
 description=[*]Tolerance builds with every dose. Regular use builds dependency, and going without brings withdrawal.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-people.png?v=2[/img]
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/people.png?v=2[/img]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-skill.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-skill.png?v=3[/img]
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/skill.png?v=2[/img]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-parts.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-parts.png?v=3[/img]
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/gear.png?v=2[/img]
 description=Everything is craftable once learned from the [b]Grower's Handbook[/b], [b]Hydroponics Monthly[/b] and [b]Controlled Environment Quarterly[/b].
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-compat.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-compat.png?v=3[/img]
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/compat.png?v=2[/img]
 description=[list]
 description=[*]Single player and multiplayer. 21 sandbox options, from growth speed and mold to light leaks and room climate.
-description=[*][b]Dazed Power[/b] isn't needed. With Dazed Power 0.8.5 or later (and Dazed Core 1.8.4), grow lights, room fans, heaters, ACs, humidifiers and dehumidifiers, hydro and drip pumps and the drying fan can be cabled to a controller or transformer as Power loads: they are billed on the LOADS page, shown in Load Priority and go dark or stop when cut. They take no controller slot. Gear you do not cable keeps running off any powered square, free, as before.
+description=[*][b]Dazed Power[/b] isn't needed. With Dazed Power 0.8.5+ (and Dazed Core 1.8.4), grow lights, room fans, heaters, ACs, (de)humidifiers, hydro and drip pumps and the drying fan can be cabled to a controller or transformer as Power loads: billed on the LOADS page, shown in Load Priority, dark or stopped when cut, no controller slot. Gear you do not cable keeps running off any powered square, free.
 description=[*]The [b]Dazed Dank: Garden Crops[/b] add-on lets vanilla crops grow in Dank's bags and hydro.
+description=[*]Optional [b]Dazed Occupations[/b] adds grower occupations and traits that Dank supports.
 description=[/list]
 description=
-description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-help.png?v=2[/img]
+description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-help.png?v=3[/img]
 description=Found a bug? Post in [b]Discussions[/b] with what happened and your console.txt.
 description=
 description=[hr][/hr]
