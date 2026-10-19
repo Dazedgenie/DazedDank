@@ -97,7 +97,7 @@ description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/mai
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/compat.png?v=2[/img]
 description=[list]
 description=[*]Single player and multiplayer. 21 sandbox options, from growth speed and mold to light leaks and room climate.
-description=[*][b]Dazed Power[/b] isn't needed. With Dazed Power 0.8.5+ (and Dazed Core 1.8.4), grow lights, room fans, heaters, ACs, (de)humidifiers, hydro and drip pumps and the drying fan can be cabled to a controller or transformer as Power loads: billed on the LOADS page, shown in Load Priority, dark or stopped when cut, no controller slot. Gear you do not cable keeps running off any powered square, free.
+description=[*][b]Dazed Power[/b] isn't needed. With Dazed Power 0.19+ (and Dazed Core 1.9.0), grow lights, room fans, heaters, ACs, (de)humidifiers, hydro and drip pumps and the drying fan can be cabled to a controller or transformer as Power loads: billed on the LOADS page, shown in Load Priority, dark or stopped when cut, no controller slot. Gear you do not cable keeps running off any powered square, free.
 description=[*]The [b]Dazed Dank: Garden Crops[/b] add-on lets vanilla crops grow in Dank's bags and hydro.
 description=[*]Optional [b]Dazed Occupations[/b] adds grower occupations and traits that Dank supports.
 description=[/list]
