@@ -78,11 +78,12 @@ local function applyTint(plant, luaObject)
     if plant and plant.purple then r, g, b = CannabisMod.Weather.purpleTint(r, g, b) end
     -- In a container the colour goes on the raised plant, and the container itself stays plain.
     local overlay = Config.overlayOn(obj:getSquare())
+    -- No pcall here: B42 sendObjectChange only takes an IsoObjectChange, and every Java throw a pcall
+    -- swallows leaks a Kahlua return slot until the server's timed actions die with "callFrame is null".
     local function paint(target, cr, cg, cb)
-        pcall(function()
-            target:setCustomColor(cr, cg, cb, 1)
-            if isServer() and target.sendObjectChange then target:sendObjectChange("customColor") end
-        end)
+        if not (target and target.setCustomColor) then return end
+        target:setCustomColor(cr, cg, cb, 1)
+        if isServer() and target.transmitCustomColorToClients then target:transmitCustomColorToClients() end
     end
     if overlay then
         paint(obj, 1, 1, 1)
