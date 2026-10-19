@@ -1,7 +1,7 @@
 version=1
 id=3816693450
 title=Dazed Dank
-description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're not comfortable with that, please stop reading here.
+description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're not comfortable with that, please stop reading here. Still in development: expect bugs. Dedicated server testing isn't finished, but it should work.
 description=
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/banner.jpg?v=2[/img]
 description=
