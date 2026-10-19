@@ -1,7 +1,7 @@
 version=1
 id=3816693450
 title=Dazed Dank
-description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're not comfortable with that, please stop reading here. Still in development: expect bugs. Dedicated server testing isn't finished, but it should work.
+description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're not comfortable with that, please stop reading here. Still in development, so expect bugs: report them at https://discord.gg/qkP5CPHgy. Dedicated server testing isn't finished, but it should work.
 description=
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/banner.jpg?v=2[/img]
 description=
@@ -108,7 +108,7 @@ description=
 description=[hr][/hr]
 description=
 description=[h2]The Dazed suite[/h2]
-description=[b]Dazed Core[/b] · [b]Dazed Power[/b] · [b]Dazed Power: Electric Vehicles[/b] · [b]Dazed Plumbing[/b] · [b]Dazed Dank: Garden Crops[/b] · [b]Dazed Climate[/b] · [b]Dazed Butchery[/b] · [b]Dazed Cooking[/b] · [b]Dazed Essentials[/b]
+description=Dazed Core · Dazed Power · Dazed Power: Electric Vehicles · Dazed Plumbing · Dazed Dank: Garden Crops · Dazed Climate · Dazed Butchery · Dazed Cooking · Dazed Essentials
 description=
 description=[h2]Licence[/h2]
 description=CC BY-NC-SA 4.0 (Attribution-NonCommercial-ShareAlike). Source on [url=https://github.com/Dazedgenie/DazedDank]GitHub[/url].
