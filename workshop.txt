@@ -5,7 +5,7 @@ description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're n
 description=
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/banner.jpg?v=2[/img]
 description=
-description=Grow cannabis the way it's really done: sexed seeds, strains and breeding, light cycles, feeding, cloning, grow bags, three hydro systems, climate-controlled grow rooms, drying, trimming, curing and smoking. Every step matters to the quality of what you harvest. Made by a working grower for [b]Build 42[/b].
+description=Grow cannabis the way it's really done: sexed seeds, strains and breeding, light cycles, feeding, cloning, grow bags, three hydro systems, climate-controlled grow rooms, drying, trimming, curing and smoking. Made by a working grower for [b]Build 42[/b].
 description=
 description=[table]
 description=[tr][td][b]Game version[/b][/td][td]Build 42 only (42.0+)[/td][/tr]
@@ -50,7 +50,7 @@ description=
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/h-breed.png?v=2[/img]
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/strains.png?v=2[/img]
 description=[list]
-description=[*]Six starter strains with hidden potency, yield and flowering speed. Cross two and you get a new named strain.
+description=[*]Six starter strains with hidden potency, yield and flowering speed. Cross two for a new named strain: 8,800+ names and 100 million+ trait mixes.
 description=[*]Males show at pre-flower. [b]Pull Male Plant[/b], or keep one near your females for seeds.
 description=[*]Stressed females can turn [b]hermie[/b] and seed the whole room. Cold nights in late flower can turn buds [b]purple[/b].
 description=[/list]
