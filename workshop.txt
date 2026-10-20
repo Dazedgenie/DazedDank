@@ -3,6 +3,8 @@ id=3816693450
 title=Dazed Dank
 description=[b]Disclaimer: this mod was made with AI assistance.[/b] If you're not comfortable with that, please stop reading here. Still in development, so expect bugs: report them at https://discord.gg/qkP5CPHgy. Dedicated server testing isn't finished, but it should work.
 description=
+description=[b]Project Viewpoint compatible.[/b]
+description=
 description=[img]https://raw.githubusercontent.com/Dazedgenie/Dazed-Workshop/main/Dank/images/banner.jpg?v=2[/img]
 description=
 description=Grow cannabis the way it's really done: sexed seeds, strains and breeding, light cycles, feeding, cloning, grow bags, three hydro systems, climate-controlled grow rooms, drying, trimming, curing and smoking. Made by a working grower for [b]Build 42[/b].
