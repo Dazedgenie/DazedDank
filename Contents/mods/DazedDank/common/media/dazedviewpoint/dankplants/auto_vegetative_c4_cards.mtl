@@ -1,0 +1,4 @@
+newmtl auto_vegetative_c4_cards
+Kd 1 1 1
+d 1
+map_Kd textures/auto_vegetative_c4_cards.png

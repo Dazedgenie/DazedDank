@@ -1,0 +1,4 @@
+newmtl hybrid_preflower_c4_cards
+Kd 1 1 1
+d 1
+map_Kd textures/hybrid_preflower_c4_cards.png

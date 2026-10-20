@@ -1,0 +1,4 @@
+newmtl male_tree_flowering_c3_cards
+Kd 1 1 1
+d 1
+map_Kd textures/male_tree_flowering_c3_cards.png

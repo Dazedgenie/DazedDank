@@ -1,0 +1,4 @@
+newmtl landrace_preflower_c4_cards
+Kd 1 1 1
+d 1
+map_Kd textures/landrace_preflower_c4_cards.png

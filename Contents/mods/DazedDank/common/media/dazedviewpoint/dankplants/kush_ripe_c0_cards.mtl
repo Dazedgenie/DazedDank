@@ -1,0 +1,4 @@
+newmtl kush_ripe_c0_cards
+Kd 1 1 1
+d 1
+map_Kd textures/kush_ripe_c0_cards.png

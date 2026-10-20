@@ -1,0 +1,4 @@
+newmtl gold_tree_flowering_c1_cards
+Kd 1 1 1
+d 1
+map_Kd textures/gold_tree_flowering_c1_cards.png

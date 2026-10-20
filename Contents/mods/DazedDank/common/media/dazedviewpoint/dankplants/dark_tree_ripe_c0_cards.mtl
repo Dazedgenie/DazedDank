@@ -1,0 +1,4 @@
+newmtl dark_tree_ripe_c0_cards
+Kd 1 1 1
+d 1
+map_Kd textures/dark_tree_ripe_c0_cards.png

@@ -1,0 +1,4 @@
+newmtl tree_preflower_c4_cards
+Kd 1 1 1
+d 1
+map_Kd textures/tree_preflower_c4_cards.png

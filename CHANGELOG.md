@@ -1,5 +1,9 @@
 # Dazed Dank patch notes
 
+## dd60 (Project Viewpoint models built in)
+- Added: Dank now ships its own 3D models for Project Viewpoint (first-person view): the grow-room furniture, lamps, racks, tables, bags, pots, wall units (panel, fans, heaters, dehumidifier, humidifier, wall AC, blackout curtain) and every plant, in all stages and conditions. They load only when Viewpoint is installed; nothing changes without it. The standalone Dazed Viewpoint mod no longer carries Dank's models and Dank no longer needs it.
+- Size: about 12 MB of models and textures added to the mod.
+
 ## dd59 (optional DazedOccupations hooks)
 - Added: the trait effects removed in 0.58.0 are back as soft hooks for the standalone Dazed Occupations mod: reading plants, buds, seeds and hermie lines above your Agriculture level, cutting rooting bonus, Green Thumb care reduction, Budtender +15% cure, Pheno Hunter extra seeds and steadier crosses, Trim Hand speed and the wet-plant confirm (Trim Plant Anyway), Lightweight dose strength, and Chronic starting dependency and tolerance. Every check goes through `CannabisMod.Traits.has`, which is false when Dazed Occupations is not installed.
 - Unchanged: Dank still registers no occupations, traits, icons or sandbox option. Without Dazed Occupations every player behaves as a no-trait player, exactly as in 0.58.0.

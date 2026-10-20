@@ -1,0 +1,4 @@
+newmtl frosty_haze_ripe_c1_cards
+Kd 1 1 1
+d 1
+map_Kd textures/frosty_haze_ripe_c1_cards.png
